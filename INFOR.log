@@ -1,0 +1,21 @@
+[2024-06-16  11:10:11]  软件运行
+[2024-06-16  11:10:45]  软件运行
+[2024-06-16  11:19:43]  软件运行
+ERROR:root:[2024-06-16  11:19:58]错误:(<class 'ctypes.ArgumentError'>, ArgumentError("argument 3: <class 'TypeError'>: Don't know how to convert parameter 3"), <traceback object at 0x000001B187D99480>)
+NoneType: None
+[2024-06-16  11:24:59]  软件运行
+[2024-06-16  11:26:23]  软件运行
+[2024-06-16  11:27:04]  软件运行
+ERROR:root:[2024-06-16  11:27:24]错误:(<class 'ctypes.ArgumentError'>, ArgumentError("argument 3: <class 'TypeError'>: Don't know how to convert parameter 3"), <traceback object at 0x000001D44FF8BC80>)
+NoneType: None
+[2024-06-16  11:30:33]  软件运行
+[2024-06-16  11:31:08]  软件运行
+[2024-06-16  11:32:11]  软件运行
+[2024-06-16  11:33:05]  软件运行
+[2024-06-16  11:34:10]  软件运行
+ERROR:root:[2024-06-16  11:37:13]错误:(<class 'KeyboardInterrupt'>, KeyboardInterrupt(), <traceback object at 0x0000018F44B07240>)
+NoneType: None
+[2024-06-16  11:37:23]  软件运行
+[2024-06-16  11:38:42]  软件运行
+[2024-06-16  11:39:09]  软件运行
+[2024-06-16  11:53:11]  软件运行
