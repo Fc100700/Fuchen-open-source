@@ -1,6 +1,7 @@
+#此文件为登录窗口UI
 # -*- coding: utf-8 -*-
 import traceback
-from PyQt5.QtWidgets import QLineEdit, QFormLayout, QVBoxLayout, QHBoxLayout
+from PyQt5.QtWidgets import QLineEdit
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtGui import QCursor
 from PyQt5.QtCore import Qt
@@ -8,9 +9,8 @@ from PIL import Image
 import os
 import random
 import numpy as np
-import sys
-from PyQt5.QtGui import QIcon
-from PyQt5.QtWidgets import QApplication, QWidget, QTextBrowser, QPushButton, QDesktopWidget
+import oo
+
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
@@ -113,6 +113,7 @@ class Ui_MainWindow(object):
         self.checkBox.setObjectName("checkBox")
         self.checkBox.setText("记住密码")
         self.checkBox.stateChanged.connect(self.sync_checkbox)
+        self.checkBox.setToolTip("快捷键：CTRL+1")
         self.checkBox.setStyleSheet('''
             #checkBox {
                 font-size: 18px;
@@ -143,6 +144,7 @@ class Ui_MainWindow(object):
         self.checkBox2.setFont(font)
         self.checkBox2.setObjectName("checkBox2")
         self.checkBox2.stateChanged.connect(self.sync_checkbox1)
+        self.checkBox2.setToolTip("快捷键：CTRL+2")
         self.checkBox2.setStyleSheet('''
             #checkBox2 {
                 font-size: 18px;
@@ -165,37 +167,50 @@ class Ui_MainWindow(object):
             }
         ''')
 
-        self.Login_Button = QtWidgets.QPushButton(self.centralwidget)
-        self.Login_Button.setGeometry(QtCore.QRect(340, 380, 200, 31))
+        #self.Login_Button = QtWidgets.QPushButton(self.centralwidget)
+        self.Login_Button = oo.LoginAnimatedButton("登录",self.centralwidget)
+        self.Login_Button.setGeometry(QtCore.QRect(320, 380, 240, 33))
         self.Login_Button.setObjectName("pushButton_2")
-        self.Login_Button.setStyleSheet(
-            "QPushButton {"
-            "background-color: rgb(120, 187, 235);"  # 默认颜色
-            "border-radius: 13px;"
-            "color: #FFFFFF;"
-            "}"
-            "QPushButton:hover {"
-            "background-color: rgb(100, 187, 235);"  # 悬停时的颜色
-            "}"
-            "QPushButton:pressed {"
-            "background-color: rgb(35, 138, 175);"  # 点击时的颜色
-            "}"
-        )
+
+        style_font_10 = QtGui.QFont()
+        style_font_10.setFamily("等线")
+        style_font_10.setPointSize(10)
+        self.Login_Button.setFont(style_font_10)
+        '''self.Login_Button.setStyleSheet(
+                               """
+                               QPushButton {
+                                   background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 1, 
+                                                                stop: 0 #12D8FA, 
+                                                                stop: 1 #1FA2FF);
+                                   border: none;
+                                   color: white;
+                                   padding: 10px;
+                                   border-radius: 15px;
+                               }
+                               QPushButton:hover {
+                                   background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 1, 
+                                                                stop: 0 #0DB9F4, 
+                                                                stop: 1 #1A8CE4);
+                               }
+                               """
+                           )'''
 
         self.Number_Label = QtWidgets.QLabel(self.centralwidget)
         self.Number_Label.setGeometry(QtCore.QRect(10, 475, 120, 16))
         self.Number_Label.setObjectName("label_7")
         self.Number_Label.setStyleSheet("color: white;")
         self.Version_Label = QtWidgets.QLabel(self.centralwidget)
-        self.Version_Label.setGeometry(QtCore.QRect(10, 455, 65, 12))
+        self.Version_Label.setGeometry(QtCore.QRect(10, 455, 75, 12))
         self.Version_Label.setObjectName("label_8")
         self.Version_Label.setStyleSheet("color: white;")
         self.Number_Label.setText("当前在线人数:")
+        self.Number_Label.setFont(style_font_10)
         self.Version_Label.setText("V0.00")
+        self.Version_Label.setFont(style_font_10)
 
 
         self.pushButton_short = QtWidgets.QPushButton(self.centralwidget)
-        self.pushButton_short.setGeometry(QtCore.QRect(820, 0, 21, 21))
+        self.pushButton_short.setGeometry(QtCore.QRect(820, 5, 21, 21))
         font = QtGui.QFont()
         font.setPointSize(14)
         self.pushButton_short.setFont(font)
@@ -203,9 +218,14 @@ class Ui_MainWindow(object):
         self.pushButton_short.setToolTip('最小化')
 
         self.pushButton_quit = QtWidgets.QPushButton(self.centralwidget)
-        self.pushButton_quit.setGeometry(QtCore.QRect(850, 0, 21, 21))
+        self.pushButton_quit.setGeometry(QtCore.QRect(850, 5, 21, 21))
         self.pushButton_quit.setObjectName("pushButton_quit")
         self.pushButton_quit.setToolTip('关闭')
+
+        self.pushButton_more = QtWidgets.QPushButton(self.centralwidget)
+        self.pushButton_more.setGeometry(QtCore.QRect(790, 5, 21, 21))
+        self.pushButton_more.setObjectName("pushButton_more")
+        self.pushButton_more.setToolTip('更多')
 
         if brightness < 90:  #黑色主题 白色控件
             self.pushButton_quit.setStyleSheet("QPushButton#pushButton_quit {"
@@ -214,6 +234,9 @@ class Ui_MainWindow(object):
             self.pushButton_short.setStyleSheet("QPushButton#pushButton_short {"
                                                "    border-image: url(./image/short_white.png);"
                                                "}")
+            self.pushButton_more.setStyleSheet("QPushButton#pushButton_more {"
+                                               "    border-image: url(./image/更多2_white.png);"
+                                               "}")
         else:  #白色主题 黑色控件
             self.pushButton_quit.setStyleSheet("QPushButton#pushButton_quit {"
                                                "    border-image: url(./image/quit.png);"
@@ -221,19 +244,25 @@ class Ui_MainWindow(object):
             self.pushButton_short.setStyleSheet("QPushButton#pushButton_short {"
                                                "    border-image: url(./image/short.png);"
                                                "}")
+            self.pushButton_more.setStyleSheet("QPushButton#pushButton_more {"
+                                                "    border-image: url(./image/更多2.png);"
+                                                "}")
 
 
         self.pushButton_signin = QtWidgets.QPushButton(self.centralwidget)
         self.pushButton_signin.setGeometry(QtCore.QRect(280, 310, 60, 20))
         self.pushButton_signin.setObjectName("pushButton_signin")
+        self.pushButton_signin.setFont(style_font_10)
 
         self.pushButton_tourist = QtWidgets.QPushButton(self.centralwidget)
         self.pushButton_tourist.setGeometry(QtCore.QRect(350, 310, 60, 20))
         self.pushButton_tourist.setObjectName("pushButton_tourist")
+        self.pushButton_tourist.setFont(style_font_10)
 
         self.pushButton_reword = QtWidgets.QPushButton(self.centralwidget)
         self.pushButton_reword.setGeometry(QtCore.QRect(420, 310, 60, 20))
         self.pushButton_reword.setObjectName("pushButton_reword")
+        self.pushButton_reword.setFont(style_font_10)
 
 
         MainWindow.setCentralWidget(self.centralwidget)
@@ -251,6 +280,7 @@ class Ui_MainWindow(object):
         self.pushButton_signin.setText(_translate("MainWindow", "注册账号"))
         self.pushButton_signin.setStyleSheet("color: white;background-color: transparent;")  # 将按钮背景设置为透明
         self.pushButton_signin.setCursor(QCursor(Qt.PointingHandCursor))
+
         self.checkBox2.setText(_translate("MainWindow", "自动登录"))
         self.Login_Button.setText(_translate("MainWindow", "登录"))
         self.pushButton_tourist.setText(_translate("MainWindow","游客登录"))
