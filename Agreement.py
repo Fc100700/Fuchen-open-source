@@ -1,4 +1,6 @@
 import sys
+
+from PyQt5 import QtGui
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QApplication, QWidget, QTextBrowser, QPushButton, QDesktopWidget
 
@@ -61,10 +63,14 @@ class AgreementWindow(QWidget):
             long_text = file.read()
         self.textBrowser.setText(long_text)
 
+        style_font_11 = QtGui.QFont()
+        style_font_11.setFamily("等线")
+        style_font_11.setPointSize(11)
         # 创建并设置QPushButton
         self.pushButton = QPushButton('我同意用户使用协议', self)
         self.pushButton.setGeometry(0, 480, 300, 50)
         self.pushButton.setToolTip("需浏览完用户协议即可点击")
+        self.pushButton.setFont(style_font_11)
         self.pushButton.setEnabled(False)  # 一开始设置为不可点击
         self.pushButton.clicked.connect(self.confirm)
     def confirm(self):
@@ -75,6 +81,17 @@ class AgreementWindow(QWidget):
         # 检查是否滚动到底部
         if self.textBrowser.verticalScrollBar().value() == self.textBrowser.verticalScrollBar().maximum():
             self.pushButton.setEnabled(True)  # 激活按钮
+            self.pushButton.setStyleSheet("""
+                QPushButton {
+                    background-color: #ADD8E6; /* 浅蓝色 */
+                    color: black;
+                    border: 2px solid #5A9BD3;
+                    padding: 10px;
+                }
+                QPushButton:hover {
+                    background-color: #87CEFA; /* 鼠标悬停时稍深的浅蓝色 */
+                }
+            """)
 
 
 if __name__ == "__main__":
