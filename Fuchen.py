@@ -1,20 +1,23 @@
 import ast
+import platform
 from datetime import datetime
 import turtle
+import concurrent.futures
 from pynput.keyboard import Key, Controller as KeyboardController, KeyCode
 from pynput.mouse import Button, Controller as MouseController
 from PyQt5.QtWidgets import QApplication, QPushButton, QMessageBox, QFileDialog, QWidget, QLabel, QShortcut, \
-    QButtonGroup, QMainWindow, \
-    QStyle, QMenu, QAction, QDesktopWidget, QSystemTrayIcon, QLineEdit, QTextEdit
+    QButtonGroup, QMainWindow, QStyle, QMenu, QAction, QDesktopWidget, QSystemTrayIcon, QCheckBox, QLineEdit, QTextEdit
 from PyQt5 import QtCore, QtGui, QtWidgets
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from PyQt5.QtCore import Qt, QSize, QRect, QTimer, QUrl, QPropertyAnimation, \
     QRectF, QTranslator, QEasingCurve, pyqtSignal, QThread
 from PyQt5.QtGui import QCursor, QPainter, QColor, QIcon, QPixmap, QKeySequence, QFont, \
-    QDesktopServices, QPalette, QBrush, QPainterPath, QImage, QTextCursor, QTextCharFormat
+    QDesktopServices, QPalette, QBrush, QPainterPath, QImage, QTextCursor, QTextCharFormat, QLinearGradient
 from bs4 import BeautifulSoup
 from playsound import playsound
 from cryptography.fernet import Fernet
@@ -48,6 +51,7 @@ import win32clipboard as w
 import win32com.client
 import win32con
 import win32gui
+import win32api
 import winsound
 import psutil
 import Login
@@ -58,8 +62,11 @@ import re
 import pandas as pd
 import string
 import Agreement
+import oo
+
 try:
     import cv2
+
     cv2_available = True
 except ImportError:
     cv2_available = False
@@ -68,14 +75,19 @@ try:
 except:
     pass
 
-
 logging.basicConfig(filename='INFOR.log', level=logging.ERROR)
+
+
 def log_exception(*args):
-        # 记录异常信息到日志文件中
+    # 记录异常信息到日志文件中
     logging.exception(str(time.strftime('[%Y-%m-%d  %H:%M:%S]', time.localtime())) + "错误:" + str(args))
+
+
 sys.excepthook = log_exception  # 日志
 with open("INFOR.log", 'a') as file:
     file.write(str(time.strftime('[%Y-%m-%d  %H:%M:%S]', time.localtime()) + "  软件运行" + '\n'))
+
+
 class MyThread(threading.Thread):  # 多线程封装（我也看不懂反正就是这么用的）
     def __init__(self, func, *args):
         super().__init__()
@@ -92,8 +104,11 @@ class MyThread(threading.Thread):  # 多线程封装（我也看不懂反正就�
 
 def play_warning_sound():
     # 设置警告音频文件路径
-    sound_file = "C:\\Windows\\Media\\Windows Foreground.wav"
-    winsound.PlaySound(sound_file, winsound.SND_FILENAME)
+    try:
+        sound_file = "C:\\Windows\\Media\\Windows Foreground.wav"
+        winsound.PlaySound(sound_file, winsound.SND_FILENAME)
+    except:
+        pass
 
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -103,6 +118,21 @@ def play_prompt_sound(file_path):
     global Sound
     if Sound:
         MyThread(playsound, file_path)
+
+
+def encrypt(message, key, iv):
+    cipher = Cipher(algorithms.AES(key), modes.CFB(iv), backend=default_backend())
+    encryptor = cipher.encryptor()
+    ciphertext = encryptor.update(message) + encryptor.finalize()
+    return ciphertext
+
+
+def decrypt(ciphertext, key, iv):
+    cipher = Cipher(algorithms.AES(key), modes.CFB(iv), backend=default_backend())
+    decryptor = cipher.decryptor()
+    plaintext = decryptor.update(ciphertext) + decryptor.finalize()
+    return plaintext
+
 
 def send_encry(text):  # socket加密发送 因为这是开源版本 为了安全性此处无法全部展示
     text = text
@@ -126,11 +156,13 @@ except:  # 初始化
         "Sound": True,
         "Initial": False,
         "Theme": "White",
+        "Path": None,
         "ClosePrompt": True,
         "CloseExecute": "Close",
-        "ReStart":False,
-        "FPS":30,
-        "position":[[None,None],[None,None]]
+        "ReStart": False,
+        "FPS": 30,
+        "transparent": 30,
+        "position": [[None, None], [None, None]]
     }
     with open("config.json", "w") as json_file:
         json.dump(config, json_file, indent=4)
@@ -144,25 +176,18 @@ except:  # 初始化
     shortcut.Targetpath = original_file_path
     shortcut.WorkingDirectory = os.path.dirname(original_file_path)  # 设置快捷方式的起始位置为exe文件所在的文件夹
     shortcut.save()
-
     # 文件夹路径
     folder_pathP = r'C:\Fuchen'
-
     # 创建文件夹
     if not os.path.exists(folder_pathP):
         os.makedirs(folder_pathP)
-
     # 创建文本文件的路径
     file_pathP = os.path.join(folder_pathP, 'current_directory.txt')
-
     # 获取脚本当前目录
     current_directory = os.getcwd()
-
     # 将当前目录写入文件
     with open(file_pathP, 'w') as file:
         file.write(current_directory)
-    Sound = True
-    Log = False
 
 pass
 with open('config.json', 'r') as file:
@@ -179,7 +204,7 @@ else:
     remember = False
     Account = ""
     Password = ""
-if config["position"] != [[None,None],[None,None]]:
+if config["position"] != [[None, None], [None, None]]:
     position_status = True
 else:
     position_status = False
@@ -192,25 +217,64 @@ try:
     textedit_position = config["position"][0]
     send_position = config["position"][1]
 except:
-    textedit_position = [None,None]
-    send_position = [None,None]
+    textedit_position = [None, None]
+    send_position = [None, None]
 Click_Times_ = 1000
 Click_Pauses = 0.1
 Random_list = [1, 2, 3]
 Click_Pause = 0.01
 res = False
 l = 0
-Version = 'V1.52-open-source'
-Number_People = 'null'
+Version = 'V1.59'
+Number_People = '加载中...'
 staus = False
-window_icon = False  #右下角图标存在或不存在 布尔值 存在为True不存在为False
+window_icon = False  # 右下角图标存在或不存在 布尔值 存在为True不存在为False
 sys_list = []  # 控制台内容列表
 exp_status = None
+HImage_load_status = False
+thread_for_exe = None  # C++exe是否调用
 try:  # 连接服务器  此处无法展示
     print("服务器已连接")
     sys_list.append("g[" + str(time.strftime("%H:%M:%S", time.localtime())) + "]" + "服务器已连接")
 except:
     pyautogui.confirm("服务器连接失败\n请留意服务器公告查询最新消息\n")
+gloinf = "开源展示版本"
+'''try:  # 处理公告
+    # 接收服务端发送的密钥和IV
+    time.sleep(0.1)
+    key_iv_data = s.recv(128)  # 32 key + 16 IV + 其余password
+    key = key_iv_data[:32]
+    iv = key_iv_data[32:48]
+    key_password = key_iv_data[48:].decode('utf-8')
+    send_encry(key_password)
+    content = s.recv(4096)
+    data = send_decry(content)
+    data = data.split()
+    Versions = data[0]
+    Number_People = data[1]
+    link = data[2]
+    gloinf = data[3]
+    try:
+        gloinf = re.sub('~~space~~', ' ', gloinf)
+        gloinf = re.sub('~~next~~', '\n', gloinf)
+        print(f"更新日志:{gloinf}")
+    except:
+        pass
+except Exception as e:
+    print(e)
+    print(traceback.print_exc())
+    pyautogui.confirm("数据接收失败 请重新启动软件\n如多次重试失败 请尝试更新到最新版客户端")
+    os._exit(0)
+    raise Exception()
+
+if Versions != Version[0:5]:
+    ns = pyautogui.confirm(
+        f"当前版本为:{Version} 现已发布新版{Versions}\n是否更新? \n\n点击确定将跳转更新界面 点击取消退出程序")
+    if ns == "OK":
+        webbrowser.open(f'{link}')
+        sys.exit()
+    else:
+        sys.exit()'''
 
 
 def Check(input_str):  # 检测名称
@@ -233,10 +297,33 @@ def validate_email(email):
         return 1
 
 
+def check_process_exists(process_name):
+    for process in psutil.process_iter(attrs=['pid', 'name']):
+        if process.info['name'] == process_name:
+            return True
+    return False
+
+
+try:
+    res = requests.get('http://myip.ipip.net', timeout=5).text
+    # 提取城市信息
+    split_res = res.split('  ')
+    city_info = split_res[-2]  # 倒数第二个元素是城市信息
+    city_info = city_info.split(' ')
+    city_info = city_info[-2] + city_info[-1] + (split_res[-1].replace('\n', ''))
+    city_name = city_info
+except:
+    city_name = 'Unknown'
+
+system = platform.system()  # 系统类型
+computer_name = platform.node()  # 计算机网络名称
+
+
 class MyWindow(QMainWindow):  # 实例化登录窗口
     global resign_window, reword_window
     resign_window = False
     reword_window = False
+
     def __init__(self):
         super().__init__()
         self.ui = Login.Ui_MainWindow()
@@ -251,10 +338,11 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
         icon = QIcon("./image/window.ico")
         self.setWindowIcon(icon)
         self.ui.pushButton_signin.clicked.connect(self.reg)  # 注册按钮
-        self.ui.Login_Button.clicked.connect(lambda:self.pr("login"))  # 登录按钮
+        self.ui.Login_Button.clicked.connect(lambda: self.pr("login"))  # 登录按钮
 
-        self.ui.pushButton_tourist.clicked.connect(lambda: self.pr("tourist_login"))  #游客登录
+        self.ui.pushButton_tourist.clicked.connect(lambda: self.pr("tourist_login"))  # 游客登录
         self.ui.pushButton_short.clicked.connect(self.showMinimized)  # 最小化按钮
+        self.ui.pushButton_more.clicked.connect(self.open_file_background)
 
         self.ui.pushButton_quit.clicked.connect(self.clo)  # 关闭窗口按钮
 
@@ -272,6 +360,19 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
         self.ui.Version_Label.setText(f'版本:{Version}')
         self.ui.pushButton_reword.clicked.connect(self.rew)
 
+    def open_file_background(self):
+        RESULE = pyautogui.confirm(
+            "登录界面背景图片可自定义\n若文件夹中存放多个图片将随机选择一张\n点击确认将打开图片文件夹")
+        if RESULE == "OK":
+            folder_path = './image/Background'  # 修改为你要打开的文件夹路径
+            url = QUrl.fromLocalFile(folder_path)
+            QDesktopServices.openUrl(url)
+
+    def rew(self):
+        global reword_window
+        if reword_window is False:
+            window_reword.show()
+            reword_window = True
 
     def clo(self):
         self.close()
@@ -303,40 +404,56 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
         if hasattr(self, 'start_point'):
             delattr(self, 'start_point')
 
-    def pr(self,mode):  # 登录函数
+    def pr(self, mode):  # 登录函数
+        global Log, city_name
         try:
-            data = ["开源展示","example@com.com", False, "2023-1-1", 1000,123456]
+            data = ["开源展示", "example@com.com", False, "2023-1-1", 1000, 123456]
             if mode == 'login':
                 self.ui.Login_Button.setEnabled(False)
                 time.sleep(0.1)
                 Account = self.ui.Account_lineEdit.text()
                 Password = self.ui.Password_lineEdit.text()
-                if len(Account) != 6:
-                    pyautogui.confirm("账号为6位数字 请重新输入!")
+                if (len(Account) != 6) and ('@' not in Account):
+                    if Log == True:
+                        window.show()
+                    pyautogui.confirm("账号为6位数字或邮箱 请重新输入!")
                     self.ui.Login_Button.setEnabled(True)
                     return 0
                 if not (7 < len(Password) < 16):
+                    if Log == True:
+                        window.show()
                     pyautogui.confirm("密码为8-15位 请重新输入!")
                     self.ui.Login_Button.setEnabled(True)
                     return 0
+                if '@' in Account:
+                    # 通过 '@' 分割邮箱
+                    local_part, domain_part = Account.split('@')
+                    # 只将域名部分转换为小写
+                    domain_part = domain_part.lower()
+                    # 将用户名和处理后的域名拼接起来
+                    Account = f"{local_part}@{domain_part}"
+                    del local_part, domain_part
                 send_encry('login')
                 time.sleep(0.1)
-
-                send_encry((Account + ' ' + Password))
-                log_ST = True #验证通过 此处不做展示
-                if log_ST == True:
+                send_encry((Account + ' ' + Password + ' ' + city_name + ' ' + system + ' ' + computer_name))
+                log_ST = 'True'  #密码验证通过 此处不做展示
+                if eval(log_ST) == True:
                     print("密码正确 正在加载中")
+                elif log_ST == "Cooling":
+                    pyautogui.confirm("账号密码输入次数过多 账号已被锁定!请于一小时后重新登录")
                 else:
                     print("密码错误 请重试")
             else:
                 self.ui.Login_Button.setEnabled(False)
+
                 Account = "游客"
-                Password = "null"
+                Password = "None"
                 send_encry('tourist_login')
                 time.sleep(0.1)
+                send_encry(city_name)
                 log_ST = s.recv(256)
                 log_ST = send_decry(log_ST)  # 密码是否正确状态
-            if log_ST == True:  #密码正确
+            if log_ST == 'True':  # 密码正确
                 self.ui.pushButton_signin.setEnabled(False)
                 self.ui.Login_Button.setEnabled(False)
                 self.ui.pushButton_short.setEnabled(False)
@@ -347,22 +464,25 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                 start_time = time.time()
                 '''Name = 'Fuchen' Email = "123456@163.com"  HeadImage_status = "True" HImage_date = '2023-1-1离线测试版所需参数'''
                 dat = data
-                Name = dat[0]  #名称
-                Email = dat[1]  #邮箱
+                Name = dat[0]  # 名称
+                Email = dat[1]  # 邮箱
                 HeadImage_status = dat[2]  # 是否有头像
-                exp = dat[4]  #经验值 （经过加密）
-                print(exp)
+                exp = dat[4]  # 经验值 （经过加密）
+                # print(exp)
                 if "@" in Account:
                     Account = dat[5]
+                exp = 1000 #经验值解密此处不做展示
                 global lv
-                if 0 <= exp < 300:
+                if 0 <= exp < 20:
                     lv = 1
-                elif 300 <= exp < 600:
+                elif 20 <= exp < 300:
                     lv = 2
-                elif 600 <= exp < 1000:
+                elif 300 <= exp < 600:
                     lv = 3
-                elif 1000 <= exp:
+                elif 600 <= exp < 1000:
                     lv = 4
+                elif 1000 <= exp:
+                    lv = 5
                     # 将整数转换为字节数组（二进制数据）
                 data_to_encrypt = str(lv).encode('utf-8')
                 # 创建SHA-512哈希对象
@@ -370,10 +490,10 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                 # 更新哈希对象以处理数据
                 sha512_hash.update(data_to_encrypt)
                 # 计算SHA-512哈希值
-                new_lv = sha512_hash.hexdigest()  #经过sha512再次加密后的经验等级 1-2-3-4
-                HImage_date = dat[3]  #用户上一次更新头像的日期
+                new_lv = sha512_hash.hexdigest()  # 经过sha512再次加密后的经验等级 1-2-3-4-5
+                HImage_date = dat[3]  # 用户上一次更新头像的日期
                 year, month, day = map(int, HImage_date.split('-'))
-                HImage_date = date(year, month, day)  #继续处理
+                HImage_date = date(year, month, day)  # 继续处理
 
                 time.sleep(0.1)
                 if HeadImage_status == 'True':
@@ -396,6 +516,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self.ui.Login_Button.setText(f"正在加载用户头像 {progress_percentage}%")
                                 self.ui.Login_Button.repaint()
                         print('文件写入完成')
+                        HImage_load_status = True
                         self.ui.Login_Button.setText("头像加载成功")
                     except Exception as e:
                         print("文件接收类型错误", e)
@@ -403,7 +524,6 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                     self.ui.Login_Button.repaint()
                     time.sleep(0.2)
 
-                global Log
                 if self.ui.checkBox.isChecked() and self.ui.checkBox2.isChecked():
                     with open('config.json', 'r') as file:
                         config = json.load(file)
@@ -428,7 +548,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                     # 将更新后的数据写入 JSON 文件
                     with open('config.json', 'w') as file:
                         json.dump(config, file, indent=4)
-                elif self.ui.checkBox2.isChecked():  #自动登录
+                elif self.ui.checkBox2.isChecked():  # 自动登录
                     # 读取 JSON 文件
                     with open('config.json', 'r') as file:
                         config = json.load(file)
@@ -450,12 +570,18 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                     with open('config.json', 'w') as file:
                         json.dump(config, file, indent=4)
                 self.close()
+                global resign_window, reword_window
+                if resign_window == True:
+                    windowr.close()
+                if reword_window == True:
+                    window_reword.close()
+                # 关闭登录窗口，显示主窗口
                 if __name__ == '__main__':
                     global flo_window
                     flo_window = 1
                     global window_s
                     window_s = False
-                    global Ask, Theme, Sound, ClosePrompt,Path_Custom_S,Path_Trend_S,FPS
+                    global Ask, Theme, Sound, ClosePrompt, Path_Custom_S, Path_Trend_S, FPS, transparent
                     # 读取JSON文件
                     try:
                         with open('config.json', 'r') as file:
@@ -466,12 +592,12 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                             Sound = True
                         if config["Theme"] == "White":
                             Theme = "White"
-                        elif config["Theme"][0:6] == "Custom":
+                        elif config["Theme"] == "Custom":
                             Theme = "Custom"
-                            Path_Custom_S = config["Theme"][7:]
-                        elif config["Theme"][0:5] == "Trend":
+                            Path_Custom_S = config["Path"]
+                        elif config["Theme"] == "Trend":
                             Theme = "Trend"
-                            Path_Trend_S = config["Theme"][6:]
+                            Path_Trend_S = config["Path"]
                         else:
                             Theme = "White"
                         if config["ClosePrompt"] == True:
@@ -480,30 +606,199 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                             ClosePrompt = False
                         else:
                             ClosePrompt = True
+                        transparent = config["transparent"]
+
                         FPS = int(config["FPS"])
+
                     except:
                         Sound = True
                         Theme = "White"
                         ClosePrompt = True
+                        transparent = 30
+                        FPS = 16
+                    style_CheckBox = ''' QCheckBox {
+                                                    font-family: '等线';
+                                                    color: black;
+                                                    }
+                                        QCheckBox::indicator:unchecked {
+                                                    image: url(./image/Component/复选框.png);
+                                            }
+                                         QCheckBox::indicator:checked {
+                                                    image: url(./image/Component/复选框2.png);
+                                            }
+                                        QCheckBox::indicator {
+                                                    padding-top: 1px;
+                                                    width: 16px;
+                                                    height: 16px;
+                                                    border: none;
+                                                    }'''
+                    style_Radio = '''
+                                                    QRadioButton {
+                                                        font-family: '等线';
+                                                        color: black;
+                                                    }
+                                                    QRadioButton::indicator:unchecked {
+                                                        image: url(./image/Component/选择.svg);
+                                                    }
+                                                    QRadioButton::indicator {
+                                                        padding-top: 1px;
+                                                        width: 16px;
+                                                        height: 16px;
+                                                        border: none;
+                                                    }
+                                                    QRadioButton::indicator:checked {
+                                                        image: url(./image/Component/选择2.svg);
+                                                    }
+                                                '''
+                    style_Spin = '''QSpinBox {
+                                                border: 1px solid gray;
+                                                border-radius: 3px;  /* 设置圆角 */
+                                                background: transparent;
+                                                font: 14px;
+                                                font-family: Calibri;
+                                                }
+                                    QSpinBox::up-button {
+                                                subcontrol-origin: border;
+                                                subcontrol-position: top right; 
+                                                width: 13px; 
+                                                border-image: url('./image/Component/箭头 上.png');  /* 设置上调按钮的图像 */
+                                                }
+                                    QSpinBox::down-button {
+                                                subcontrol-origin: border;
+                                                subcontrol-position: bottom right; 
+                                                width: 13px; 
+                                                border-image: url('./image/Component/箭头 下.png');  /* 设置下调按钮的图像 */
+                                                }'''
+                    style_Double = """QDoubleSpinBox {
+                                                border: 1px solid gray;
+                                                border-radius: 3px;  /* 设置圆角 */
+                                                background: transparent;
+                                                font: 14px;
+                                                font-family: Calibri;
+                                                }
+                                    QDoubleSpinBox::up-button {
+                                                subcontrol-origin: border;
+                                                subcontrol-position: top right; 
+                                                width: 13px; 
+                                                border-image: url('./image/Component/箭头 上.png');  /* 设置上调按钮的图像 */
+                                                }
+                                    QDoubleSpinBox::down-button {
+                                                subcontrol-origin: border;
+                                                subcontrol-position: bottom right; 
+                                                width: 13px; 
+                                                border-image: url('./image/Component/箭头 下.png');  /* 设置下调按钮的图像 */
+                                                }"""
+                    style_font_11 = QtGui.QFont()
+                    style_font_11.setFamily("等线")
+                    style_font_11.setPointSize(11)
+
+                    style_font_10 = QtGui.QFont()
+                    style_font_10.setFamily("等线")
+                    style_font_10.setPointSize(10)
+
+                    style_font_9 = QtGui.QFont()
+                    style_font_9.setFamily("等线")
+                    style_font_9.setPointSize(9)
                     try:
-                        class DataThread(QThread):  #这是信息处理函数 用于从服务端获取信息 此处省略部分
+                        class WeatherUpdater(QThread):
+                            def run(self):
+                                self.Update_weather()
+
+                            def Update_weather(self):
+                                api_key = "dce92b382ffb9409ca31ae4c1b240d4f"
+                                # 发送请求获取IP地址信息
+                                res = requests.get('http://myip.ipip.net', timeout=5).text
+                                # 提取城市信息
+                                split_res = res.split('  ')
+                                city_info = split_res[-2]  # 倒数第二个元素是位置信息
+                                city_info = city_info.split(' ')
+                                country = city_info[-3]
+                                city_info = city_info[-1]
+                                global city_name, weather_status, temperature, humidity, weather_info
+                                if country[-2:] == '中国':
+                                    city_name = city_info
+                                    pinyin_list = pinyin(city_info, style=Style.NORMAL)
+                                    # 从拼音列表中提取拼音并连接成字符串
+                                    pinyin_str = ''.join([item[0] for item in pinyin_list])
+                                    # 设置API请求的URL
+                                    base_url = "http://api.openweathermap.org/data/2.5/weather"
+                                    url = f"{base_url}?q={pinyin_str}&appid={api_key}"
+                                    # 发送API请求并获取响应
+                                    response = requests.get(url)
+                                    data = response.json()
+                                    # 提取天气信息
+                                    if data["cod"] == 200:
+                                        weather_info = data["weather"][0]["main"]  # 天气类型
+                                        temperature = data["main"]["temp"] - 273.15  # 摄氏度
+                                        humidity = data["main"]["humidity"]  # 湿度
+                                        print(f"City:{city_name} ", end='\t')
+                                        print(f"Weather: {weather_info} ", end='\t')
+                                        print(f"Temperature: {temperature:.2f}°C ", end='\t')
+                                        print(f"Humidity: {humidity}% ")
+                                        weather_status = True
+                                    else:
+                                        weather_status = False
+                                        print("未知城市 天气获取失败")
+                                    if weather_status == True:
+                                        windows.weather_button.setGeometry(QtCore.QRect(5, 580, 200, 20))
+                                        windows.weather_button.setText(
+                                            f"{city_name}  T: {temperature:.2f}°C H: {humidity}%")
+
+                                        if weather_info == 'Clear':
+                                            icon = QIcon("./image/weather/晴.png")
+                                        elif weather_info == 'Clouds':
+                                            icon = QIcon("./image/weather/多云.png")
+                                        elif weather_info == 'Rain':
+                                            icon = QIcon("./image/weather/中雨.png")
+                                        elif weather_info == 'Drizzle':
+                                            icon = QIcon("./image/weather/小雨.png")
+                                        elif weather_info == 'Thunderstorm':
+                                            icon = QIcon("./image/weather/雷暴.png")
+                                        elif weather_info == 'Snow':
+                                            icon = QIcon("./image/weather/雪.png")
+                                        elif weather_info == 'Mist' or 'Fog':
+                                            icon = QIcon("./image/weather/雾.png")
+                                        elif weather_info == 'Haze':
+                                            icon = QIcon("./image/weather/霾.png")
+                                        else:
+                                            icon = QIcon("./image/weather/晴.png")
+                                        windows.weather_button.setIcon(icon)
+                                        windows.weather_button.setIconSize(windows.weather_button.size())
+                                        sys_list.append(
+                                            "b[" + str(time.strftime("%H:%M:%S",
+                                                                     time.localtime())) + "] " + '天气获取成功 ' + f'城市:{city_name} ' + f'温度:{temperature:.2f}°C ' + f'湿度:{humidity}%')
+                                    else:
+                                        windows.weather_button.setGeometry(QtCore.QRect(5, 580, 80, 20))
+                                        windows.weather_button.setText(f"天气获取失败")
+                                        sys_list.append(
+                                            "r[" + str(
+                                                time.strftime("%H:%M:%S", time.localtime())) + "] " + '天气获取失败')
+                                else:
+                                    windows.weather_button.setGeometry(QtCore.QRect(10, 580, 120, 20))
+                                    windows.weather_button.setText(f"暂不支持非中国天气解析")
+                                    sys_list.append(
+                                        "r[" + str(
+                                            time.strftime("%H:%M:%S",
+                                                          time.localtime())) + "] " + '暂不支持非中国天气解析')
+
+                        class DataThread(QThread):
+                            signal = pyqtSignal(str)
+
                             def __init__(self):
                                 super().__init__()
+
                             def run(self):
+                                time.sleep(0.5)
+                                s.settimeout(100)
                                 global current_time_string
-                                global sys_list, exp_status
+                                global sys_list, exp_status, COLOR, temp_content, exp, lv
                                 while True:
                                     try:
-                                        #data = s.recv(10240)
-                                        #data = send_decry(data)
-                                        data = '00000'
-                                        time.sleep(200)
+                                        data = s.recv(10240)
+                                        data = send_decry(data)
                                         if not data:  # 如果没有接收到数据，跳出循环
                                             break
                                         ndata = data.split()
-                                        if ndata[0] == '10004':
-                                            windows.close()
-                                            pyautogui.confirm("您的账号已在其他客户端登录!")
                                         if ndata[0] == '10005':
                                             windows.close()
                                             pyautogui.confirm(
@@ -662,23 +957,25 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                             except Exception as e:
                                                 print(e)
                                         if ndata[0] == '52000':  # 客户端登出
-                                            windows.close()
+                                            windows.serve_label.setStyleSheet(f"color: red;")  # 设置字体颜色
+                                            windows.serve_label.setText("断开连接")
+                                            now_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
                                             pyautogui.confirm(
-                                                f"账号已在其他客户端登录 来自 IP:{ndata[1]}\n本客户端已与服务器断开连接")
+                                                f"{now_time} 账号已在其他客户端登录 \n来自 IP:{ndata[1]} {ndata[2]} \n操作系统名称:{ndata[3]} 计算机名称:{ndata[4]}\n本客户端已与服务器断开连接 如非本人操作请尽快修改密码!")
+                                            windows.close()
                                             os._exit(0)
-                                            # 输出当前活动的线程
-                                            '''active_threads = threading.enumerate()
-                                            print("Active Threads:", active_threads)'''
                                         if ndata[0] == '99999':  # 服务器状态检测
                                             color = QtGui.QColor(36, 152, 42)  # 使用RGB值设置颜色为红色
                                             sys_list.append('g' + current_time_string + "服务器状态刷新:已连接")
                                             windows.serve_label.setStyleSheet(f"color: {color.name()};")  # 设置字体颜色
                                             windows.serve_label.setText("已连接")
-
                                         if ndata[0] == '30001':
+                                            COLOR = ndata[1]
+                                            temp_content = ndata[2]
                                             exp_status = True
                                         if ndata[0] == '30002':
-                                            exp_status = False
+                                            COLOR = ndata[1]
+                                            temp_content = ndata[2]
                                         if ndata[0] == '30003':
                                             exp_status = 'Yes'
                                         if ndata[0] == '88888':
@@ -703,7 +1000,8 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                     except Exception as e:
                                         if 'WinError' in str(e):
                                             sys_list.append(
-                                                'g' + current_time_string + "服务器状态刷新:断开连接")
+                                                'g' + "[" + time.strftime("%H:%M:%S",
+                                                                          time.localtime()) + "]" + "服务器状态刷新:断开连接")
                                             color = QtGui.QColor(164, 38, 15)  # 使用RGB值设置颜色为红色
                                             windows.serve_label.setStyleSheet(f"color: {color.name()};")  # 设置字体颜色
                                             windows.serve_label.setText("断开连接")
@@ -748,7 +1046,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                             def update_line_num_width(self):
                                 # 动态更新视口边距以适应行号宽度
                                 new_width = self.lineNumberAreaWidth()
-                                self.setViewportMargins(new_width+20, 0, 0, 0)
+                                self.setViewportMargins(new_width + 20, 0, 0, 0)
 
                             def resizeEvent(self, event):
                                 super().resizeEvent(event)
@@ -840,7 +1138,6 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                                                                  )
                                 self.list = []
                                 self.LoadFile()
-
 
                                 self.reload = QtWidgets.QPushButton(self)
                                 self.reload.setGeometry(QtCore.QRect(10, 370, 170, 25))
@@ -1022,7 +1319,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                                          f"不支持的语法 出现在 {result} 行 请修改后尝试",
                                                          QMessageBox.Yes, QMessageBox.No)
 
-                            def addpress(self, key, code,types):
+                            def addpress(self, key, code, types):
                                 if types == 'key':
                                     cursor = self.edit_text.textCursor()
                                     text = f'\n等待  0.1  秒\n键盘  按键按下  [{code},  \'{key}\']\n等待  0.1  秒\n键盘  按键抬起  [{code},  \'{key}\']'
@@ -1106,6 +1403,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 except Exception as e:
                                     print(e)
                                     pyautogui.confirm(e)
+
                             def keyPressed(self, key):
                                 self.key_codes = {
                                     'F1': 112,
@@ -1174,7 +1472,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                     'Y': 29,
                                     'Z': 52
                                 }
-                                self.addpress(key, self.key_codes.get(key),'key')
+                                self.addpress(key, self.key_codes.get(key), 'key')
 
                             def create_mouse_Menu(self):
                                 mouse_menu = QMenu(self)
@@ -1204,7 +1502,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                             def mousePressed(self, key):
                                 self.addpress(key, "Null", 'mouse')
 
-                            def closeEvent(self,Event):
+                            def closeEvent(self, Event):
                                 result = self.handle_line()
                                 if result == 'refuse':
                                     reply = QMessageBox.question(self, '确认退出',
@@ -1229,7 +1527,6 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self.page = 0
                                 self.setWindowTitle("记录位置")
 
-
                                 font = QtGui.QFont()
                                 font.setFamily("Arial")
                                 font.setPointSize(16)
@@ -1238,7 +1535,8 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self.prompt_label.setGeometry(QtCore.QRect(15, 0, 400, 140))
                                 self.prompt_label.setFont(font)
                                 self.prompt_label.setObjectName("prompt_label")
-                                self.prompt_label.setText("即将开始进行控件位置初始化设定\n是否立即开始？\n\n点击确定继续 点击取消关闭")
+                                self.prompt_label.setText(
+                                    "即将开始进行控件位置初始化设定\n是否立即开始？\n\n点击确定继续 点击取消关闭")
 
                                 self.continue_button = QtWidgets.QPushButton(self)
                                 self.continue_button.setGeometry(QtCore.QRect(60, 150, 100, 30))
@@ -1310,12 +1608,12 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self.cancel_last.setText("取消")
                                 self.cancel_last.clicked.connect(self.close)
 
-                                self.position = [50,50,80,180]
+                                self.position = [50, 50, 80, 180]
                                 global global_position
-                                global_position = [[None,None],[None,None]]
-                                self.before_list = [self.prompt_label,self.continue_button,self.cancel_button]
-                                self.after_list = [self.label1,self.label2,self.next_button,self.close_button]
-                                self.last_list = [self.label3,self.label4,self.complete_button,self.cancel_last]
+                                global_position = [[None, None], [None, None]]
+                                self.before_list = [self.prompt_label, self.continue_button, self.cancel_button]
+                                self.after_list = [self.label1, self.label2, self.next_button, self.close_button]
+                                self.last_list = [self.label3, self.label4, self.complete_button, self.cancel_last]
 
                             def next_continue(self):
                                 self.page = self.page + 1
@@ -1347,11 +1645,11 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                         animation.setEasingCurve(easing_curve)
                                         animation.start()
                                 # 在主线程中创建并启动键盘监听线程
-                                self.keyboard_thread =KeyboardThread()
+                                self.keyboard_thread = KeyboardThread()
                                 self.keyboard_thread.keyPressed.connect(self.handle_key_pressed)
                                 self.keyboard_thread.start()
 
-                            def closeEvent(self,event):
+                            def closeEvent(self, event):
                                 keys.unhook_all()
 
                             def next_normal(self):
@@ -1388,7 +1686,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 pass
 
                             def complete(self):
-                                global global_position,position_status,textedit_position,send_position
+                                global global_position, position_status, textedit_position, send_position
                                 with open("config.json", "r") as file:
                                     pdata = json.load(file)
                                 pdata["position"] = global_position
@@ -1407,17 +1705,17 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self.close()
                                 pyautogui.confirm("设置成功！")
 
-                            def handle_key_pressed(self,key):
+                            def handle_key_pressed(self, key):
                                 if key == 'Ctrl+P':
                                     global global_position
                                     a = pyautogui.position()
                                     if self.page == 1:
-                                        global_position[0] = [a.x,a.y]
+                                        global_position[0] = [a.x, a.y]
                                         self.label2.setText(
                                             f"位置[{a.x},{a.y}]")
                                         self.next_button.setEnabled(True)
                                     elif self.page == 2:
-                                        global_position[1] = [a.x,a.y]
+                                        global_position[1] = [a.x, a.y]
                                         self.label4.setText(
                                             f"位置[{a.x},{a.y}]")
                                         self.complete_button.setEnabled(True)
@@ -1431,6 +1729,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
 
                         class KeyboardThread(QThread):
                             keyPressed = pyqtSignal(str)
+
                             def run(self):
                                 # 注册全局热键 Ctrl+P
                                 keys.add_hotkey('ctrl+p', lambda: self.handle_key_pressed('Ctrl+P'))
@@ -1438,12 +1737,13 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 keys.add_hotkey('ctrl+l', lambda: self.handle_key_pressed('Ctrl+L'))
                                 keys.wait()
 
-                            def handle_key_pressed(self,key):
+                            def handle_key_pressed(self, key):
                                 if not self.is_window_open("记录位置"):
                                     keys.unhook_all()
                                 else:
                                     self.keyPressed.emit(key)
-                            def is_window_open(self,window_title):
+
+                            def is_window_open(self, window_title):
                                 toplist = []
                                 win32gui.EnumWindows(lambda hwnd, param: param.append(hwnd), toplist)
 
@@ -1463,8 +1763,8 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                     clipboard = QApplication.clipboard()
                                     url = clipboard.text()
                                     if '/#/' in url:
-                                        url = url.replace('/#/','/')
-                                    if (url[0:29] == 'https://music.163.com/song?id') and (len(clipboard.text())>29):
+                                        url = url.replace('/#/', '/')
+                                    if (url[0:29] == 'https://music.163.com/song?id') and (len(clipboard.text()) > 29):
                                         try:
 
                                             header = {
@@ -1528,105 +1828,106 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 rect = self.rect().adjusted(5, 5, -5, -5)
                                 painter.drawRoundedRect(rect, corner_radius, corner_radius)
 
-                        class floating_window(QWidget):  #悬浮窗
+                        class floating_window(QWidget):  # 悬浮窗
                             def __init__(self):
                                 super().__init__()
-
                                 self.initUI()
-                                self.draggable_left = False
-                                self.draggable_right = False
                                 self.draggable = False
                                 self.offset = None
-                                self.open = False
 
                             def initUI(self):
                                 self.setWindowTitle('Fuchen悬浮窗')
-                                self.setGeometry(1700, 100, 200, 200)  # 设置窗口位置和大小
-                                self.setWindowFlags(Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
-                                self.setAttribute(QtCore.Qt.WA_TranslucentBackground)  # 设置窗口背景透明
+                                self.setGeometry(1700, 100, 130, 35)
 
-                                self.button_QQ = QtWidgets.QPushButton(self)  # 创建按钮
-                                self.button_QQ.setStyleSheet("QPushButton#button_QQ {"
-                                                        "border-image: url(./image/float/qq1.png);" 
-                                                        "background: transparent;"
-                                                        "}")
-
-                                self.button_QQ.setGeometry(QtCore.QRect(84, 30, 81, 81))
-                                self.button_QQ.setObjectName("button_QQ")
-                                self.button_QQ.clicked.connect(self.on_button_click)
-                                self.button_QQ.clicked.connect(windows.Send_QQ)
-
-                                self.button_copy = QtWidgets.QPushButton(self)  # 创建按钮
-                                self.button_copy.setStyleSheet("QPushButton#button_copy {"
-                                                          "border-image: url(./image/float/copy.png);"
-                                                          "background: transparent;"
-                                                          "}")
-                                self.button_copy.setGeometry(QtCore.QRect(84, 104, 81, 81))
-                                self.button_copy.setObjectName("button_copy")
-                                self.button_copy.clicked.connect(self.on_button_click)
-                                self.button_copy.clicked.connect(windows.Send_Copy)
-
-
-                                self.button_crowd = QtWidgets.QPushButton(self)  # 创建按钮
-                                self.button_crowd.setStyleSheet("QPushButton#button_crowd {"
-                                                           "    border-image: url(./image/float/record.png);"
-                                                           "background: transparent;"
-                                                           "}")
-                                self.button_crowd.setGeometry(QtCore.QRect(10, 104, 81, 81))
-                                self.button_crowd.setObjectName("button_crowd")
-                                self.button_crowd.clicked.connect(self.on_button_click)
-                                self.button_crowd.clicked.connect(windows.Click_Record)
-
-                                self.button_execute = QtWidgets.QPushButton(self)  # 创建按钮
-                                self.button_execute.setStyleSheet("QPushButton#button_execute {"
-                                                             "    border-image: url(./image/float/exe.png);"
-                                                             "background: transparent;"
-                                                             "}")
-                                self.button_execute.setGeometry(QtCore.QRect(9, 30, 83, 83))
-                                self.button_execute.setObjectName("button_execute")
-                                self.button_execute.clicked.connect(self.on_button_click)
-                                self.button_execute.clicked.connect(windows.Click_Record_execute)
-
-                                self.buttonGroup = QtWidgets.QButtonGroup(self)
-                                self.buttonGroup.addButton(self.button_QQ)
-                                self.buttonGroup.addButton(self.button_copy)
-                                self.buttonGroup.addButton(self.button_crowd)
-                                self.buttonGroup.addButton(self.button_execute)
-
-                                for button in self.buttonGroup.buttons():
-                                    button.setVisible(False)
-
-                                self.button = QtWidgets.QPushButton(self)  # 创建按钮
+                                self.button = QtWidgets.QPushButton(self)
                                 self.button.setStyleSheet("QPushButton#button {"
-                                                     "    border-image: url(./image/float/round.png);"
-                                                     "}")
-                                self.button.setGeometry(QtCore.QRect(48, 70, 80, 80))
+                                                          "border-image: url(./image/float/fc.png);"
+                                                          "background: transparent;"
+                                                          "border-radius: 8px;"
+                                                          "}")
+                                self.button.setGeometry(QtCore.QRect(0, 0, 35, 35))
                                 self.button.setObjectName("button")
                                 self.button.installEventFilter(self)
 
-                                self.button.clicked.connect(self.on_button_click)
+                                self.button_menu = oo.FloatAnimatedButton("       右键展开菜单", self)
+                                self.button_menu.setGeometry(QtCore.QRect(0, 0, 130, 35))  # 设置标签位置和大小
                                 self.button.raise_()
+                                self.button.setCursor(QCursor(Qt.SizeAllCursor))
+                                # 创建菜单
+                                self.menu = QMenu(self)
 
-                            def on_button_click(self):
-                                if self.open == False:
-                                    for button in self.buttonGroup.buttons():
-                                        button.setVisible(True)
-                                    self.open = True
-                                else:
-                                    for button in self.buttonGroup.buttons():
-                                        button.setVisible(False)
-                                    self.open = False
+                                # 创建QAction，并为其设置图标
+                                action1 = QAction(QIcon('./image/float/QQ.png'), "@QQ功能", self)
+                                action2 = QAction(QIcon('./image/float/复制.png'), "复制消息发送", self)
+                                action3 = QAction(QIcon('./image/float/句柄.png'), "句柄式消息发送", self)
+                                action4 = QAction(QIcon('./image/float/记录.png'), "记录脚本", self)
+                                action5 = QAction(QIcon('./image/float/执行.png'), "执行脚本", self)
+                                action6 = QAction(QIcon('./image/float/关闭.png'), "关闭程序", self)
+
+                                font = QtGui.QFont("等线", 10)  # 使用等线字体，字号为10
+
+                                # 设置每个 QAction 的字体
+                                action1.setFont(font)
+                                action2.setFont(font)
+                                action3.setFont(font)
+                                action4.setFont(font)
+                                action5.setFont(font)
+                                action6.setFont(font)
+                                # 连接每个QAction到相应的槽函数
+                                action1.triggered.connect(windows.Send_QQ)
+                                action2.triggered.connect(windows.Send_Copy)
+                                action3.triggered.connect(windows.Handle_Send)
+                                action4.triggered.connect(windows.Click_Record)
+                                action5.triggered.connect(windows.Click_Record_execute)
+                                action6.triggered.connect(windows.clo)
+
+                                # 添加QAction到菜单
+                                self.menu.addAction(action1)
+                                self.menu.addAction(action2)
+                                self.menu.addAction(action3)
+                                self.menu.addAction(action4)
+                                self.menu.addAction(action5)
+                                self.menu.addAction(action6)
+
+                                # 连接右键点击事件
+                                self.button_menu.setContextMenuPolicy(Qt.CustomContextMenu)
+                                self.button_menu.customContextMenuRequested.connect(self.showMenu)
+
+                                self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
+                                self.setAttribute(Qt.WA_TranslucentBackground)
+
+                            def showMenu(self, pos):
+                                global_pos = self.button_menu.mapToGlobal(self.button_menu.rect().bottomLeft())
+                                self.menu.exec_(global_pos)
+
+                            def closeEvent(self, e):
+                                print("Window Close")
 
                             def eventFilter(self, obj, event):
-                                if event.type() == QtCore.QEvent.MouseButtonPress and event.button() == QtCore.Qt.RightButton:
+                                if event.type() == QtCore.QEvent.MouseButtonPress and event.button() == QtCore.Qt.LeftButton:
                                     self.draggable = True
                                     self.offset = event.pos()
                                     return True
-                                elif event.type() == QtCore.QEvent.MouseButtonRelease and event.button() == QtCore.Qt.RightButton:
+                                elif event.type() == QtCore.QEvent.MouseButtonRelease and event.button() == QtCore.Qt.LeftButton:
                                     self.draggable = False
                                     return True
                                 elif event.type() == QtCore.QEvent.MouseMove and self.draggable:
-                                    self.move(self.mapToGlobal(event.pos() - self.offset))
+                                    # 计算目标位置
+                                    new_pos = self.mapToGlobal(event.pos() - self.offset)
+
+                                    # 获取屏幕几何信息
+                                    screen = QtWidgets.QApplication.primaryScreen().availableGeometry()
+
+                                    # 获取窗口尺寸
+                                    window_width = self.frameGeometry().width()
+                                    window_height = self.frameGeometry().height()
+
+                                    # 限制窗口不会超出屏幕边界
+                                    new_pos.setX(max(screen.left(), min(new_pos.x(), screen.right() - window_width)))
+                                    new_pos.setY(max(screen.top(), min(new_pos.y(), screen.bottom() - window_height)))
+
+                                    # 移动窗口到限制后的新位置
+                                    self.move(new_pos)
                                     return True
                                 return super().eventFilter(obj, event)
 
@@ -1645,7 +1946,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self.setWindowFlags(Qt.FramelessWindowHint | Qt.Window)  # 设置 窗口无边框和背景透明
 
                                 self.pushButton_close = QtWidgets.QPushButton(self)
-                                self.pushButton_close.setGeometry(QtCore.QRect(500, 10, 26, 26))
+                                self.pushButton_close.setGeometry(QtCore.QRect(495, 15, 26, 26))
                                 self.pushButton_close.setObjectName("pushButton_close")
                                 self.pushButton_close.setStyleSheet("QPushButton#pushButton_close {"
                                                                     "    border-image: url(./image/quit.png);"
@@ -1662,36 +1963,19 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self.label.setGeometry(QtCore.QRect(20, 20, 70, 20))
                                 self.label.setFont(font)
                                 self.label.setObjectName("label")
-                                self.pushButton = QtWidgets.QPushButton(self)
-                                self.pushButton.setGeometry(QtCore.QRect(420, 292, 100, 31))
+                                self.pushButton = oo.AnimatedButton(self)
+                                self.pushButton.setGeometry(QtCore.QRect(370, 292, 150, 31))
                                 font = QtGui.QFont()
                                 font.setFamily("微软雅黑")
                                 font.setPointSize(12)
                                 self.pushButton.setFont(font)
                                 self.pushButton.setObjectName("pushButton")
-                                self.pushButton.setStyleSheet('''
-                                                                        QPushButton {
-                                                                                        background: transparent;
-                                                                                        border-radius: 6px;
-                                                                                        border: 2px groove gray;
-                                                                                        border-style: outset;
-                                                                                        background-color: rgb(204,223,248);
-                                                                                        border-color: rgb(204,223,248); 
-                                                                                        padding: 0;
-                                                                                }
-                                                                                                                        QPushButton:hover {
-                                                                                                                            border-radius: 8px;
-                                                                                                                            border: 2px groove gray;
-                                                                                                                            border-style: outset;
-                                                                                                                            background-color: rgb(96,160,235); /* 修改为选中后的颜色 */
-                                                                                                                            border-color: rgb(96,160,235); /* 修改为选中后的颜色 */
-                                                                                                                        }
-                                                                                                                    ''')
 
                                 self.check_autologin = QtWidgets.QCheckBox(self)
                                 self.check_autologin.setGeometry(QtCore.QRect(20, 50, 161, 20))
                                 self.check_autologin.setFont(font)
                                 self.check_autologin.setObjectName("check_autologin")
+                                self.check_autologin.setStyleSheet(style_CheckBox)
                                 global Log
                                 if Log == True:
                                     self.check_autologin.setChecked(True)
@@ -1700,9 +1984,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self.check_sound.setGeometry(QtCore.QRect(20, 90, 160, 20))
                                 self.check_sound.setFont(font)
                                 self.check_sound.setObjectName("check_sound")
-                                self.check_sound.setStyleSheet('''QCheckBox {
-                                    border-radius: 10px;
-                                }''')
+                                self.check_sound.setStyleSheet(style_CheckBox)
                                 global Sound
                                 if Sound == True:
                                     self.check_sound.setChecked(True)
@@ -1711,87 +1993,107 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self.check_closeprompt.setGeometry(QtCore.QRect(20, 130, 160, 20))
                                 self.check_closeprompt.setFont(font)
                                 self.check_closeprompt.setObjectName("checkBox_5")
+                                self.check_closeprompt.setStyleSheet(style_CheckBox)
+
                                 global ClosePrompt
                                 if ClosePrompt == True:
                                     self.check_closeprompt.setChecked(True)
                                 self.check_closeprompt.setText("关闭时提示操作")
 
-                                self.checkBox_5 = QtWidgets.QCheckBox(self)
-                                self.checkBox_5.setGeometry(QtCore.QRect(20, 170, 160, 20))
-                                self.checkBox_5.setFont(font)
-                                self.checkBox_5.setObjectName("checkBox_5")
-                                self.checkBox_5.setText("开启悬浮窗")
-
                                 self.checkBox_start = QtWidgets.QCheckBox(self)
-                                self.checkBox_start.setGeometry(QtCore.QRect(20, 210, 160, 20))
+                                self.checkBox_start.setGeometry(QtCore.QRect(20, 170, 160, 20))
                                 self.checkBox_start.setFont(font)
                                 self.checkBox_start.setObjectName("checkBox_start")
                                 self.checkBox_start.setText("开机自启动")
+                                self.checkBox_start.setStyleSheet(style_CheckBox)
+
+                                self.checkBox_float = QtWidgets.QCheckBox(self)
+                                self.checkBox_float.setGeometry(QtCore.QRect(20, 210, 160, 20))
+                                self.checkBox_float.setFont(font)
+                                self.checkBox_float.setObjectName("checkBox_5")
+                                self.checkBox_float.setText("开启悬浮窗")
+                                self.checkBox_float.setStyleSheet(style_CheckBox)
 
                                 self.group_theme = QButtonGroup(self)
                                 self.radioButton_white = QtWidgets.QRadioButton(self)
                                 self.radioButton_white.setGeometry(QtCore.QRect(240, 40, 89, 20))
                                 self.radioButton_white.setFont(font)
                                 self.radioButton_white.setObjectName("radioButton_white")
+                                self.radioButton_white.setStyleSheet(style_Radio)
+
                                 self.radioButton_custom = QtWidgets.QRadioButton(self)
-                                self.radioButton_custom.setGeometry(QtCore.QRect(240, 70, 130, 20))
+                                self.radioButton_custom.setGeometry(QtCore.QRect(240, 70, 160, 20))
                                 self.radioButton_custom.setFont(font)
                                 self.radioButton_custom.setObjectName("radioButton_custom")
-                                self.line_Custom = QtWidgets.QLineEdit(self)  #自定义图片背景输入栏
+                                self.radioButton_custom.setStyleSheet(style_Radio)
+
+                                self.line_Custom = QtWidgets.QLineEdit(self)  # 自定义图片背景输入栏
                                 self.line_Custom.setGeometry(QtCore.QRect(240, 95, 211, 20))
                                 self.line_Custom.setObjectName("line_Custom")
+                                self.line_Custom.setPlaceholderText("支持jpg png bmp gif格式图片")
+                                self.line_Custom.setFont(style_font_9)
+
                                 self.pushButton_2 = QtWidgets.QPushButton(self)
                                 self.pushButton_2.setGeometry(QtCore.QRect(460, 94, 51, 23))
                                 self.pushButton_2.setObjectName("pushButton_2")
+                                self.pushButton_2.setFont(style_font_10)
+
+                                self.Slider_label = QtWidgets.QLabel(self)
+                                self.Slider_label.setGeometry(QtCore.QRect(240, 125, 80, 12))
+                                self.Slider_label.setObjectName("FPS_label")
+                                self.Slider_label.setText("背景不透明度:")
+                                self.Slider_label.setFont(style_font_10)
+
+                                global transparent
+                                self.slider = QtWidgets.QSlider(Qt.Horizontal, self)
+                                self.slider.setFocusPolicy(Qt.NoFocus)
+                                self.slider.setMinimum(20)  # 下限
+                                self.slider.setMaximum(90)  # 上限
+                                self.slider.setValue(transparent)
+                                self.slider.setGeometry(QtCore.QRect(323, 125, 150, 15))
+                                self.slider.valueChanged[int].connect(self.onSliderChange)
 
                                 self.radioButton_trend = QtWidgets.QRadioButton(self)
-                                self.radioButton_trend.setGeometry(QtCore.QRect(240, 120, 111, 20))
+                                self.radioButton_trend.setGeometry(QtCore.QRect(240, 150, 111, 20))
                                 self.radioButton_trend.setFont(font)
                                 self.radioButton_trend.setObjectName("radioButton_trend")
+                                self.radioButton_trend.setStyleSheet(style_Radio)
+                                self.trand_problem = QtWidgets.QPushButton(self)
+                                self.trand_problem.setGeometry(QtCore.QRect(335, 152, 18, 18))
+                                self.trand_problem.setStyleSheet("QPushButton {"
+                                                                 "    border-image: url(./image/Component/提示.png);"
+                                                                 "    background-color: rgba(245,245,245,0);"
+                                                                 "}")
+                                self.trand_problem.clicked.connect(self.problem)
                                 self.line_Trend = QtWidgets.QLineEdit(self)  # 自定义图片背景输入栏
-                                self.line_Trend.setGeometry(QtCore.QRect(240, 145, 211, 20))
+                                self.line_Trend.setGeometry(QtCore.QRect(240, 175, 211, 20))
                                 self.line_Trend.setObjectName("line_Trend")
+                                self.line_Trend.setPlaceholderText("支持mp4 mov flv avi gif格式视频")
+                                self.line_Trend.setFont(style_font_9)
                                 self.pushButton_3 = QtWidgets.QPushButton(self)
-                                self.pushButton_3.setGeometry(QtCore.QRect(460, 144, 51, 23))
+                                self.pushButton_3.setGeometry(QtCore.QRect(460, 174, 51, 23))
                                 self.pushButton_3.setObjectName("pushButton_3")
+                                self.pushButton_3.setFont(style_font_10)
 
                                 self.FPS_label = QtWidgets.QLabel(self)
-                                self.FPS_label.setGeometry(QtCore.QRect(240, 180, 80, 12))
+                                self.FPS_label.setGeometry(QtCore.QRect(240, 210, 130, 12))
                                 self.FPS_label.setObjectName("FPS_label")
-                                self.FPS_label.setText("刷新率/每秒")
+                                self.FPS_label.setText("动态主题刷新率/每秒:")
+                                self.FPS_label.setFont(style_font_10)
                                 global FPS
                                 self.FPS_spinBox = QtWidgets.QSpinBox(self)  # FPS
-                                self.FPS_spinBox.setGeometry(QtCore.QRect(320, 175, 60, 22))
+                                self.FPS_spinBox.setGeometry(QtCore.QRect(370, 205, 60, 22))
                                 self.FPS_spinBox.setMaximum(9999)
                                 self.FPS_spinBox.setValue(FPS)
                                 self.FPS_spinBox.setObjectName("FPS_spinBox")
-                                self.FPS_spinBox.setStyleSheet("""
-                                                                                                        QSpinBox {
-                                                                                                            border: 1px solid gray;
-                                                                                                            border-radius: 3px;  /* 设置圆角 */
-                                                                                                            background: transparent;
-                                                                                                            font: 14px;
-                                                                                                            font-family: Calibri;
-                                                                                                        }
-                                                                                                        QSpinBox::up-button {
-                                                                                                            subcontrol-origin: border;
-                                                                                                            subcontrol-position: top right; 
-                                                                                                            width: 13px; 
-                                                                                                            border-image: url('./image/Component/箭头 上.png');  /* 设置上调按钮的图像 */
-                                                                                                        }
-                                                                                                        QSpinBox::down-button {
-                                                                                                            subcontrol-origin: border;
-                                                                                                            subcontrol-position: bottom right; 
-                                                                                                            width: 13px; 
-                                                                                                            border-image: url('./image/Component/箭头 下.png');  /* 设置下调按钮的图像 */
-                                                                                                        }
-                                                                                                    """)
+                                self.FPS_spinBox.setStyleSheet(style_Spin)
                                 self.FPS_spinBox.setMinimum(1)
                                 self.FPS_spinBox.repaint()
                                 self.FPS_spinBox.setMaximum(60)
-                                if cv2_available == False:  # 检查文件夹是否存在 其中有无内容
+                                if cv2_available == False:
                                     self.radioButton_trend.setEnabled(False)
                                     self.radioButton_trend.setToolTip("需要安装扩展内容")
+                                    self.line_Trend.setPlaceholderText("需要先安装CV2扩展包才可使用")
                                     self.line_Trend.setEnabled(False)
                                     self.pushButton_3.setEnabled(False)
                                     self.FPS_spinBox.setEnabled(False)
@@ -1809,9 +2111,9 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                     self.First = True
                                 global window_s
                                 if window_s == True:
-                                    self.checkBox_5.setChecked(True)
+                                    self.checkBox_float.setChecked(True)
                                 else:
-                                    self.checkBox_5.setChecked(False)
+                                    self.checkBox_float.setChecked(False)
                                 global Theme
                                 if Theme == "White":
                                     self.radioButton_white.setChecked(True)
@@ -1820,29 +2122,27 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                     with open('config.json', 'r') as file:  # 填充自定义图片壁纸的输入栏
                                         config = json.load(file)
                                     # 添加新元素到数据结构
-                                    Path_Custom = config["Theme"][7:]
+                                    Path_Custom = config["Path"]
                                     self.line_Custom.setText(Path_Custom)
                                 elif Theme == 'Trend':
                                     self.radioButton_trend.setChecked(True)
                                     with open('config.json', 'r') as file:  # 填充自定义图片壁纸的输入栏
                                         config = json.load(file)
                                     # 添加新元素到数据结构
-                                    Path_Trend = config["Theme"][6:]
+                                    Path_Trend = config["Path"]
                                     self.line_Trend.setText(Path_Trend)
                                 else:
                                     self.radioButton_white.setChecked(True)
 
-
                                 self.label.setText("设置")
                                 self.pushButton.setText("保存")
-                                #self.checkBox_2.setText("询问是否启动线上模式")
                                 self.check_sound.setText("按钮提示音")
                                 self.check_autologin.setText("自动登录")
                                 self.radioButton_white.setText("白色主题")
                                 self.radioButton_custom.setText("自定义背景图片")
                                 self.radioButton_trend.setText("动态主题")
-                                self.pushButton_2.setText("浏览")
-                                self.pushButton_3.setText("浏览")
+                                self.pushButton_2.setText("选择")
+                                self.pushButton_3.setText("选择")
                                 self.pushButton_close.clicked.connect(self.clos)
                                 self.pushButton.clicked.connect(self.set)
                                 self.pushButton_2.clicked.connect(lambda: self.select_bf("Image"))
@@ -1851,7 +2151,15 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                             def clos(self):
                                 self.close()
 
-                            def check_startup_file(self,file_name):
+                            def problem(self):
+                                if pyautogui.confirm(
+                                        "动态主题需要安装扩展包 点击确认跳转下载界面\n 注意: 不推荐使用大于20秒的视频 可能会过多占用内存!!!") == "OK":
+                                    webbrowser.open("https://wwzh.lanzout.com/iCn8e2ambtvg")
+
+                            def onSliderChange(self, value):
+                                pass
+
+                            def check_startup_file(self, file_name):
                                 startup_folder = os.path.join(os.getenv('APPDATA'), 'Microsoft', 'Windows',
                                                               'Start Menu', 'Programs', 'Startup')
                                 file_path = os.path.join(startup_folder, file_name)
@@ -1861,7 +2169,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 else:
                                     return 0
 
-                            def select_bf(self,ty):
+                            def select_bf(self, ty):
                                 if ty == "Image":
                                     options = QFileDialog.Options()
                                     options |= QFileDialog.ReadOnly
@@ -1884,7 +2192,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                         pyautogui.confirm("未选择文件！")
 
                             def set(self):
-                                global Sound, Log, Theme, flo_window, window_s, ClosePrompt,FPS
+                                global Sound, Log, Theme, flo_window, window_s, ClosePrompt, FPS, transparent
                                 if self.check_sound.isChecked():
                                     Sound = True
                                 else:
@@ -1899,10 +2207,12 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                     ClosePrompt = False
                                 with open('config.json', 'r') as file:
                                     config = json.load(file)
-                                #config["Ask"] = Ask
-                                config["Sound"] = Sound
+                                transparent = self.slider.value()
+                                windows.update()
                                 config["AutoLogin"] = Log
+                                config["Sound"] = Sound
                                 config["ClosePrompt"] = ClosePrompt
+                                config["transparent"] = transparent
                                 if self.FPS_spinBox.value() != FPS:
                                     config["FPS"] = self.FPS_spinBox.value()
                                     FPS = self.FPS_spinBox.value()
@@ -1910,20 +2220,6 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 with open('config.json', 'w') as file:
                                     json.dump(config, file, indent=4)
                                 n = True
-                                if self.radioButton_white.isChecked():
-                                    if windows.Trend_Now == True:
-                                        windows.stop_dynamic_background()
-                                    windows.should_draw = "White"  #清空背景图片
-                                    style = "color: black;"
-                                    windows.setStyleSheet(style)
-                                    # 读取 JSON 文件
-                                    with open('config.json', 'r') as file:
-                                        config = json.load(file)
-                                    config["Theme"] = "White"
-                                    # 将更新后的数据写入 JSON 文件
-                                    with open('config.json', 'w') as file:
-                                        json.dump(config, file, indent=4)
-                                    Theme = "White"
                                 if (self.checkBox_start.isChecked()) and (self.First == False):
                                     try:
                                         exe_file_name = 'Fuchen.exe'
@@ -1955,21 +2251,39 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                         self.First = False
                                     except Exception as e:
                                         pyautogui.confirm(e)
+                                if self.radioButton_white.isChecked():
+                                    '''if windows.Trend_Now == True:
+                                        windows.stop_dynamic_background()'''
+                                    if Theme == "Trend":
+                                        windows.stop_dynamic_background()
+                                    windows.should_draw = "White"  # 清空背景图片
+                                    style = "color: black;"
+                                    windows.setStyleSheet(style)
+                                    # 读取 JSON 文件
+                                    with open('config.json', 'r') as file:
+                                        config = json.load(file)
+                                    config["Theme"] = "White"
+                                    # 将更新后的数据写入 JSON 文件
+                                    with open('config.json', 'w') as file:
+                                        json.dump(config, file, indent=4)
+                                    Theme = "White"
+
                                 if self.radioButton_custom.isChecked():
                                     try:
-                                        if windows.Trend_Now == True:
+                                        if Theme == "Trend":
                                             windows.stop_dynamic_background()
                                         file_name = self.line_Custom.text()
                                         with open('config.json', 'r') as file:
                                             config = json.load(file)
-                                        if config["Theme"][
-                                           7:] != file_name:  # 这个判断是为了防止目前的背景和选择的背景相同而设置 因此当选择的文件和现有设置的文件相同时 将不会执行
+                                        if config["Theme"] != "Custom" or config[
+                                            "Path"] != file_name:  # 这个判断是为了防止目前的背景和选择的背景相同而设置 因此当选择的文件和现有设置的文件相同时 将不会执行
                                             if file_name != '':
                                                 windows.should_draw = "Custom"
                                                 # 读取 JSON 文件
                                                 with open('config.json', 'r') as file:
                                                     config = json.load(file)
-                                                config["Theme"] = f"Custom:{file_name}"
+                                                config["Theme"] = "Custom"
+                                                config["Path"] = file_name
                                                 # 将更新后的数据写入 JSON 文件
                                                 with open('config.json', 'w') as file:
                                                     json.dump(config, file, indent=4)
@@ -1993,37 +2307,78 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                     file_name_V = self.line_Trend.text()
                                     with open('config.json', 'r') as file:
                                         config = json.load(file)
-                                    if config["Theme"][6:] != file_name_V:
-                                        if file_name_V != '':
-                                            windows.should_draw = "Trend"
-                                            # 读取 JSON 文件
+                                    if config["Theme"] != "Trend" or config["Path"] != file_name_V:
+                                        def dealwith_image():
+                                            # 输出图像保存路径
+                                            output_folder = './trend'
+                                            shutil.rmtree(output_folder)
+                                            # 重新创建空文件夹
+                                            os.mkdir(output_folder)
+                                            # os.makedirs(output_folder, exist_ok=True)
+                                            # 打开视频文件
+                                            cap = cv2.VideoCapture(file_name_V)
+                                            # 检查视频是否成功打开
+                                            if not cap.isOpened():
+                                                print("Error: Could not open video.")
+                                                exit()
+
+                                            # 函数：处理每个帧并保存
+                                            def save_frame(frame_data):
+                                                frame, frame_number = frame_data
+                                                frame = cv2.resize(frame, (1000, 600))
+                                                output_path = os.path.join(output_folder, f'frame_{frame_number}.jpg')
+                                                cv2.imwrite(output_path, frame)
+
+                                            frame_count = 0
+                                            frame_list = []
+                                            # 读取视频帧并存储在列表中
+                                            while True:
+                                                ret, frame = cap.read()
+                                                # 如果未能读取帧，则终止循环
+                                                if not ret:
+                                                    print("End of video or error occurred.")
+                                                    break
+                                                frame_list.append((frame, frame_count + 1))
+                                                frame_count += 1
+                                            # 释放视频捕获对象
+                                            cap.release()
+                                            # 使用多线程保存帧
+                                            with concurrent.futures.ThreadPoolExecutor() as executor:
+                                                executor.map(save_frame, frame_list)
+
+                                            print(f"Frames saved successfully. Total frames: {frame_count}")
+
+                                        if config["Theme"] != "Trend":
+                                            if file_name_V != '':
+                                                windows.should_draw = "Trend"
+                                                # 读取 JSON 文件
+                                                with open('config.json', 'r') as file:
+                                                    config = json.load(file)
+                                                config["Theme"] = f"Trend"
+                                                config["Path"] = file_name_V
+                                                # 将更新后的数据写入 JSON 文件
+                                                with open('config.json', 'w') as file:
+                                                    json.dump(config, file, indent=4)
+                                                dealwith_image()
+                                                windows.execute_trend()
+                                                Theme = "Trend"
+                                        elif config["Path"] != file_name_V:
                                             with open('config.json', 'r') as file:
                                                 config = json.load(file)
-                                            config["Theme"] = f"Trend:{file_name_V}"
+                                            config["Theme"] = f"Trend"
+                                            config["Path"] = file_name_V
                                             # 将更新后的数据写入 JSON 文件
                                             with open('config.json', 'w') as file:
                                                 json.dump(config, file, indent=4)
-                                            if windows.Trend_Status == False:
-                                                windows.execute_trend(file_name_V)
-                                                resul = windows.show_message_box("提示",
-                                                                                 "设置成功！需要重启软件即可生效 点击确认按钮即可重新启动")
-                                                if resul == "OK":
-                                                    subprocess.Popen(["Fuchen.exe"])
-                                                try:
-                                                    global ab
-                                                    ab.kill()
-                                                except:
-                                                    pass
-                                                os._exit(0)
-                                            else:
-                                                windows.execute_trend_again(file_name_V)
-                                            Theme = "Trend"
-                                if self.checkBox_5.isChecked() and window_s == False:
+                                            dealwith_image()
+                                            windows.execute_trend_again()
+                                if self.checkBox_float.isChecked() and window_s == False:
                                     windows.open_floating_window()
                                     window_s = True
-                                elif self.checkBox_5.isChecked() == False and window_s == True:
-                                    print("关闭窗口")
+                                elif self.checkBox_float.isChecked() == False and window_s == True:
+                                    print("关闭悬浮窗")
                                     windows.close_floating_window()
+                                    window_s = False
                                     print("窗口关闭成功!")
 
                                 if n == True:
@@ -2064,20 +2419,19 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 rect.setHeight(rect.height() - 9)
                                 pat2.drawRoundedRect(rect, 4, 4)
 
-                            def mousePressEvent(self, event):
-                                global_pos = event.globalPos()
-                                if event.button() == Qt.LeftButton and \
-                                        global_pos.y() < self.frameGeometry().top() + self.title_bar_height():
-                                    self.__mouse_press_pos = event.pos()
-                                    self.__window_pos = self.pos()
+                            def mousePressEvent(self, e):
+                                if e.y() <= 25:  # 30像素的标题栏高度
+                                    self.start_point = e.globalPos()
+                                    self.window_point = self.frameGeometry().topLeft()
 
-                            def mouseMoveEvent(self, event):
-                                if event.buttons() == Qt.LeftButton and \
-                                        event.globalPos().y() < self.frameGeometry().top() + self.title_bar_height():
-                                    self.move(event.globalPos() - self.__mouse_press_pos)
+                            def mouseMoveEvent(self, e):
+                                if hasattr(self, 'start_point'):
+                                    relpos = e.globalPos() - self.start_point
+                                    self.move(self.window_point + relpos)
 
-                            def title_bar_height(self):
-                                return self.style().pixelMetric(QStyle.PM_TitleBarHeight)
+                            def mouseReleaseEvent(self, e):
+                                if hasattr(self, 'start_point'):
+                                    delattr(self, 'start_point')
 
                         class ExpandingWindow(QWidget):  # 提示窗口
                             def __init__(self):
@@ -2099,7 +2453,8 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
 
                                 # 创建动画
                                 self.animation = QPropertyAnimation(self, b'geometry')
-                                self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.WindowCloseButtonHint | Qt.WindowMinimizeButtonHint)  # 置顶/隐藏最大化
+                                self.setWindowFlags(
+                                    Qt.WindowStaysOnTopHint | Qt.WindowCloseButtonHint | Qt.WindowMinimizeButtonHint)  # 置顶/隐藏最大化
                                 self.animation.setDuration(450)
                                 self.animation.setStartValue(initial_geometry)
                                 final_geometry = QRect(screen_geometry.width() - 300,
@@ -2158,15 +2513,18 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                             global exp, lv, Lv, Max_exp, Name
                             if lv == 1:
                                 Lv = "Lv1"
-                                Max_exp = 300
+                                Max_exp = 20
                             elif lv == 2:
                                 Lv = "Lv2"
-                                Max_exp = 600
+                                Max_exp = 300
                             elif lv == 3:
                                 Lv = "Lv3"
-                                Max_exp = 1000
+                                Max_exp = 600
                             elif lv == 4:
                                 Lv = "Lv4"
+                                Max_exp = 1000
+                            elif lv == 5:
+                                Lv = "Lv5"
                                 Max_exp = 9999
 
                             def __init__(self):
@@ -2178,7 +2536,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self.setWindowIcon(icon)
                                 self.setGeometry(x, y, 380, 210)
                                 self.setFixedSize(380, 210)
-                                self.setWindowTitle("个人信息")
+                                self.setWindowTitle("Fuchen个人信息")
                                 self.border_width = 8
                                 self.setAttribute(Qt.WA_TranslucentBackground)
                                 self.setWindowFlags(Qt.FramelessWindowHint | Qt.Window)  # 设置 窗口无边框和背景透明
@@ -2186,7 +2544,6 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self.exp_label = QtWidgets.QLabel(self)
                                 self.exp_label.setGeometry(QtCore.QRect(20, 190, 110, 3))
                                 self.exp_label.setStyleSheet("background-color: gray;")  # 设置标签的背景颜色为灰色
-
                                 self.proccess = int(exp) / Max_exp * 100
                                 if self.proccess > 100:
                                     self.proccess = 100
@@ -2202,7 +2559,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 font.setFamily("等线")
                                 font.setPointSize(13)
                                 self.exp_label3.setFont(font)
-                                if lv == 4:
+                                if lv == 5:
                                     color = QtGui.QColor(29, 84, 237)  # 使用RGB值设置颜色为红色
                                     self.exp_label3.setStyleSheet(f"color: red;")  # 设置字体颜色
                                 self.exp_label3.setText(Lv)
@@ -2218,7 +2575,12 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
 
                                 self.Button = QtWidgets.QToolButton(self)
                                 self.Button.setGeometry(QtCore.QRect(20, 20, 100, 100))
-                                self.Button.setIcon(QIcon("./temp/HImage.png"))
+                                global HImage_load_status
+                                if HImage_load_status == True:  # 判断头像是否成功加载
+                                    self.Button.setIcon(QIcon("./temp/HImage.png"))
+                                else:
+                                    self.Button.setIcon(QIcon("./image/float/fc.png"))
+                                #self.Button.setIcon(QIcon("./temp/HImage.png"))
                                 self.Button.setIconSize(QSize(100, 100))
                                 self.Button.setObjectName("Button")
                                 self.Button.setStyleSheet(
@@ -2248,12 +2610,13 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self.label_2.setObjectName("label_2")
                                 self.label_2.setText(f"ID:{Account}")
 
-                                self.toolButton = QtWidgets.QToolButton(self)  # 上传头像按钮
+                                self.toolButton = oo.AnimatedButton(self)
                                 self.toolButton.setGeometry(QtCore.QRect(20, 137, 101, 21))
                                 self.toolButton.setObjectName("toolButton")
                                 self.toolButton.setText("上传头像")
+                                self.toolButton.setFont(style_font_10)
                                 self.toolButton.clicked.connect(self.renew_HImage)
-                                self.toolButton.setStyleSheet("QToolButton#toolButton {"
+                                '''self.toolButton.setStyleSheet("QToolButton#toolButton {"
                                                               "background-color: #3498db;"  # Blue background color
                                                               "border-radius: 5px;"  # 10px border radius for rounded corners
                                                               "color: white;"
@@ -2262,7 +2625,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                                               "text-decoration: none;"
                                                               "font-size: 13px;"
                                                               "font-family: SimSun, Arial, sans-serif;"
-                                                              "}")
+                                                              "}")'''
 
                                 style = """
                                                                                                         QToolButton {
@@ -2386,7 +2749,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                     if ReName == '':
                                         self.show_control('name_close')
                                     else:
-                                        if not (1< len(ReName) < 11):
+                                        if not (1 < len(ReName) < 11):
                                             self.show_message_box("提示", "名称只能为2-10位")
                                         elif Check(ReName) == True:
                                             self.show_message_box("提示",
@@ -2459,24 +2822,20 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
 
                                             # 调用函数进行裁剪和压缩
                                             crop_and_compress(f_path, './temp/HImage.png')
-                                            '''with open('./temp/HImage.png', "rb") as f:
+                                            with open('./temp/HImage.png', "rb") as f:
                                                 while True:
                                                     chunk = f.read(2048)
                                                     if not chunk:
                                                         break
-                                                    s.sendall(chunk)'''
-                                            #上传头像 因为不知道为什么需要客户端与服务端断开连接才能成功保存文件 所以需要重启客户端
+                                                    s.sendall(chunk)
                                             self.Button.setIcon(QIcon("./temp/HImage.png"))
                                             self.Button.setIconSize(QSize(100, 100))
                                             resul = windows.show_message_box("提示",
-                                                                     "头像上传成功!\n需要重启客户端才能完全上传头像\n点击确认按钮或关闭此窗口重启客户端")
+                                                                             "头像上传成功!\n需要重启客户端才能完全上传头像\n点击确认按钮或关闭此窗口重启客户端")
                                             print(resul)
-                                            cb = subprocess.Popen(["Fuchen.exe"])
-                                            try:
-                                                global ab
-                                                ab.kill()
-                                            except:
-                                                pass
+                                            subprocess.Popen(["Fuchen.exe"])
+                                            if type(thread_for_exe) != None:
+                                                thread_for_exe.kill()
                                             os._exit(0)
                                         else:
                                             pyautogui.confirm("未选择图片或图片上传失败\n图片只能为jpg, png",
@@ -2536,7 +2895,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 super().__init__()
                                 icon = QIcon("./image/Component/提示.png")
                                 self.setWindowIcon(icon)
-                                self.setFixedSize(450,400)
+                                self.setFixedSize(450, 400)
                                 self.setWindowTitle("赞助作者")
 
                                 self.label_WEIXIN = QtWidgets.QLabel(self)
@@ -2568,8 +2927,8 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self.label.setGeometry(QtCore.QRect(10, 40, 431, 45))
                                 self.label.setObjectName("label")
                                 self.label.setText("请您在支付时备注好您的名称(网名) 以便于赞助人员名单展示\n"
-                                    "本软件免费安全无广告 不收费 大家如果觉得用的好的话就自愿进行赞助\n感谢您对开放者的帮助！")
-                                self.label.setFont(font)
+                                                   "本软件免费安全无广告 不收费 大家如果觉得用的好的话就自愿进行赞助\n感谢您对开发者的帮助！")
+                                self.label.setFont(style_font_10)
 
                         class View(QWidget):
                             def __init__(self):
@@ -2632,9 +2991,12 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 super().__init__()
                                 self.resize(370, 270)
                                 self.setFixedSize(370, 270)
+                                self.setWindowTitle("控制台Control")
+                                self.setWindowIcon(QIcon('window.ico'))
                                 self.textBrowser = QtWidgets.QTextBrowser(self)
                                 self.textBrowser.setGeometry(QtCore.QRect(0, 0, 370, 250))
                                 self.textBrowser.setObjectName("textBrowser")
+                                self.textBrowser.setFont(style_font_9)
                                 global sys_list
                                 for i in sys_list:
                                     if i[0] == 'b':
@@ -2651,16 +3013,15 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self.inputField.setObjectName("inputField")
                                 self.inputField.returnPressed.connect(self.send)
 
-                                # Button
                                 self.addButton = QtWidgets.QPushButton(self)
                                 self.addButton.setGeometry(
-                                    QtCore.QRect(280, 250, 90, 20))  # Adjust the position and size
+                                    QtCore.QRect(280, 250, 90, 20))
                                 self.addButton.setObjectName("addButton")
                                 self.addButton.setText("确认")
                                 self.addButton.clicked.connect(self.send)
 
                             def send(self):
-                                global sys_list, current_time_string, exp_status
+                                global sys_list, current_time_string, exp_status, temp_content, COLOR
                                 content = self.inputField.text()
                                 sys_list.append('b' + current_time_string + self.inputField.text())
                                 self.textBrowser.append(
@@ -2668,16 +3029,17 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self.inputField.setText("")
                                 if content == '签到':
                                     send_encry('30001')
-                                    time.sleep(2)
-                                    if exp_status == True:
+                                    time.sleep(0.5)
+                                    if COLOR == "B":
                                         self.textBrowser.append(
-                                            "<font color='blue'>" + current_time_string + '恭喜您 签到成功' + "<font>")
-                                        sys_list.append('b' + current_time_string + '恭喜您 签到成功')
-                                    elif exp_status == False:
+                                            "<font color='blue'>" + current_time_string + temp_content + ' 客户端经验值可能未更新 请重启客户端后重试' + "<font>")
+                                        sys_list.append(
+                                            'b' + current_time_string + temp_content + ' 客户端经验值可能未更新 请重启客户端后重试')
+                                    else:
                                         self.textBrowser.append(
-                                            "<font color='green'>" + current_time_string + '今日已签到 请每日再来~' + "<font>")
-                                        sys_list.append('g' + current_time_string + '今日已签到 请每日再来~')
-                                elif content == 'XFBSOMDFLS':
+                                            "<font color='green'>" + current_time_string + temp_content + "<font>")
+                                        sys_list.append('g' + current_time_string + temp_content)
+                                elif content == 'XFBSOMDFLS114514':
                                     send_encry("30002 xfbsomdfls")
                                     time.sleep(2)
                                     if exp_status == 'Yes':
@@ -2725,6 +3087,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
 
                                 self.setWindowTitle("关闭提示窗口")
                                 self.resize(300, 200)
+                                self.setFixedSize(300, 200)
                                 self.setWindowFlags(
                                     self.windowFlags() | Qt.WindowStaysOnTopHint)
                                 self.setWindowIcon(QIcon("./image/Component/提示.png"))
@@ -2749,8 +3112,8 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self.group1.addButton(self.minimize_radio)
 
                                 # 单选按钮2
-                                self.no_prompt_radio = QtWidgets.QRadioButton("下次不再提示", self)
-                                self.no_prompt_radio.setGeometry(20, 130, 150, 20)
+                                self.no_prompt_radio = QtWidgets.QRadioButton("下次不再提示(可在设置中再次开启)", self)
+                                self.no_prompt_radio.setGeometry(20, 130, 220, 20)
 
                                 # 确认按钮
                                 self.confirm_button = QtWidgets.QPushButton("确认", self)
@@ -2759,7 +3122,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
 
                             def on_confirm_button_clicked(self):
                                 global window_icon
-                                global ab
+                                global thread_for_exe
                                 if self.exit_radio.isChecked():
                                     result = "Quit"
                                 elif self.minimize_radio.isChecked():
@@ -2769,7 +3132,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
 
                                 no_prompt_checked = self.no_prompt_radio.isChecked()  # 是否下次不再提示
 
-                                if (result == "Quit") and (no_prompt_checked == True):  #下次不再提示  直接关闭
+                                if (result == "Quit") and (no_prompt_checked == True):  # 下次不再提示  直接关闭
                                     with open(f"config.json", "r") as file:
                                         U_data = json.load(file)
                                     U_data["ClosePrompt"] = False
@@ -2780,11 +3143,11 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                     self.close()
                                     time.sleep(0.1)
                                     windows.close_MainWindow()
-                                elif result == 'Quit':  #下次提示 关闭
+                                elif result == 'Quit':  # 下次提示 关闭
                                     self.close()
                                     time.sleep(0.1)
                                     windows.close_MainWindow()
-                                elif (result == "Hide") and (no_prompt_checked == True):  #下次不再提示
+                                elif (result == "Hide") and (no_prompt_checked == True):  # 下次不再提示
                                     with open(f"config.json", "r") as file:
                                         U_data = json.load(file)
                                     U_data["ClosePrompt"] = False
@@ -2794,7 +3157,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                         json.dump(U_data, file, indent=4)
                                     self.close()
                                     Hide()
-                                elif result == "Hide":  #直接隐藏
+                                elif result == "Hide":  # 直接隐藏
                                     self.close()
                                     Hide()
 
@@ -2812,10 +3175,10 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 else:
                                     self.should_draw = "White"
                                 self.setupUi(self)
-                                self.pushButton_15.clicked.connect(self.showMinimized)  # 最小化按钮
-                                self.pushButton_16.clicked.connect(self.clo)  # 退出按钮
-                                self.pushButton_17.setMenu(self.menu)
-                                self.pushButton_18.clicked.connect(self.upwindow)
+                                self.Button_Minisize.clicked.connect(self.showMinimized)  # 最小化按钮
+                                self.Button_Close.clicked.connect(self.clo)  # 退出按钮
+                                self.Button_More.setMenu(self.menu)
+                                self.Button_SetTop.clicked.connect(self.upwindow)
                                 self.action_option1.triggered.connect(self.open_set_window)  # 设置按钮
                                 self.action_option2.triggered.connect(self.about)
                                 self.action_option3.triggered.connect(self.open_help_window)
@@ -2825,19 +3188,24 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self.action_option7.triggered.connect(self.empyt_log)
                                 self.action_option8.triggered.connect(self.clear_temp)
                                 self.action_option9.triggered.connect(self.restart_app)
+                                self.action_option10.triggered.connect(self.open_website_help)
                                 self.HButton.clicked.connect(self.open_user_window)
 
                                 self._2pushButton.clicked.connect(self.Send_QQ)  # page2(QQ)页面 绑定
-                                #self._2pushButton2.clicked.connect(self.gain_handle)
-                                #self._2pushButton_3.clicked.connect(self.Handle_Send)  # 句柄式发送消息
-                                self.pushButton_tooltip_handle.clicked.connect(lambda: self.onPushButtonClicked("handle"))  #句柄消息提示
-                                self.pushButton_tooltip_qq.clicked.connect(lambda: self.onPushButtonClicked("qq"))  # qq消息提示
-                                self.pushButton_tooltip_copy.clicked.connect(lambda: self.onPushButtonClicked("copy"))  # 复制消息提示
+                                self.pushButton_tooltip_handle.clicked.connect(
+                                    lambda: self.onPushButtonClicked("handle"))  # 句柄消息提示
+                                self.pushButton_tooltip_qq.clicked.connect(
+                                    lambda: self.onPushButtonClicked("qq"))  # qq消息提示
+                                self.pushButton_tooltip_copy.clicked.connect(
+                                    lambda: self.onPushButtonClicked("copy"))  # 复制消息提示
                                 self._2pushButton_4.clicked.connect(self.Send_Copy)  # 复制内容
-                                #self._2pushButton_5.clicked.connect(self.Send_Quick)  # 发送快捷消息
+                                self._2pushButton2.clicked.connect(self.gain_handle)
+                                self._2pushButton_3.clicked.connect(self.Handle_Send)
+                                self.order_pushButton.clicked.connect(self.order_send)
+                                self.order_toolButton.clicked.connect(lambda: self.show_folder_dialog(5))
+                                self.order_radio_list.toggled.connect(self.update_checks)
+                                self.order_radio_random.toggled.connect(self.update_checks)
 
-                                #self._3pushButton.clicked.connect(lambda: MyThread(self.Click_Record))  # 记录自动脚本
-                                #self._3pushButton_2.clicked.connect(lambda: MyThread(self.Click_Record_execute))  # 执行自动脚本
                                 self._3pushButton.clicked.connect(self.Click_Record)  # 记录自动脚本
                                 self._3pushButton_2.clicked.connect(self.Click_Record_execute)
                                 self._3pushButton_4.setMenu(self.createMenu())
@@ -2847,8 +3215,6 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self._3pushButton_7.clicked.connect(lambda: MyThread(self.break_click))
                                 self.button_create.clicked.connect(self.create_file)
                                 self.impor_button.clicked.connect(self.open_fileedit_window)
-                                #self.save_button.clicked.connect(self.save_file)
-                                #self.save_button.clicked.connect(self.run_command)
                                 self.reflash.clicked.connect(lambda: self.populateMenu('scripts'))
                                 self.delete_button.clicked.connect(self.delete_file)
 
@@ -2873,6 +3239,10 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self.delete_image.clicked.connect(self.delete_images)
                                 self.QQ_group.clicked.connect(lambda: MyThread(self.QQ_Group_information))
 
+                                self.Button_1.clicked.connect(lambda: self.move_label(self.Button_1))
+                                self.Button_2.clicked.connect(lambda: self.move_label(self.Button_2))
+                                self.Button_3.clicked.connect(lambda: self.move_label(self.Button_3))
+                                self.Button_4.clicked.connect(lambda: self.move_label(self.Button_4))
                                 self.Button_1.clicked.connect(self.bt_c1)
                                 self.Button_2.clicked.connect(self.bt_c2)
                                 self.Button_3.clicked.connect(self.bt_c3)
@@ -2894,8 +3264,8 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self.is_topmost = False
                                 self.border_width = 8
 
-                                MainWindow.setWindowFlags(Qt.FramelessWindowHint)
-                                MainWindow.setWindowTitle("Fuchen--Made by Fuchen")
+                                MainWindow.setWindowFlags(Qt.FramelessWindowHint)  # 隐藏任务栏
+                                MainWindow.setWindowTitle("Fuchen 浮沉制作")
 
                                 self.Trend_Status = False
                                 self.Trend_Now = False
@@ -2911,11 +3281,10 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                     self.setPalette(palette)
                                     self.setAttribute(QtCore.Qt.WA_StyledBackground, True)
                                     del Path_Custom_S
-                                elif Theme == "Trend":  #
-                                    global Path_Trend_S
-                                    self.execute_trend(Path_Trend_S)
+                                if Theme == 'Trend':
+                                    self.execute_trend()
 
-                                icon = QIcon("./image/window.ico")  #设置窗口图标
+                                icon = QIcon("./image/window.ico")  # 设置窗口图标
                                 self.setWindowIcon(icon)
 
                                 self.weather_button = QtWidgets.QToolButton(self)  # 天气按钮(图标)
@@ -2930,12 +3299,11 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self.weather_button.setStyleSheet(
                                     "background-color: rgba(255,255,255,0); padding: 0;border: none; ")
 
-                                self.weather_first = QtCore.QTimer(self)
-                                self.weather_first.timeout.connect(lambda: MyThread(lambda: self.Update_weather('first')))
-                                self.weather_first.start()  # 更新时间的间隔，单位为毫秒
+                                weather_thread = WeatherUpdater()
+                                weather_thread.start()
 
                                 self.weather_timer = QtCore.QTimer(self)
-                                self.weather_timer.timeout.connect(lambda: self.Update_weather('normal'))
+                                self.weather_timer.timeout.connect(self.Update_weather)
                                 self.weather_timer.start(1200000)  # 更新时间的间隔，单位为毫秒
 
                                 self.version_label = QtWidgets.QLabel(self)
@@ -2965,8 +3333,6 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self.global_timer.timeout.connect(self.get_current_time_string)
                                 self.global_timer.start(1000)  # 更新时间的间隔，单位为毫秒
 
-                                '''self.data_thread = DataThread()
-                                self.data_thread.start()'''
                                 self.data_thread = DataThread()
                                 self.data_thread.start()
 
@@ -2984,9 +3350,13 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
 
                                 self.HButton = QtWidgets.QToolButton(self)
                                 self.HButton.setGeometry(QtCore.QRect(10, 20, 240, 90))
-                                self.HButton.setIcon(QIcon("./temp/HImage.png"))
+                                global HImage_load_status
+                                if HImage_load_status == True:  # 判断头像是否成功加载
+                                    self.HButton.setIcon(QIcon("./temp/HImage.png"))
+                                else:
+                                    self.HButton.setIcon(QIcon("./image/float/fc.png"))
                                 font = QtGui.QFont()
-                                font.setPointSize(14)
+                                font.setPointSize(15)
                                 self.HButton.setFont(font)
                                 self.HButton.setText(f" {Name}")
                                 self.HButton.setIconSize(QSize(80, 80))
@@ -3007,7 +3377,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                             }
                                             QToolButton:hover {
                                                 border-radius: 5px;
-                                                
+
                                                 border-style: outset;
                                                 background-color: rgb(204,229,255);
                                                 border-color: rgb(204, 229, 255);
@@ -3023,41 +3393,58 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                                             border-color: rgb(96,160,235); 
                                                             padding: 0;
                                                         }
-                                                        
+
                                                     '''
+                                self.button_sty = '''QToolButton {
+                                                background: transparent;
+                                                padding: 0; /* Add this line */
+                                                border: none;
+                                            }'''
 
                                 '''第一个按钮'''
+                                self.slabel = QtWidgets.QLabel(self)
+                                self.slabel.setGeometry(QtCore.QRect(10, 130, 240, 40))
+                                self.slabel.setObjectName("slabel")
+                                self.slabel.setStyleSheet(
+                                    "background-color: rgba(0,123,255,150); border-radius: 3px;")
+                                self.animation = QtCore.QPropertyAnimation(self.slabel, b"pos")
+
                                 self.Button_1 = QtWidgets.QToolButton(self)
                                 self.Button_1.setGeometry(QtCore.QRect(10, 130, 240, 40))
                                 self.Button_1.setIcon(QIcon("./image/Component/点击.png"))
                                 self.Button_1.setObjectName("Button_1")
-                                self.Button_1.setText("    连点功能")
+                                self.Button_1.setText("   连点功能")
                                 self.Button_1.setIconSize(QSize(30, 30))
                                 self.Button_1.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
                                 # 设置按钮样式
-                                self.Button_1.setStyleSheet(self.Now_Button_Style)
+                                # self.Button_1.setStyleSheet(self.Now_Button_Style)
+                                self.Button_1.setStyleSheet(self.button_sty)
+                                font = QtGui.QFont()
+                                font.setFamily("楷体")
+                                font.setPointSize(12)
+                                self.Button_1.setFont(font)
                                 '''第二个按钮'''
                                 self.Button_2 = QtWidgets.QToolButton(self)
                                 self.Button_2.setGeometry(QtCore.QRect(10, 190, 240, 40))
                                 self.Button_2.setIcon(QIcon("./image/Component/QQ.png"))
                                 self.Button_2.setObjectName("Button_2")
-                                self.Button_2.setText("    QQ消息")
+                                self.Button_2.setText("   QQ消息")
                                 self.Button_2.setIconSize(QSize(30, 30))
                                 self.Button_2.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
                                 # 设置按钮样式
                                 self.Button_2.setStyleSheet(self.Button_Style)
+                                self.Button_2.setFont(font)
 
                                 self.Button_3 = QtWidgets.QToolButton(self)
                                 self.Button_3.setGeometry(QtCore.QRect(10, 250, 240, 40))
                                 self.Button_3.setIcon(QIcon("./image/Component/组队.png"))
                                 self.Button_3.setObjectName("Button_3")
-                                self.Button_3.setText("    组队")
+                                self.Button_3.setText("   组队")
                                 self.Button_3.setIconSize(QSize(30, 30))
                                 self.Button_3.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
                                 # 设置按钮样式
                                 self.Button_3.setStyleSheet(self.Button_Style)
-                                self.Button_3.setEnabled(False)
-                                self.Button_3.setToolTip("开源版无网络连接  该功能无法使用")
+                                self.Button_3.setFont(font)
                                 if mode == "tourist_login":
                                     self.Button_3.setEnabled(False)
                                     self.Button_3.setToolTip("该功能游客登录暂不可用")
@@ -3066,11 +3453,12 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self.Button_4.setGeometry(QtCore.QRect(10, 310, 240, 40))
                                 self.Button_4.setIcon(QIcon("./image/Component/工具.png"))
                                 self.Button_4.setObjectName("Button_4")
-                                self.Button_4.setText("    工具")
+                                self.Button_4.setText("   工具")
                                 self.Button_4.setIconSize(QSize(30, 30))
                                 self.Button_4.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
                                 # 设置按钮样式
                                 self.Button_4.setStyleSheet(self.Button_Style)
+                                self.Button_4.setFont(font)
                                 """右侧总框架"""
                                 self.stackedWidget = QtWidgets.QStackedWidget(MainWindow)
                                 self.stackedWidget.setGeometry(QtCore.QRect(260, 0, 740, 600))
@@ -3115,48 +3503,17 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                     background: none;
                                     }
                                 """
-                                )
+                                                                                   )
                                 font = QFont("等线", 14)
                                 self.textBrowser.setFont(font)
+                                self.textBrowser.setText(gloinf)
 
-                                self.textBrowser.setText("这里是服务器公告")
-
-                                self.pushButton_15 = QtWidgets.QPushButton(self)
-                                self.pushButton_15.setGeometry(QtCore.QRect(940, 8, 19, 19))
-                                font = QtGui.QFont()
-                                font.setPointSize(14)
-                                self.pushButton_15.setFont(font)
-                                self.pushButton_15.setObjectName("pushButton_15")
-                                self.pushButton_15.setStyleSheet("QPushButton#pushButton_15 {"
-                                                                 "    border-image: url(./image/short.png);"
-                                                                 "    background-color: rgba(245,245,245,0)"
-                                                                 "}")
-                                self.pushButton_15.setToolTip('最小化')
-
-                                self.pushButton_16 = QtWidgets.QPushButton(self)
-                                self.pushButton_16.setGeometry(QtCore.QRect(965, 8, 21, 21))
-                                self.pushButton_16.setToolTip('关闭')
-                                self.pushButton_16.setObjectName("pushButton_16")
-                                self.pushButton_16.setStyleSheet("QPushButton#pushButton_16 {"
-                                                                 "    border-image: url(./image/quit.png);"
-                                                                 "    background-color: rgba(245,245,245,0)"
-                                                                 "}")
-
-                                self.pushButton_18 = QtWidgets.QPushButton(self)
-                                self.pushButton_18.setGeometry(QtCore.QRect(915, 8, 21, 21))
-                                self.pushButton_18.setToolTip('置顶')
-                                self.pushButton_18.setObjectName("pushButton_18")
-                                self.pushButton_18.setStyleSheet("QPushButton#pushButton_18 {"
-                                                                 "    border-image: url(./image/Component/up.png);"
-                                                                 "    background-color: rgba(245,245,245,0)"
-                                                                 "}")
-
-                                self.pushButton_17 = QtWidgets.QPushButton(self)
-                                self.pushButton_17.setGeometry(QtCore.QRect(890, 8, 24, 21))
-                                self.pushButton_17.setToolTip('更多')
-                                self.pushButton_17.setObjectName("pushButton_17")
-                                self.pushButton_17.setStyleSheet(
-                                    "QPushButton#pushButton_17::menu-indicator {"
+                                self.Button_More = QtWidgets.QPushButton(self)
+                                self.Button_More.setGeometry(QtCore.QRect(890, 8, 24, 21))
+                                self.Button_More.setToolTip('更多')
+                                self.Button_More.setObjectName("Button_More")
+                                self.Button_More.setStyleSheet(
+                                    "QPushButton#Button_More::menu-indicator {"
                                     "    image: none;"
                                     "    width: 20px; height: 20px;"  # Set the size of your custom indicator image
                                     "    border-image: url(./image/更多.png);"
@@ -3164,10 +3521,56 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                     "    subcontrol-origin: padding;"
                                     "    position: absolute; right: 5px;"  # Adjust the position as needed
                                     "}"
-                                    "QPushButton#pushButton_17 {"
+                                    "QPushButton#Button_More {"
                                     "    border:none;"
                                     "    background-color: rgba(245, 245, 245,0);"
+                                    "}"
+                                    "QPushButton#Button_More:hover {"
+                                    "    background-color: rgba(229,229,229,100);"
+                                    "    border-radius: 2px;"  # 设置悬停时的圆角半径为10像素
                                     "}")
+
+                                self.Button_SetTop = QtWidgets.QPushButton(self)
+                                self.Button_SetTop.setGeometry(QtCore.QRect(915, 8, 21, 21))
+                                self.Button_SetTop.setToolTip('置顶')
+                                self.Button_SetTop.setObjectName("Button_SetTop")
+                                self.Button_SetTop.setStyleSheet("QPushButton#Button_SetTop {"
+                                                                 "    border-image: url(./image/Component/up.png);"
+                                                                 "    background-color: rgba(245,245,245,0)"
+                                                                 "}"
+                                                                 "QPushButton#Button_SetTop:hover {"
+                                                                 "    background-color: rgba(229,229,229,100);"
+                                                                 "    border-radius: 2px;"  # 设置悬停时的圆角半径为10像素
+                                                                 "}")
+
+                                self.Button_Minisize = QtWidgets.QPushButton(self)
+                                self.Button_Minisize.setGeometry(QtCore.QRect(940, 8, 19, 19))
+                                font = QtGui.QFont()
+                                font.setPointSize(14)
+                                self.Button_Minisize.setFont(font)
+                                self.Button_Minisize.setObjectName("Button_Minisize")
+                                self.Button_Minisize.setStyleSheet("QPushButton#Button_Minisize {"
+                                                                   "    border-image: url(./image/short.png);"
+                                                                   "    background-color: rgba(245,245,245,0);"
+                                                                   "}"
+                                                                   "QPushButton#Button_Minisize:hover {"
+                                                                   "    background-color: rgba(229,229,229,100);"
+                                                                   "    border-radius: 2px;"  # 设置悬停时的圆角半径为10像素
+                                                                   "}")
+                                self.Button_Minisize.setToolTip('最小化')
+
+                                self.Button_Close = QtWidgets.QPushButton(self)
+                                self.Button_Close.setGeometry(QtCore.QRect(965, 8, 21, 21))
+                                self.Button_Close.setToolTip('关闭')
+                                self.Button_Close.setObjectName("Button_Close")
+                                self.Button_Close.setStyleSheet("QPushButton#Button_Close {"
+                                                                "    border-image: url(./image/quit.png);"
+                                                                "    background-color: rgba(245,245,245,0);"
+                                                                "}"
+                                                                "QPushButton#Button_Close:hover {"
+                                                                "    background-color: rgba(255,0,0,100);"
+                                                                "    border-radius: 2px;"  # 设置悬停时的圆角半径为10像素
+                                                                "}")
                                 # 创建一个菜单
                                 self.menu = QtWidgets.QMenu(self)
                                 self.action_option1 = self.menu.addAction("设置")
@@ -3179,6 +3582,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self.action_option7 = self.menu.addAction("清空日志")
                                 self.action_option8 = self.menu.addAction("清理缓存")
                                 self.action_option9 = self.menu.addAction("重启软件")
+                                self.action_option10 = self.menu.addAction("使用帮助")
                                 '''第一页'''
                                 self.page_1 = QtWidgets.QWidget()
                                 self.page_1.setObjectName("page_1")
@@ -3204,6 +3608,18 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
 
                                 self.stackedWidget.setCurrentIndex(0)  # 初始界面索引为0
 
+                                custom_widget5 = CustomWidget(self.page_1)  # 连点框
+                                custom_widget5.setGeometry(QtCore.QRect(0, 0, 375, 270))
+                                custom_widget5.lower()
+
+                                custom_widget6 = CustomWidget(self.page_1)  # 常见问题
+                                custom_widget6.setGeometry(QtCore.QRect(370, 0, 370, 270))
+                                custom_widget6.lower()
+
+                                custom_widget7 = CustomWidget(self.page_1)  # 自动脚本框
+                                custom_widget7.setGeometry(QtCore.QRect(0, 265, 740, 335))
+                                custom_widget7.lower()
+
                                 custom_widget = CustomWidget(self.page_2)  # QQ发送框
                                 custom_widget.setGeometry(QtCore.QRect(0, 0, 510, 270))
                                 custom_widget.lower()
@@ -3219,18 +3635,6 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 custom_widget4 = CustomWidget(self.page_2)  # 其他工具框
                                 custom_widget4.setGeometry(QtCore.QRect(365, 265, 375, 330))
                                 custom_widget4.lower()
-
-                                custom_widget5 = CustomWidget(self.page_1)  # 连点框
-                                custom_widget5.setGeometry(QtCore.QRect(0, 0, 375, 270))
-                                custom_widget5.lower()
-
-                                custom_widget6 = CustomWidget(self.page_1)  # 常见问题
-                                custom_widget6.setGeometry(QtCore.QRect(370, 0, 370, 270))
-                                custom_widget6.lower()
-
-                                custom_widget7 = CustomWidget(self.page_1)  # 自动脚本框
-                                custom_widget7.setGeometry(QtCore.QRect(0, 265, 740, 335))
-                                custom_widget7.lower()
 
                                 custom_widget9 = CustomWidget(self.page_3)  # 创建队伍
                                 custom_widget9.setGeometry(QtCore.QRect(0, 0, 350, 160))
@@ -3260,6 +3664,14 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 custom_widget15.setGeometry(QtCore.QRect(295, 240, 445, 360))
                                 custom_widget15.lower()
 
+                            def move_label(self, button):
+                                # 移动标签到该按钮的右侧
+                                self.animation.setStartValue(self.slabel.pos())
+                                self.animation.setEndValue(
+                                    QtCore.QPoint(button.x(), button.y()))  # button.x() + button.width()
+                                self.animation.setDuration(100)
+                                self.animation.start()
+
                             def get_current_time_string(self):
                                 global current_time_string  # 声明要在函数内部使用全局变量
                                 current_time = time.localtime()  # 获取当前时间的时间结构
@@ -3268,69 +3680,70 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
 
                             def restart_app(self):
                                 subprocess.Popen(["Fuchen.exe"])
-                                try:
-                                    global ab
-                                    ab.kill()
-                                except:
-                                    pass
+                                if thread_for_exe != None:
+                                    thread_for_exe.kill()
                                 os._exit(0)
 
-                            def changeEvent(self, event):
-                                if event.type() == 177:  # 177 corresponds to the WindowStateChange event
-                                    if self.isMaximized() and self.windowState() == 0:  # 0 corresponds to the WindowNoState state
-                                        self.showMinimized()
-                                    elif self.windowState() == 1:  # 1 corresponds to the WindowMinimized state
-                                        self.showMaximized()
-                                super().changeEvent(event)
+                            def load_images(self, folder_path):  # 动态主题导入文件
+                                images = []
 
-                            def execute_trend(self, Path):
+                                directory = './trend'  # 替换为你的文件夹路径
+                                file_count = len(
+                                    [f for f in os.listdir(directory) if os.path.isfile(os.path.join(directory, f))])
+                                for i in range(1,
+                                               file_count):  # 假设图片名称格式为 'frame_1.jpg', 'frame_2.jpg', ..., 'frame_120.jpg'
+                                    img_path = os.path.join(folder_path, f'frame_{i}.jpg')
+                                    img = cv2.imread(img_path)
+                                    img = cv2.resize(img, (1000, 600))
+                                    if img is not None:
+                                        images.append(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))  # 转换颜色空间
+                                return images
+
+                            def update_frame(self):
+                                if self.images:
+                                    # 显示当前索引的图片
+                                    frame = self.images[self.image_index]
+                                    height, width, channel = frame.shape
+                                    bytesPerLine = 3 * width
+                                    image = QImage(frame.data, width, height, bytesPerLine, QImage.Format_RGB888)
+                                    pix = QPixmap.fromImage(image)
+                                    self.trend_theme.setPixmap(pix)
+
+                                    # 更新索引，循环播放
+                                    self.image_index = (self.image_index + 1) % len(self.images)
+
+                            def execute_trend(self):
+                                self.fps = 0
+                                self.image_index = 0  # 当前显示的图片索引
+
+                                # 加载120张图片
+                                self.images = self.load_images('./trend')  # 设置图片文件夹路径
+
+                                if not self.images:
+                                    print("No images found or failed to load images.")
+                                    sys.exit()
+
                                 self.trend_theme = QLabel(self)
                                 self.trend_theme.resize(self.size())
                                 self.trend_theme.setScaledContents(True)
+                                self.trend_theme.show()
                                 self.trend_theme.lower()
-                                self.cap = cv2.VideoCapture(Path)
-                                if not self.cap.isOpened():
-                                    print("Error opening video stream or file")
+
+                                # 设置定时器以每秒更新30帧
                                 self.timer_trend = QTimer(self)
                                 self.timer_trend.timeout.connect(self.update_frame)
-                                self.timer_trend.start(25)
-                                self.Trend_Status = True
-                                self.Trend_Now = True
+                                self.timer_trend.start(int(1000 / FPS))  # 每帧大约33毫秒 (1000 ms / 30 fps)
 
-                            def execute_trend_again(self, Path):
-                                self.trend_theme.show()
-                                self.cap = cv2.VideoCapture(Path)
-                                self.timer_trend.start(FPS)
-                                self.Trend_Now = True
+                            def execute_trend_again(self):
+                                self.stop_dynamic_background()
+                                self.execute_trend()
 
                             def stop_dynamic_background(self):
-                                # 停止计时器
                                 self.timer_trend.stop()
-
-                                # 清除label内容或隐藏label
-                                self.trend_theme.clear()  # 清除显示的内容
-                                self.trend_theme.hide()  # 隐藏label
-                                self.Trend_Now = False
-                                self.update()
-
-                            def update_frame(self):
-                                ret, frame = self.cap.read()
-                                if ret:
-                                    # 转换帧为RGBA以添加透明度通道
-                                    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2BGRA)
-                                    # frame[:, :, 3] = np.ones((frame.shape[0], frame.shape[1])) * 200  # 调整透明度
-                                    # 缩放帧以适应窗口
-                                    frame_resized = self.resize_frame(frame)
-                                    # 转换为QImage
-                                    height, width, channel = frame_resized.shape
-                                    bytesPerLine = 4 * width
-                                    image = QImage(frame_resized.data, width, height, bytesPerLine,
-                                                   QImage.Format_ARGB32)
-                                    pix = QPixmap.fromImage(image)
-                                    self.trend_theme.setPixmap(pix)
-                                else:
-                                    # 视频循环播放
-                                    self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                                self.timer_trend.deleteLater()
+                                self.trend_theme.clear()
+                                self.trend_theme.deleteLater()
+                                del self.fps, self.image_index, self.images
 
                             def resize_frame(self, frame):
                                 window_width = self.width()
@@ -3353,14 +3766,18 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 seconds = elapsedTime % 60
                                 self.run_label.setText(f"运行时间 {hours:02d}:{minutes:02d}:{seconds:02d}")
 
-                            def upwindow(self):  #置顶窗口
+                            def upwindow(self):  # 置顶窗口
                                 if self.is_topmost == False:
                                     self.setWindowFlags(
                                         self.windowFlags() | QtCore.Qt.WindowStaysOnTopHint)  # 置顶
                                     self.is_topmost = True
-                                    self.pushButton_18.setStyleSheet("QPushButton#pushButton_18 {"
+                                    self.Button_SetTop.setStyleSheet("QPushButton#Button_SetTop {"
                                                                      "    border-image: url(./image/Component/up2.png);"
                                                                      "    background-color: rgba(245,245,245,0)"
+                                                                     "}"
+                                                                     "QPushButton#Button_SetTop:hover {"
+                                                                     "    background-color: rgba(229,229,229,100);"
+                                                                     "    border-radius: 2px;"  # 设置悬停时的圆角半径为10像素
                                                                      "}")
                                     self.show()
 
@@ -3368,9 +3785,13 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                     self.setWindowFlags(
                                         self.windowFlags() & ~QtCore.Qt.WindowStaysOnTopHint)  # 取消置顶
                                     self.is_topmost = False
-                                    self.pushButton_18.setStyleSheet("QPushButton#pushButton_18 {"
+                                    self.Button_SetTop.setStyleSheet("QPushButton#Button_SetTop {"
                                                                      "    border-image: url(./image/Component/up.png);"
                                                                      "    background-color: rgba(245,245,245,0)"
+                                                                     "}"
+                                                                     "QPushButton#Button_SetTop:hover {"
+                                                                     "    background-color: rgba(229,229,229,100);"
+                                                                     "    border-radius: 2px;"  # 设置悬停时的圆角半径为10像素
                                                                      "}")
                                     self.show()
 
@@ -3386,17 +3807,18 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                         filepath = os.path.join(dirpath, filename)
                                         total_size += os.path.getsize(filepath)
                                 if total_size != 0:
-                                    total_size = float(total_size/1024)
+                                    total_size = float(total_size / 1024)
                                     if total_size < 1024:
-                                        result = QMessageBox.question(self, "Fuchen",f"缓存内容大小为:{round(total_size,2)}KB\n清理缓存不影响正常使用 是否进行清除?",
-                                                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+                                        result = QMessageBox.question(self, "Fuchen",
+                                                                      f"缓存内容大小为:{round(total_size, 2)}KB\n清理缓存不影响正常使用 是否进行清除?",
+                                                                      QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
                                         if result == QMessageBox.Yes:
                                             shutil.rmtree('./temp')
                                             # 重新创建空文件夹
                                             os.mkdir('./temp')
                                             pyautogui.confirm("缓存清除成功!")
                                     else:
-                                        total_size = float(total_size/1024)
+                                        total_size = float(total_size / 1024)
                                         result = QMessageBox.question(self, "Fuchen",
                                                                       f"缓存内容大小为:{round(total_size, 2)}MB\n清理缓存不影响正常使用 是否进行清除?",
                                                                       QMessageBox.Yes | QMessageBox.No,
@@ -3407,7 +3829,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                             os.mkdir('./temp')
                                             pyautogui.confirm("缓存清除成功!")
                                 else:
-                                    self.show_message_box("Fuchen",f"暂无缓存内容")
+                                    self.show_message_box("Fuchen", f"暂无缓存内容")
 
                             def open_set_window(self):
                                 if self.is_topmost == False:
@@ -3417,6 +3839,11 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                     self.show_message_box('Fuchen', "窗口置顶时设置窗口不可打开 请取消置顶后重试")
 
                             def open_user_window(self):
+                                # 查找窗口
+                                usr_win = gw.getWindowsWithTitle('Fuchen个人信息')
+                                # 判断窗口是否存在
+                                if usr_win:
+                                    usr_win[0].close()  # 关闭第一个匹配的窗口
                                 self.user_window = UserInfo()
                                 self.user_window.show()
 
@@ -3425,8 +3852,12 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self.help_window.show()
 
                             def open_view_window(self):
-                                self.view_window = View()
-                                self.view_window.show()
+                                if mode == "tourist_login":
+                                    pyautogui.confirm(
+                                        "游客模式下该功能暂时无法使用\n如果有问题请发送错误日志或描述错误信息发送到Fcyang_top@126.com")
+                                else:
+                                    self.view_window = View()
+                                    self.view_window.show()
 
                             def open_ctrl_window(self):
                                 self.ctrl_window = Control()
@@ -3461,7 +3892,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                     U_data = json.load(file)
                                 next = U_data["ClosePrompt"]
                                 execute = U_data["CloseExecute"]
-                                if next == True:  #是否提示关闭窗口
+                                if next == True:  # 是否提示关闭窗口
                                     self.abus = Quit_Prompt()
                                     self.abus.exec_()
                                 else:  # 不提示关闭窗口
@@ -3472,12 +3903,12 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                         Hide()
 
                             def close_MainWindow(self):
-                                global ab
+                                global thread_for_exe
                                 try:
                                     windows.close()
                                     if window_icon == True:
                                         windows.tray_icon.hide()
-                                    ab.kill()
+                                    thread_for_exe.kill()
                                 except Exception as e:
                                     print(e)
                                 os._exit(0)
@@ -3490,96 +3921,107 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 if event.key() == Qt.Key_F12:
                                     self.open_ctrl_window()
 
-                            def Update_weather(self,type):
-                                if type == 'first':
-                                    self.weather_first.stop()  # 更新时间的间隔，单位为毫秒
+                            def Update_weather(self):  # 获取天气
                                 api_key = "dce92b382ffb9409ca31ae4c1b240d4f"
                                 # 发送请求获取IP地址信息
                                 res = requests.get('http://myip.ipip.net', timeout=5).text
                                 # 提取城市信息
                                 split_res = res.split('  ')
-                                city_info = split_res[-2]  # 倒数第二个元素是城市信息
+                                city_info = split_res[-2]  # 倒数第二个元素是位置信息
                                 city_info = city_info.split(' ')
+                                country = city_info[-3]
                                 city_info = city_info[-1]
                                 global city_name, weather_status, temperature, humidity, weather_info
-
-                                city_name = city_info
-                                pinyin_list = pinyin(city_info, style=Style.NORMAL)
-                                # 从拼音列表中提取拼音并连接成字符串
-                                pinyin_str = ''.join([item[0] for item in pinyin_list])
-                                # 设置API请求的URL
-                                base_url = "http://api.openweathermap.org/data/2.5/weather"
-                                url = f"{base_url}?q={pinyin_str}&appid={api_key}"
-                                # 发送API请求并获取响应
-                                response = requests.get(url)
-                                data = response.json()
-                                # 提取天气信息
-                                if data["cod"] == 200:
-                                    weather_info = data["weather"][0]["main"]  # 天气类型
-                                    temperature = data["main"]["temp"] - 273.15  # 摄氏度
-                                    humidity = data["main"]["humidity"]  # 湿度
-                                    print(f"City:{city_name} ", end='\t')
-                                    print(f"Weather: {weather_info} ", end='\t')
-                                    print(f"Temperature: {temperature:.2f}°C ", end='\t')
-                                    print(f"Humidity: {humidity}% ")
-                                    weather_status = True
-                                else:
-                                    weather_status = False
-                                    print("未知城市 天气获取失败")
-                                if weather_status == True:
-                                    self.weather_button.setGeometry(QtCore.QRect(5, 580, 200, 20))
-                                    self.weather_button.setText(f"{city_name}  T: {temperature:.2f}°C H: {humidity}%")
-
-                                    if weather_info == 'Clear':
-                                        icon = QIcon("./image/weather/晴.png")
-                                    elif weather_info == 'Clouds':
-                                        icon = QIcon("./image/weather/多云.png")
-                                    elif weather_info == 'Rain':
-                                        icon = QIcon("./image/weather/中雨.png")
-                                    elif weather_info == 'Drizzle':
-                                        icon = QIcon("./image/weather/小雨.png")
-                                    elif weather_info == 'Thunderstorm':
-                                        icon = QIcon("./image/weather/雷暴.png")
-                                    elif weather_info == 'Snow':
-                                        icon = QIcon("./image/weather/雪.png")
-                                    elif weather_info == 'Mist' or 'Fog':
-                                        icon = QIcon("./image/weather/雾.png")
-                                    elif weather_info == 'Haze':
-                                        icon = QIcon("./image/weather/霾.png")
+                                if country[-2:] == '中国':
+                                    city_name = city_info
+                                    pinyin_list = pinyin(city_info, style=Style.NORMAL)
+                                    # 从拼音列表中提取拼音并连接成字符串
+                                    pinyin_str = ''.join([item[0] for item in pinyin_list])
+                                    # 设置API请求的URL
+                                    base_url = "http://api.openweathermap.org/data/2.5/weather"
+                                    url = f"{base_url}?q={pinyin_str}&appid={api_key}"
+                                    # 发送API请求并获取响应
+                                    response = requests.get(url)
+                                    data = response.json()
+                                    # 提取天气信息
+                                    if data["cod"] == 200:
+                                        weather_info = data["weather"][0]["main"]  # 天气类型
+                                        temperature = data["main"]["temp"] - 273.15  # 摄氏度
+                                        humidity = data["main"]["humidity"]  # 湿度
+                                        print(f"City:{city_name} ", end='\t')
+                                        print(f"Weather: {weather_info} ", end='\t')
+                                        print(f"Temperature: {temperature:.2f}°C ", end='\t')
+                                        print(f"Humidity: {humidity}% ")
+                                        weather_status = True
                                     else:
-                                        icon = QIcon("./image/weather/晴.png")
-                                    self.weather_button.setIcon(icon)
-                                    self.weather_button.setIconSize(self.weather_button.size())
-                                    sys_list.append(
-                                        "b[" + str(time.strftime("%H:%M:%S",
-                                                                 time.localtime())) + "] " + '天气获取成功 ' + f'城市:{city_name} ' + f'温度:{temperature:.2f}°C ' + f'湿度:{humidity}%')
+                                        weather_status = False
+                                        print("未知城市 天气获取失败")
+                                    if weather_status == True:
+                                        self.weather_button.setGeometry(QtCore.QRect(5, 580, 200, 20))
+                                        self.weather_button.setText(
+                                            f"{city_name}  T: {temperature:.2f}°C H: {humidity}%")
+                                        if weather_info == 'Clear':
+                                            icon = QIcon("./image/weather/晴.png")
+                                        elif weather_info == 'Clouds':
+                                            icon = QIcon("./image/weather/多云.png")
+                                        elif weather_info == 'Rain':
+                                            icon = QIcon("./image/weather/中雨.png")
+                                        elif weather_info == 'Drizzle':
+                                            icon = QIcon("./image/weather/小雨.png")
+                                        elif weather_info == 'Thunderstorm':
+                                            icon = QIcon("./image/weather/雷暴.png")
+                                        elif weather_info == 'Snow':
+                                            icon = QIcon("./image/weather/雪.png")
+                                        elif weather_info == 'Mist' or 'Fog':
+                                            icon = QIcon("./image/weather/雾.png")
+                                        elif weather_info == 'Haze':
+                                            icon = QIcon("./image/weather/霾.png")
+                                        else:
+                                            icon = QIcon("./image/weather/晴.png")
+                                        self.weather_button.setIcon(icon)
+                                        self.weather_button.setIconSize(self.weather_button.size())
+                                        sys_list.append(
+                                            "b[" + str(time.strftime("%H:%M:%S",
+                                                                     time.localtime())) + "] " + '天气获取成功 ' + f'城市:{city_name} ' + f'温度:{temperature:.2f}°C ' + f'湿度:{humidity}%')
+                                    else:
+                                        self.weather_button.setGeometry(QtCore.QRect(5, 580, 80, 20))
+                                        self.weather_button.setText(f"天气获取失败")
+                                        sys_list.append(
+                                            "r[" + str(
+                                                time.strftime("%H:%M:%S", time.localtime())) + "] " + '天气获取失败')
                                 else:
-                                    self.weather_button.setGeometry(QtCore.QRect(5, 580, 80, 20))
-                                    self.weather_button.setText(f"天气获取失败")
+                                    self.weather_button.setGeometry(QtCore.QRect(10, 580, 120, 20))
+                                    self.weather_button.setText(f"暂不支持非中国天气解析")
                                     sys_list.append(
                                         "r[" + str(
-                                            time.strftime("%H:%M:%S", time.localtime())) + "] " + '天气获取失败')
+                                            time.strftime("%H:%M:%S",
+                                                          time.localtime())) + "] " + '暂不支持非中国天气解析')
 
                             def paintEvent(self, event):
-                                if self.should_draw == "White":
+                                if self.should_draw == "White":  # 白色主题
                                     painter = QPainter(self)
+                                    # 左侧灰色矩形
                                     left_rect = QRect(0, 0, 260, 600)
                                     left_color = QColor(224, 224, 224)
                                     painter.fillRect(left_rect, left_color)
+
+                                    # 右侧渐变矩形（从灰色到白色）
                                     right_rect = QRect(260, 0, 740, 600)
-                                    right_color = QColor(245, 245, 245)
-                                    painter.fillRect(right_rect, right_color)
-                                else:
+                                    gradient = QLinearGradient(right_rect.topLeft(), right_rect.bottomLeft())  # 从上到下的渐变
+                                    gradient.setColorAt(0.0, QColor(230, 230, 230))  # 顶部为灰色
+                                    gradient.setColorAt(1.0, QColor(241, 241, 241))  # 底部为白色
+                                    painter.fillRect(right_rect, gradient)
+                                else:  # 自定义主题 动态主题不知道为什么不生效
                                     painter = QPainter(self)
                                     left_rect = QRect(0, 0, 260, 600)
                                     left_color = QColor(224, 224, 224)
-                                    left_color.setAlpha(30)  # 设置左边区域颜色的透明度为 50%
+                                    left_color.setAlpha(transparent)  # 设置左边区域颜色的透明度为 50%
                                     painter.fillRect(left_rect, left_color)
                                     right_rect = QRect(260, 0, 740, 600)
                                     right_color = QColor(245, 245, 245)
-                                    right_color.setAlpha(10)
+                                    right_color.setAlpha(transparent - 20)
                                     painter.fillRect(right_rect, right_color)
-                                      # 设置右边区域颜色的透明度为 75%
+                                    # 设置右边区域颜色的透明度为 75%
 
                             def empyt_log(self):  # 清空日志
                                 log_file_path = "INFOR.log"
@@ -3593,7 +4035,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                     url = QUrl.fromLocalFile(folder_path)
                                     QDesktopServices.openUrl(url)
                                 elif page == 'music':
-                                    folder_path = './mod/music'  # 修改为你要打开的文件夹路径
+                                    folder_path = self._5lineEdit3.text()
                                     url = QUrl.fromLocalFile(folder_path)
                                     QDesktopServices.openUrl(url)
 
@@ -3614,14 +4056,14 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 num = self._5lineEdit.text()
                                 send_encry(f'20001 {num}')
 
-                            def new_click(self):  #连点器部分
+                            def new_click(self):  # 开启连点器部分
                                 if (self.RClick_Radio.isChecked()) and (self.sort == '鼠标右键'):
                                     pyautogui.confirm("点击按键和监听热键不可相同!")
                                     return 0
                                 elif (self.MClick_Radio.isChecked()) and (self.sort == '鼠标中键'):
                                     pyautogui.confirm("点击按键和监听热键不可相同!")
                                     return 0
-                                global ab
+                                global thread_for_exe
                                 self._3pushButton_4.setEnabled(False)
                                 self.LClick_Radio.setEnabled(False)
                                 self.MClick_Radio.setEnabled(False)
@@ -3661,26 +4103,27 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 else:
                                     sort = 'right'
                                 try:
-                                    ab = subprocess.Popen(["./mod/more/click.exe", hotkey, interval,sort])
+                                    thread_for_exe = subprocess.Popen(["./mod/more/click.exe", hotkey, interval, sort])
                                     self._3pushButton_6.setText("连点器已开启")
                                     self._3pushButton_7.setVisible(True)
-                                    ab.wait()
+                                    thread_for_exe.wait()
                                 except KeyboardInterrupt:
                                     # 处理 Ctrl+C 中断
-                                    ab.terminate()
+                                    thread_for_exe.terminate()
                                     sys.exit()
                                 except Exception as e:
                                     # 处理其他异常
                                     pyautogui.confirm(f"Error: {e}")
-                                    ab.terminate()
+                                    thread_for_exe.terminate()
                                     sys.exit()
                                 finally:
                                     # 确保在程序退出时终止 C++ 程序
-                                    ab.terminate()
+                                    thread_for_exe.terminate()
 
-                            def break_click(self):  #关闭连点器
-                                global ab
-                                ab.kill()
+                            def break_click(self):  # 关闭连点器
+                                global thread_for_exe
+                                thread_for_exe.kill()
+                                thread_for_exe = None
                                 self._3pushButton_6.setText("开启连点器")
                                 self._3pushButton_4.setEnabled(True)
                                 self.LClick_Radio.setEnabled(True)
@@ -3693,7 +4136,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                             def gain_handle(self):  # 获取句柄
                                 self.showMinimized()
 
-                                def on_click(x, y, button,pressed):
+                                def on_click(x, y, button, pressed):
                                     if pressed:
                                         hwnd = win32gui.WindowFromPoint((x, y))  # 请填写 x 和 y 坐标
                                         self._2lineEdit_3.setText(str(hwnd))
@@ -3708,10 +4151,10 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 click_listener()
                                 self.showNormal()
 
-                            def mouseinfo(self):  #点击助手
+                            def mouseinfo(self):  # 鼠标信息
                                 pyautogui.mouseInfo()
 
-                            def QQ_Group_information(self):  #QQ群信息获取
+                            def QQ_Group_information(self):  # QQ群信息获取
                                 play_prompt_sound("C:\\Windows\\Media\\Windows Notify Messaging.wav")
                                 if self.Edge.isChecked():
                                     driver = webdriver.Edge()
@@ -3725,7 +4168,6 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
 
                                 # 等待元素存在，然后等待元素不可见，然后进行下一步操作
                                 try:
-
                                     # 等待元素存在  数字为最长等待时间
                                     WebDriverWait(driver, 100).until(
                                         EC.presence_of_element_located((By.ID, "loginWin"))
@@ -3841,8 +4283,8 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
 
                                                 # 以字典格式存储提取的数据
                                                 dic = {"序号": gender,
-                                                    '名称': name,
-                                                    '群昵称': group_name,}
+                                                       '名称': name,
+                                                       '群昵称': group_name, }
                                                 if self.checkBox_qid.isChecked():
                                                     dic['QQ号'] = Qid
                                                 if self.checkBox_sex.isChecked():
@@ -3870,7 +4312,8 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
 
                             def download_image(self):  # 下载QQ头像
                                 if new_lv == '4dff4ea340f0a823f15d3f4f01ab62eae0e5da579ccb851f8db9dfe84c58b2b37b89903a740e1ee172da793a6e79d560e5f7f9bd058a12a280433ed6fa46510a':
-                                    pyautogui.confirm("该功能需要Lv2才能使用!")
+                                    pyautogui.confirm(
+                                        "该功能需要Lv2才能使用!\n按ctrl+o 或按f12 打开控制台 输入签到 签到一天即可使用!")
                                     return 0
                                 self.QQ_Button_Dow.setEnabled(False)
 
@@ -3897,7 +4340,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                     random_number = generate_random_number()
                                     url = f"https://q1.qlogo.cn/g?b=qq&nk={random_number}&s=640"
                                     response = requests.get(url)
-                                    b = b+1
+                                    b = b + 1
                                     if response.status_code == 200:
                                         with open(f"./mod/picture/{random_number}.jpg", "wb") as file:
                                             file.write(response.content)
@@ -3933,7 +4376,6 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                     # 从列表中随机选择一行
                                     random_line = random.choice(lines[0:2304])
                                     folder_path = './mod/picture'
-
                                     # 检查文件夹是否存在
                                     if not os.listdir(folder_path):
                                         pyautogui.confirm("需要先下载图片才可使用")
@@ -3943,7 +4385,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                         files = [f for f in os.listdir(folder_path) if
                                                  os.path.isfile(os.path.join(folder_path, f))]
                                         random_file = random.choice(files)
-                                            # 构建完整的文件路径
+                                        # 构建完整的文件路径
                                         file_path = os.path.abspath(os.path.join(folder_path, random_file))
                                         # 从文件名中提取数字部分
                                         file_name = os.path.basename(file_path)
@@ -3952,18 +4394,21 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                         url = f"https://api.oioweb.cn/api/qq/info?qq={number}"  # 替换为实际的API端点
                                         response = requests.get(url)
 
-                                        # 检查响应状态码
-                                        if response.status_code == 200:
+                                        # 通过API调用来获取图片所对应用户的名称
+                                        if response.status_code == 200:  # 调用成功
                                             # 将JSON字符串解析为Python字典
                                             data = response.json()
-                                            # 提取nickname字段的值
-                                            nickname = data["result"]["nickname"]
-                                        else:
+                                            if data["code"] == 200:  # 调用成功
+                                                nickname = data["result"]["nickname"]
+                                            else:  # 调用失败
+
+                                                nickname = random_line
+                                        else:  # 调用失败
                                             nickname = random_line
 
-                                    # 获取窗口对象，替换"Your Window Title"为目标窗口的标题  修改头像
+                                    # 获取窗口对象 修改头像
                                     QQwindow = gw.getWindowsWithTitle("QQ")[0]
-                                    window_position = (QQwindow.left+50,QQwindow.top+80)
+                                    window_position = (QQwindow.left + 50, QQwindow.top + 80)
                                     # 执行点击操作
                                     pyautogui.click(window_position)
                                     time.sleep(rest)
@@ -4003,7 +4448,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                     time.sleep(0.6)
 
                                     QQwindow = gw.getWindowsWithTitle("打开")[0]
-                                    window_position = (QQwindow.left + 240, QQwindow.top + QQwindow.height-70)
+                                    window_position = (QQwindow.left + 240, QQwindow.top + QQwindow.height - 70)
                                     # 执行点击操作
                                     pyautogui.click(window_position)
 
@@ -4035,14 +4480,9 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 except Exception as e:
                                     MyThread(play_warning_sound)
                                     pyautogui.confirm(e)
+                                    traceback.print_exc()
 
                             def Send_QQ(self):  # @QQ
-                                def check_process_exists(process_name):
-                                    for process in psutil.process_iter(attrs=['pid', 'name']):
-                                        if process.info['name'] == process_name:
-                                            return True
-                                    return False
-
                                 # 要检查的进程名称
                                 target_process_name = "QQ.exe"
                                 if check_process_exists(target_process_name):
@@ -4064,9 +4504,9 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                         pyautogui.PAUSE = (self._2doubleSpinBox.value() - 0.03) / 7
                                         if self._2checkBox.isChecked():
                                             while True:
-                                                if keys.is_pressed("F10"):  # Check if F10 key is pressed
+                                                if keys.is_pressed("F10"):  # 按下F10退出
                                                     self.open_point_window()
-                                                    break  # Exit the loop if F10 is pressed
+                                                    break
                                                 math = math + 1
                                                 pyautogui.click(textedit_position)
                                                 pyautogui.write(f'@{self._2lineEdit.text()}')
@@ -4084,9 +4524,9 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                                 pyautogui.click(send_position)
                                         else:
                                             while True:
-                                                if keys.is_pressed("F10"):  # Check if F10 key is pressed
+                                                if keys.is_pressed("F10"):  # 按下F10退出
                                                     self.open_point_window()
-                                                    break  # Exit the loop if F10 is pressed
+                                                    break
                                                 pyautogui.click(textedit_position)
                                                 pyautogui.write(f'@{self._2lineEdit.text()}')
                                                 time.sleep(0.03)
@@ -4104,41 +4544,61 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                     pyautogui.confirm("QQ未启动")
 
                             def Handle_Send(self):  # 句柄式发送消息
-                                def setText(aString):
-                                    """设置剪贴板文本"""
+                                def setText(aString):  # 设置剪贴板文本
                                     w.OpenClipboard()
                                     w.EmptyClipboard()
                                     w.SetClipboardData(win32con.CF_UNICODETEXT, aString)
                                     w.CloseClipboard()
 
-                                def send_qq(to_who, msg):
-                                    """发送qq消息
-                                    to_who：qq消息接收人
-                                    msg：需要发送的消息
-                                    """
-                                    # 将消息写到剪贴板
-                                    setText(msg)
+                                def getWindowSize(hwnd):  # 获取窗口的宽度和高度
+                                    rect = win32gui.GetWindowRect(hwnd)
+                                    width = rect[2] - rect[0]
+                                    height = rect[3] - rect[1]
+                                    return width, height
+
+                                def doClick(cx, cy, hwnd):
+                                    width, height = getWindowSize(hwnd)  # 获取窗口的尺寸
+                                    click_y = height + cy  # 计算相对底部的y坐标HELLO
+                                    long_position = win32api.MAKELONG(cx, click_y)  # 模拟鼠标指针 传送到指定坐标
+                                    win32api.SendMessage(hwnd, win32con.WM_LBUTTONDOWN, win32con.MK_LBUTTON,
+                                                         long_position)  # 模拟鼠标按下
+                                    win32api.SendMessage(hwnd, win32con.WM_LBUTTONUP, win32con.MK_LBUTTON,
+                                                         long_position)  # 模拟鼠标弹起
+                                    """使用 keybd_event 发送 Ctrl+V"""
+                                    # 按下 Ctrl 键
+                                    win32api.keybd_event(win32con.VK_CONTROL, 0, 0, 0)
+                                    # 按下 V 键
+                                    win32api.keybd_event(ord('V'), 0, 0, 0)
+                                    # 放开 V 键
+                                    win32api.keybd_event(ord('V'), 0, win32con.KEYEVENTF_KEYUP, 0)
+                                    # 放开 Ctrl 键
+                                    win32api.keybd_event(win32con.VK_CONTROL, 0, win32con.KEYEVENTF_KEYUP, 0)
+                                    """向指定窗口发送 Enter 键"""
+                                    win32api.keybd_event(win32con.VK_RETURN, 0, 0, 0)  # 按下 Enter 键
+
+                                    win32api.keybd_event(win32con.VK_RETURN, 0, win32con.KEYEVENTF_KEYUP,
+                                                         0)  # 放开 Enter 键
+
+                                def send_qq(hwnd, msg):
+                                    if msg != '###COPY###':  # 当字符不等于这个时 复制内容
+                                        setText(msg)
                                     # 投递剪贴板消息到QQ窗体
+                                    play_prompt_sound("C:\\Windows\\Media\\Windows Notify Messaging.wav")
                                     figure = self._2spinBox.value()
+                                    wait_time = self._2doubleSpinBox_speed.value()
+                                    win32gui.SetForegroundWindow(hwnd)
+                                    time.sleep(0.5)  # 等待窗口聚焦
                                     for i in range(int(figure)):
-                                        '''position = win32api.MAKELONG(x, y)  # x,y为点击点相对于该窗口的坐标
-                                        win32api.SendMessage(hwnd, win32con.WM_LBUTTONDOWN, win32con.MK_LBUTTON,
-                                                             position)  # 向窗口发送模拟鼠标点击
-                                        win32api.SendMessage(hwnd, win32con.WM_LBUTTONUP, win32con.MK_LBUTTON,
-                                                             position)  # 模拟释放鼠标左键'''
-                                        win32gui.SendMessage(hwnd, 258, 22, 2080193)
-                                        win32gui.SendMessage(hwnd, 770, 0, 0)
-                                        # 模拟按下回车键
-                                        win32gui.SendMessage(hwnd, win32con.WM_KEYDOWN, win32con.VK_RETURN, 0)
-                                        win32gui.SendMessage(hwnd, win32con.WM_KEYUP, win32con.VK_RETURN, 0)
+                                        doClick(30, -60, hwnd)  # 点击 (30, height-60)
+                                        time.sleep(wait_time)  # 等待操作完成
 
                                 hwnd = self._2lineEdit_3.text()
                                 massage = self._2textEdit.toPlainText()
                                 if hwnd == '':
-                                    MyThread(play_warning_sound)
+                                    play_prompt_sound("C:\\Windows\\Media\\Windows Notify Messaging.wav")
                                     pyautogui.confirm("请输入句柄")
                                 elif massage == '':
-                                    MyThread(play_warning_sound)
+                                    play_prompt_sound("C:\\Windows\\Media\\Windows Notify Messaging.wav")
                                     pyautogui.confirm("请输入需要发送的消息")
                                 else:
                                     try:
@@ -4147,12 +4607,6 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                         pyautogui.confirm(f"发送失败 错误信息如下:\n {e}")
 
                             def Send_Copy(self):  # 发送复制消息
-                                def check_process_exists(process_name):
-                                    for process in psutil.process_iter(attrs=['pid', 'name']):
-                                        if process.info['name'] == process_name:
-                                            return True
-                                    return False
-
                                 # 要检查的进程名称
                                 target_process_name = "QQ.exe"
                                 if check_process_exists(target_process_name):
@@ -4167,14 +4621,14 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                     b = 0
                                     start_time = time.time()
                                     while True:
-                                        if keys.is_pressed("F10"):  # Check if F10 key is pressed
+                                        if keys.is_pressed("F10"):  # 按下F10退出
                                             self.open_point_window()
                                             end_time = time.time()
                                             # 计算执行时间
                                             execution_time = end_time - start_time
                                             # 打印执行时间
                                             print(f"执行时间: {execution_time} 秒")
-                                            break  # Exit the loop if F10 is pressed
+                                            break
                                         b = b + 1
                                         pyautogui.click(textedit_position)
                                         pyautogui.hotkey('ctrl', 'v')  # 粘贴
@@ -4185,7 +4639,6 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                             pyautogui.press('。')
                                         else:
                                             pyautogui.press(',')
-                                        #pyautogui.click(1644, 1025)  # 点击第二处位置
                                         pyautogui.click(send_position)  # 点击第二处位置
                                         if rest_time > 0:
                                             time.sleep(rest_time)
@@ -4202,7 +4655,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 wait_time = self.wait_doubleSpinBox.value()
                                 time.sleep(wait_time)
                                 print("开始记录自动脚本")
-                                global last_time,records,last_key,last_event_type
+                                global last_time, records, last_key, last_event_type
 
                                 records = []
                                 last_time = time.time()
@@ -4218,6 +4671,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                     ed_bu = Key.end
                                 else:
                                     ed_bu = Key.esc
+
                                 def on_move(x, y):
                                     global last_time
                                     current_time = time.time()
@@ -4229,7 +4683,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 def on_click(x, y, button, pressed):
                                     global last_time
                                     current_time = time.time()
-                                    interval = int((current_time - last_time) * 1000)  # Convert to milliseconds
+                                    interval = int((current_time - last_time) * 1000)  # 转换为毫秒
                                     action = ''
                                     if button == mouse.Button.left:
                                         action = 'mouse left down' if pressed else 'mouse left up'
@@ -4241,7 +4695,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                         records.append([interval, 'M', action, [x, y]])
                                         last_time = current_time
 
-                                def on_scroll(x, y, dx, dy):
+                                def on_scroll(dx, dy):
                                     global last_time
                                     current_time = time.time()
                                     interval = int((current_time - last_time) * 1000)
@@ -4251,7 +4705,6 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
 
                                 # 设置防抖时间间隔（毫秒）
                                 debounce_interval = 200
-
                                 last_key = None
                                 last_event_type = None  # 'down' 或 'up'
 
@@ -4300,7 +4753,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                     last_key = key
                                     last_event_type = 'up'
 
-                                mouse_listener = mouse.Listener(on_click=on_click, on_move=on_move,on_scroll=on_scroll)
+                                mouse_listener = mouse.Listener(on_click=on_click, on_move=on_move, on_scroll=on_scroll)
                                 keyboard_listener = keyboard.Listener(on_press=on_press, on_release=on_release)
 
                                 mouse_listener.start()
@@ -4312,7 +4765,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 move_total_time = 0
                                 for list_record in records:
                                     if list_record[2] == 'mouse move':
-                                        if list_record[0] <10:
+                                        if list_record[0] < 10:
                                             if move_times == 0:
                                                 move_times = move_times + 1
                                                 move_total_time = move_total_time + list_record[0]
@@ -4334,7 +4787,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                         move_total_time = 0
 
                                 # 打开文件进行写入
-                                with open('./scripts/'+self.button_file.text(), 'w') as f:
+                                with open('./scripts/' + self.button_file.text(), 'w') as f:
                                     for record in records:
                                         if record[0] != 0:
                                             if isinstance(record[3][1], str) and len(record[3][1]) == 1 and record[3][
@@ -4428,17 +4881,18 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                         return KeyCode(char=key_char)
 
                                 records = []
-                                record_time  = 0
-                                with open('./scripts/'+self.button_file.text(), 'r') as f:
+                                record_time = 0
+                                with open('./scripts/' + self.button_file.text(), 'r') as f:
                                     for line in f:
-                                        record = eval(line.strip())
-                                        record_time += record[0]
-                                        records.append(record)
-                                print(f"记录执行时间:{record_time/1000}秒")
+                                        if line[0] != '#':
+                                            record = eval(line.strip())
+                                            record_time += record[0]
+                                            records.append(record)
+                                print(f"记录执行时间:{record_time / 1000}秒")
                                 star = time.time()
-                                for i in range(count):  #开始执行自动脚本
+                                for i in range(count):  # 开始执行自动脚本
                                     for record in records:
-                                        time.sleep((record[0] - 1) / 1000 )  # 等待时间
+                                        time.sleep((record[0] - 1) / 1000)  # 等待时间
                                         if record[1] == 'M':  # 鼠标事件
                                             x, y = record[3] if record[2] != 'mouse scroll' else (None, None)
                                             if 'mouse move' in record[2]:
@@ -4467,23 +4921,23 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                             elif 'up' in record[2]:
                                                 keyboard_controller.release(key)
                                 end_ti = time.time()
-                                print(f"实际执行时间:{end_ti-star}秒")
+                                print(f"实际执行时间:{end_ti - star}秒")
                                 self.showNormal()
 
                             def about(self):
-                                # MyThread(play_warning_sound)  提示音
                                 pyautogui.confirm(
-                                    f"版本:{Version}\nGui图形库:Pyqt5\n制作者:浮沉 QQ:3046447554 软件完全免费 纯净无广告\n软件免费 若发现收费购买 请联系我进行反馈",
+                                    f"版本:{Version}\nGui图形库:Pyqt5\n制作者:浮沉 QQ:3046447554 软件完全免费 纯净无广告\n软件免费 若发现收费购买 请联系我进行反馈\nUI设计本人没有灵感 略微草率还请谅解 如有建议请反馈",
                                     "Fuchen")
 
                             def open_website(self):
-                                webbrowser.open("http://fcyang.top/")
+                                webbrowser.open("https://fcyang.cn/")
+
+                            def open_website_help(self):
+                                webbrowser.open("https://fcyang.cn/others/help.html")
 
                             def delete_images(self):
-
                                 reply = QMessageBox.question(self, '确认删除', "你确定要删除文件夹内容吗?",
                                                              QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
-
                                 if reply == QMessageBox.Yes:
                                     shutil.rmtree('./mod/picture')
                                     # 重新创建空文件夹
@@ -4526,6 +4980,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 action11 = QAction("Caps", self)
                                 action11.triggered.connect(lambda: self.action_Clicked("Caps"))
 
+                                ###自定义按键...###
 
                                 menu.addAction(action1)
                                 menu.addAction(action2)
@@ -4566,11 +5021,11 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 key_menu.addAction(action5)
                                 return key_menu
 
-                            def action_Clicked(self,key):
+                            def action_Clicked(self, key):
                                 self.sort = key
                                 self._3pushButton_4.setText(f"设置启停快捷键({self.sort})")
 
-                            def key_menu_com(self,key):
+                            def key_menu_com(self, key):
                                 self.end_key = key
                                 self.end_key_button.setText(f"{key}")
 
@@ -4617,9 +5072,9 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                         self.CopytoolTipVisible = False
                                     else:
                                         QtWidgets.QToolTip.showText(
-                                        self.pushButton_tooltip_copy.mapToGlobal(QtCore.QPoint()),
-                                        "此功能的作用是在群聊中发送复制的内容\n此功能需要先复制要发送的内容\n点击开始发送将自动粘贴\n要发送的内容到聊天框中\n发送前仍需要先设置位置",
-                                        self.pushButton_tooltip_copy)
+                                            self.pushButton_tooltip_copy.mapToGlobal(QtCore.QPoint()),
+                                            "此功能的作用是在群聊中发送复制的内容\n此功能需要先复制要发送的内容\n点击开始发送将自动粘贴\n要发送的内容到聊天框中\n发送前仍需要先设置位置",
+                                            self.pushButton_tooltip_copy)
                                         self.CopytoolTipVisible = True
 
                             def populateMenu(self, folder_path="scripts"):
@@ -4654,7 +5109,8 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                     self.file_lineEdit.setText(new_name)
 
                             def showMenu(self):
-                                self.file_menu.exec_(self.button_file.mapToGlobal(QtCore.QPoint(0, self.button_file.height())))
+                                self.file_menu.exec_(
+                                    self.button_file.mapToGlobal(QtCore.QPoint(0, self.button_file.height())))
 
                             def updateButtonText(self, file_name):
                                 # 更新按钮文本
@@ -4685,18 +5141,21 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 font_11.setFamily("等线")
                                 font_11.setPointSize(11)
                                 self.LClick_Radio = QtWidgets.QRadioButton(self.page_1)
-                                self.LClick_Radio.setGeometry(QtCore.QRect(100, 70, 80, 21))
+                                self.LClick_Radio.setGeometry(QtCore.QRect(100, 70, 80, 25))
                                 self.LClick_Radio.setObjectName("LClick_Radio")
                                 self.LClick_Radio.setText("鼠标左键")
                                 self.LClick_Radio.setChecked(True)
+                                self.LClick_Radio.setStyleSheet(style_Radio)
                                 self.MClick_Radio = QtWidgets.QRadioButton(self.page_1)
-                                self.MClick_Radio.setGeometry(QtCore.QRect(190, 70, 80, 21))
+                                self.MClick_Radio.setGeometry(QtCore.QRect(190, 70, 80, 25))
                                 self.MClick_Radio.setObjectName("MClick_Radio")
                                 self.MClick_Radio.setText("鼠标中键")
+                                self.MClick_Radio.setStyleSheet(style_Radio)
                                 self.RClick_Radio = QtWidgets.QRadioButton(self.page_1)
-                                self.RClick_Radio.setGeometry(QtCore.QRect(280, 70, 80, 21))
+                                self.RClick_Radio.setGeometry(QtCore.QRect(280, 70, 80, 25))
                                 self.RClick_Radio.setObjectName("RClick_Radio")
                                 self.RClick_Radio.setText("鼠标右键")
+                                self.RClick_Radio.setStyleSheet(style_Radio)
 
                                 self.Sort_Click = QtWidgets.QLabel(self.page_1)  # 左键每秒点击次数
                                 self.Sort_Click.setGeometry(QtCore.QRect(25, 70, 60, 21))
@@ -4710,7 +5169,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self._3label_5 = QtWidgets.QLabel(self.page_1)
                                 self._3label_5.setGeometry(QtCore.QRect(25, 20, 101, 31))
                                 font = QtGui.QFont()
-                                font.setFamily("Arial")
+                                font.setFamily("新宋体")
                                 font.setPointSize(18)
                                 self._3label_5.setFont(font)
                                 self._3label_5.setObjectName("_3label_5")
@@ -4733,32 +5192,14 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self._3D.setMaximum(1000)
                                 self._3D.setObjectName("_3D")
                                 self._3D.setSingleStep(0.05)
-                                self._3D.setStyleSheet("""
-                                                                QDoubleSpinBox {
-                                                                                                                                                border: 1px solid gray;
-                                                                                                                                                border-radius: 3px;  /* 设置圆角 */
-                                                                                                                                                background: transparent;
-                                                                                                                                                font: 14px;
-                                                                                                                                                font-family: Calibri;
-                                                                                                                                            }
-                                                                                                                                            QDoubleSpinBox::up-button {
-                                                                                                                                                subcontrol-origin: border;
-                                                                                                                                                subcontrol-position: top right; 
-                                                                                                                                                width: 13px; 
-                                                                                                                                                border-image: url('./image/Component/箭头 上.png');  /* 设置上调按钮的图像 */
-                                                                                                                                            }
-                                                                                                                                            QDoubleSpinBox::down-button {
-                                                                                                                                                subcontrol-origin: border;
-                                                                                                                                                subcontrol-position: bottom right; 
-                                                                                                                                                width: 13px; 
-                                                                                                                                                border-image: url('./image/Component/箭头 下.png');  /* 设置下调按钮的图像 */
-                                                                                                                                            }""")
+                                self._3D.setStyleSheet(style_Double)
 
                                 self._3pushButton_4 = QtWidgets.QPushButton(self.page_1)  # 左键点击
                                 self._3pushButton_4.setGeometry(QtCore.QRect(25, 170, 150, 35))
                                 self._3pushButton_4.setObjectName("_3pushButton_4")
                                 self._3pushButton_4.setCursor(QCursor(Qt.PointingHandCursor))
                                 self._3pushButton_4.setText(f"设置启停快捷键({self.sort})")
+                                self._3pushButton_4.setFont(style_font_10)
                                 self._3pushButton_4.setStyleSheet("""
                                                                                                         QPushButton {
                                                                                                             border: 1px solid #3498db;    /* 设置为RGB颜色#3498db的边框 */
@@ -4771,11 +5212,12 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                                                                                         }
                                                                                                     """)
 
-                                self._3pushButton_6 = QtWidgets.QPushButton(self.page_1)  # 左键点击
+                                self._3pushButton_6 = QtWidgets.QPushButton(self.page_1)  # 开启连点器
                                 self._3pushButton_6.setGeometry(QtCore.QRect(180, 170, 125, 35))
                                 self._3pushButton_6.setObjectName("_3pushButton_6")
                                 self._3pushButton_6.setCursor(QCursor(Qt.PointingHandCursor))
                                 self._3pushButton_6.setText("开启连点器")
+                                self._3pushButton_6.setFont(style_font_10)
                                 self._3pushButton_6.setStyleSheet("""
                                                                                                         QPushButton {
                                                                                                             border: 1px solid #3498db;    /* 设置为RGB颜色#3498db的边框 */
@@ -4793,6 +5235,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self._3pushButton_7.setObjectName("_3pushButton_7")
                                 self._3pushButton_7.setCursor(QCursor(Qt.PointingHandCursor))
                                 self._3pushButton_7.setText("关闭")
+                                self._3pushButton_7.setFont(style_font_10)
                                 self._3pushButton_7.setStyleSheet("""
                                                                                                                                             QPushButton {
                                                                                                                                                 border: 1px solid #3498db;    /* 设置为RGB颜色#3498db的边框 */
@@ -4814,7 +5257,8 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self.problem_label.setFont(font)
                                 self.problem_label.setObjectName("problem_label")
                                 self.problem_label.setOpenExternalLinks(True)
-                                self.problem_label.setText("若开启连点器后提示dll缺失<br><a href='https://wwt.lanzout.com/i1Sbx1uur2ta'>请安装运行库后再次尝试</a>")
+                                self.problem_label.setText(
+                                    "若开启连点器后提示dll缺失<br><a href='https://wwt.lanzout.com/i1Sbx1uur2ta'>请安装运行库后再次尝试</a>")
 
                                 self.auto_label = QtWidgets.QLabel(self.page_1)
                                 self.auto_label.setGeometry(QtCore.QRect(25, 280, 150, 31))
@@ -4843,6 +5287,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 font.setPointSize(10)
                                 self.quest_label.setFont(font)
                                 self.quest_label.setObjectName("quest_label")
+                                self.quest_label.setFont(style_font_10)
                                 self.quest_label.setText("目前是使用C++的exe进行调用的 最高速度大概为400/S \n\n"
                                                          "自动脚本功能需要先点击记录按钮记录操作 esc退出记录\n"
                                                          "在记录和执行自动脚本之前需要选择配置文件\n"
@@ -4860,8 +5305,8 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self.reflash.setObjectName("reflash")
                                 self.reflash.setToolTip('刷新')
                                 self.reflash.setStyleSheet("QPushButton#reflash {"
-                                               "    border-image: url(./image/Component/刷新.png);"
-                                               "}")
+                                                           "    border-image: url(./image/Component/刷新.png);"
+                                                           "}")
 
                                 self.file_menu = QMenu(self)
                                 self.populateMenu('scripts')  # 替换为实际文件夹路径
@@ -4879,6 +5324,18 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self.button_file.setGeometry(100, 350, 150, 25)
                                 self.button_file.setIcon(QIcon('./image/Component/箭头 下.png'))  # 确保有这个图标文件或使用适当的替代
                                 self.button_file.clicked.connect(self.showMenu)
+                                self.button_file.setFont(style_font_9)
+                                self.button_file.setStyleSheet("""
+                                                                                                                                        QPushButton {
+                                                                                                                                            border: 1px solid #CDCDCD;    /* 设置为RGB颜色#3498db的边框 */
+                                                                                                                                            background-color: transparent;    /* 设置透明背景 */
+                                                                                                                                            border-radius: 2px;    /* 设置圆角 */
+                                                                                                                                        }
+                                                                                                                                        QPushButton:hover {
+                                                                                                                                                background-color: #a6a6a6;    /* 设置鼠标悬停时的背景颜色为RGB颜色#3498db */
+                                                                                                                                                border: 1px solid #8f8f8f;    /* 设置鼠标悬停时的边框颜色为RGB颜色#3498db */
+                                                                                                                                            }
+                                                                                                                                    """)
 
                                 self.label_new = QtWidgets.QLabel(self.page_1)  # 左键每秒点击次数
                                 self.label_new.setGeometry(QtCore.QRect(25, 400, 101, 21))
@@ -4891,6 +5348,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self.file_lineEdit.setObjectName("file_lineEdit")
                                 self.file_lineEdit.setStyleSheet("background: transparent;")
                                 self.file_lineEdit.setPlaceholderText("输入文件名称")
+                                self.file_lineEdit.setFont(style_font_9)
                                 self.file_lineEdit.setText(self.generate_initial_filename())
 
                                 self.button_create = QtWidgets.QPushButton(self.page_1)
@@ -4909,21 +5367,21 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                                                  "font-family: SimSun, Arial, sans-serif;"
                                                                  "}")
 
-                                self._3pushButton = QtWidgets.QPushButton(self.page_1)
+                                # self._3pushButton = QtWidgets.QPushButton(self.page_1)
+                                self._3pushButton = oo.AnimatedButton(self.page_1)
                                 self._3pushButton.setGeometry(QtCore.QRect(25, 510, 110, 30))
                                 self._3pushButton.setObjectName("_3pushButton")
                                 self._3pushButton.setCursor(QCursor(Qt.PointingHandCursor))
                                 self._3pushButton.setText("记录自动脚本")
-                                self._3pushButton.setStyleSheet("QPushButton#_3pushButton {"
+                                '''self._3pushButton.setStyleSheet("QPushButton#_3pushButton {"
                                                                 "background-color: #3498db;"  # Blue background color
                                                                 "border-radius: 4px;"  # 10px border radius for rounded corners
                                                                 "color: white;"
                                                                 "padding: 300px 300px;"
                                                                 "text-align: center;"
                                                                 "text-decoration: none;"
-                                                                "font-size: 13px;"
-                                                                "font-family: SimSun, Arial, sans-serif;"
-                                                                "}")
+                                                                "}")'''
+                                self._3pushButton.setFont(style_font_10)
 
                                 self._3pushButton_2 = QtWidgets.QPushButton(self.page_1)
                                 self._3pushButton_2.setGeometry(QtCore.QRect(160, 510, 110, 30))
@@ -4937,9 +5395,8 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                                                   "padding: 300px 300px;"
                                                                   "text-align: center;"
                                                                   "text-decoration: none;"
-                                                                  "font-size: 13px;"
-                                                                  "font-family: SimSun, Arial, sans-serif;"
                                                                   "}")
+                                self._3pushButton_2.setFont(style_font_10)
 
                                 self._3label_10 = QtWidgets.QLabel(self.page_1)  #
                                 self._3label_10.setGeometry(QtCore.QRect(25, 450, 60, 21))
@@ -4958,27 +5415,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self._3spinBox_3.setMaximum(9999)
                                 self._3spinBox_3.setValue(1)
                                 self._3spinBox_3.setObjectName("_3spinBox_3")
-                                self._3spinBox_3.setStyleSheet("""
-                                                                                                                                                                            QSpinBox {
-                                                                                                                                                                                border: 1px solid gray;
-                                                                                                                                                                                border-radius: 3px;  /* 设置圆角 */
-                                                                                                                                                                                background: transparent;
-                                                                                                                                                                                font: 14px;
-                                                                                                                                                                                font-family: Calibri;
-                                                                                                                                                                            }
-                                                                                                                                                                            QSpinBox::up-button {
-                                                                                                                                                                                subcontrol-origin: border;
-                                                                                                                                                                                subcontrol-position: top right; 
-                                                                                                                                                                                width: 13px; 
-                                                                                                                                                                                border-image: url('./image/Component/箭头 上.png');  /* 设置上调按钮的图像 */
-                                                                                                                                                                            }
-                                                                                                                                                                            QSpinBox::down-button {
-                                                                                                                                                                                subcontrol-origin: border;
-                                                                                                                                                                                subcontrol-position: bottom right; 
-                                                                                                                                                                                width: 13px; 
-                                                                                                                                                                                border-image: url('./image/Component/箭头 下.png');  /* 设置下调按钮的图像 */
-                                                                                                                                                                            }
-                                                                                                                                                                        """)
+                                self._3spinBox_3.setStyleSheet(style_Spin)
 
                                 self.wait_doubleSpinBox = QtWidgets.QDoubleSpinBox(self.page_1)  # 自动脚本等待执行时间
                                 self.wait_doubleSpinBox.setGeometry(QtCore.QRect(510, 400, 60, 22))
@@ -4986,33 +5423,14 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self.wait_doubleSpinBox.setMinimum(0)
                                 self.wait_doubleSpinBox.setValue(0)
                                 self.wait_doubleSpinBox.setObjectName("wait_doubleSpinBox")
-                                self.wait_doubleSpinBox.setStyleSheet("""
-                                                                                                                                                                            QDoubleSpinBox {
-                                                                                                                                                                                border: 1px solid gray;
-                                                                                                                                                                                border-radius: 3px;  /* 设置圆角 */
-                                                                                                                                                                                background: transparent;
-                                                                                                                                                                                font: 14px;
-                                                                                                                                                                                font-family: Calibri;
-                                                                                                                                                                            }
-                                                                                                                                                                            QDoubleSpinBox::up-button {
-                                                                                                                                                                                subcontrol-origin: border;
-                                                                                                                                                                                subcontrol-position: top right; 
-                                                                                                                                                                                width: 13px; 
-                                                                                                                                                                                border-image: url('./image/Component/箭头 上.png');  /* 设置上调按钮的图像 */
-                                                                                                                                                                            }
-                                                                                                                                                                            QDoubleSpinBox::down-button {
-                                                                                                                                                                                subcontrol-origin: border;
-                                                                                                                                                                                subcontrol-position: bottom right; 
-                                                                                                                                                                                width: 13px; 
-                                                                                                                                                                                border-image: url('./image/Component/箭头 下.png');  /* 设置下调按钮的图像 */
-                                                                                                                                                                            }
-                                                                                                                                                                        """)
+                                self.wait_doubleSpinBox.setStyleSheet(style_Double)
 
                                 self._3pushButton_5 = QtWidgets.QPushButton(self.page_1)
                                 self._3pushButton_5.setGeometry(QtCore.QRect(360, 350, 91, 23))
                                 self._3pushButton_5.setObjectName("_3pushButton_4")
                                 self._3pushButton_5.setCursor(QCursor(Qt.PointingHandCursor))
-                                self._3pushButton_5.setText("点击助手")
+                                self._3pushButton_5.setText("鼠标信息")
+                                self._3pushButton_5.setFont(style_font_10)
                                 self._3pushButton_5.setStyleSheet("""
                                                                                                                                                                             QPushButton {
                                                                                                                                                                                 border: 1px solid #3498db;    /* 设置为RGB颜色#3498db的边框 */
@@ -5025,12 +5443,14 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                                                                                                                                                             }
                                                                                                                                                                         """)
 
-                                self.impor_button = QtWidgets.QPushButton(self.page_1)
-                                self.impor_button.setGeometry(QtCore.QRect(360, 510, 180, 23))
+                                # self.impor_button = QtWidgets.QPushButton(self.page_1)
+                                self.impor_button = oo.NormolAnimatedButton(self.page_1)
+                                self.impor_button.setGeometry(QtCore.QRect(360, 510, 180, 25))
                                 self.impor_button.setObjectName("impor_button")
                                 self.impor_button.setCursor(QCursor(Qt.PointingHandCursor))
                                 self.impor_button.setText("编辑选中的配置文件")
-                                self.impor_button.setStyleSheet("""
+                                self.impor_button.setFont(style_font_10)
+                                '''self.impor_button.setStyleSheet("""
                                                                                                                                                                             QPushButton {
                                                                                                                                                                                 border: 1px solid #3498db;    /* 设置为RGB颜色#3498db的边框 */
                                                                                                                                                                                 background-color: transparent;    /* 设置透明背景 */
@@ -5040,14 +5460,16 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                                                                                                                                                                 background-color: #3498db;    /* 设置鼠标悬停时的背景颜色为RGB颜色#3498db */
                                                                                                                                                                                 border: 1px solid #3498db;    /* 设置鼠标悬停时的边框颜色为RGB颜色#3498db */
                                                                                                                                                                             }
-                                                                                                                                                                        """)
+                                                                                                                                                                        """)'''
 
-                                self.delete_button = QtWidgets.QPushButton(self.page_1)
-                                self.delete_button.setGeometry(QtCore.QRect(550, 510, 180, 23))
+                                # self.delete_button = QtWidgets.QPushButton(self.page_1)
+                                self.delete_button = oo.NormolAnimatedButton(self.page_1)
+                                self.delete_button.setGeometry(QtCore.QRect(550, 510, 180, 25))
                                 self.delete_button.setObjectName("delete_button")
                                 self.delete_button.setCursor(QCursor(Qt.PointingHandCursor))
                                 self.delete_button.setText("删除选中的配置文件")
-                                self.delete_button.setStyleSheet("""
+                                self.delete_button.setFont(style_font_10)
+                                '''self.delete_button.setStyleSheet("""
                                                                                                                                                                                                             QPushButton {
                                                                                                                                                                                                                 border: 1px solid #3498db;    /* 设置为RGB颜色#3498db的边框 */
                                                                                                                                                                                                                 background-color: transparent;    /* 设置透明背景 */
@@ -5057,7 +5479,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                                                                                                                                                                                                 background-color: #3498db;    /* 设置鼠标悬停时的背景颜色为RGB颜色#3498db */
                                                                                                                                                                                                                 border: 1px solid #3498db;    /* 设置鼠标悬停时的边框颜色为RGB颜色#3498db */
                                                                                                                                                                                                             }
-                                                                                                                                                                                                        """)
+                                                                                                                                                                                                        """)'''
 
                                 self.label_end = QtWidgets.QLabel(self.page_1)
                                 self.label_end.setGeometry(QtCore.QRect(360, 450, 130, 21))
@@ -5070,6 +5492,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self.end_key_button.setObjectName("end_key_button")
                                 self.end_key_button.setCursor(QCursor(Qt.PointingHandCursor))
                                 self.end_key_button.setText(f"{self.end_key}")
+                                self.end_key_button.setFont(style_font_10)
                                 self.end_key_button.setStyleSheet("""
                                                                                                                                         QPushButton {
                                                                                                                                             border: 1px solid #3498db;    /* 设置为RGB颜色#3498db的边框 */
@@ -5104,21 +5527,24 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                     "使用句柄进行消息发送:\n需要先点击取值按钮 然后再点击QQ聊天窗口 就可以发送消息了\n有时可能会发送失败 需打开任务管理器将QQ其他进程关闭\n只保留聊天框进程")
 
                                 self._2label_8 = QtWidgets.QLabel(self.page_2)
-                                self._2label_8.setGeometry(QtCore.QRect(20, 300, 51, 21))
+                                self._2label_8.setGeometry(QtCore.QRect(20, 320, 51, 21))
                                 self._2label_8.setObjectName("_2label_8")
+                                self._2label_8.setFont(style_font_11)
                                 self._2label_8.setText("句柄:")
 
                                 self._2lineEdit_3 = QtWidgets.QLineEdit(self.page_2)  # 句柄值输入框
-                                self._2lineEdit_3.setGeometry(QtCore.QRect(20, 330, 60, 20))
+                                self._2lineEdit_3.setGeometry(QtCore.QRect(70, 320, 75, 21))
                                 self._2lineEdit_3.setObjectName("_2lineEdit_3")
                                 self._2lineEdit_3.setStyleSheet("background: transparent;")
                                 self._2lineEdit_3.setPlaceholderText("句柄值")
+                                self._2lineEdit_3.setFont(style_font_10)
 
                                 self._2pushButton2 = QtWidgets.QPushButton(self.page_2)  # 获取句柄值
-                                self._2pushButton2.setGeometry(QtCore.QRect(85, 329, 200, 23))
+                                self._2pushButton2.setGeometry(QtCore.QRect(150, 320, 200, 21))
                                 self._2pushButton2.setObjectName("_2pushButton2")
                                 self._2pushButton2.setCursor(QCursor(Qt.PointingHandCursor))
-                                self._2pushButton2.setText("点击按钮后单击聊天窗口获取句柄")
+                                self._2pushButton2.setText("点击此处后单击聊天窗口获取句柄")
+                                self._2pushButton2.setFont(style_font_10)
                                 self._2pushButton2.setStyleSheet("""
                                                                                                                                         QPushButton {
                                                                                                                                             border: 2px solid #CDCDCD;    /* 设置为RGB颜色#3498db的边框 */
@@ -5132,64 +5558,52 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                                                                                                                     """)
 
                                 self._2label_10 = QtWidgets.QLabel(self.page_2)  # 句柄发送次数
-                                self._2label_10.setGeometry(QtCore.QRect(20, 360, 54, 12))
+                                self._2label_10.setGeometry(QtCore.QRect(20, 360, 54, 22))
                                 self._2label_10.setObjectName("_2label_10")
+                                self._2label_10.setFont(style_font_11)
                                 self._2label_10.setText("次数:")
 
                                 self._2spinBox = QtWidgets.QSpinBox(self.page_2)  # 句柄式发送次数
-                                self._2spinBox.setGeometry(QtCore.QRect(20, 380, 60, 22))
+                                self._2spinBox.setGeometry(QtCore.QRect(70, 360, 60, 22))
                                 self._2spinBox.setMaximum(9999)
                                 self._2spinBox.setValue(10)
                                 self._2spinBox.setObjectName("_2spinBox")
-                                self._2spinBox.setStyleSheet("""
-                                                                                                                                                                        QSpinBox {
-                                                                                                                                                                            border: 1px solid gray;
-                                                                                                                                                                            border-radius: 3px;  /* 设置圆角 */
-                                                                                                                                                                            background: transparent;
-                                                                                                                                                                            font: 14px;
-                                                                                                                                                                            font-family: Calibri;
-                                                                                                                                                                        }
-                                                                                                                                                                        QSpinBox::up-button {
-                                                                                                                                                                            subcontrol-origin: border;
-                                                                                                                                                                            subcontrol-position: top right;
-                                                                                                                                                                            width: 13px;
-                                                                                                                                                                            border-image: url('./image/Component/箭头 上.png');  /* 设置上调按钮的图像 */
-                                                                                                                                                                        }
-                                                                                                                                                                        QSpinBox::down-button {
-                                                                                                                                                                            subcontrol-origin: border;
-                                                                                                                                                                            subcontrol-position: bottom right;
-                                                                                                                                                                            width: 13px;
-                                                                                                                                                                            border-image: url('./image/Component/箭头 下.png');  /* 设置下调按钮的图像 */
-                                                                                                                                                                        }
-                                                                                                                                                                    """)
+                                self._2spinBox.setStyleSheet(style_Spin)
                                 self._2spinBox.setMinimum(1)
 
+                                self._2label_speed = QtWidgets.QLabel(self.page_2)  # 句柄发送次数
+                                self._2label_speed.setGeometry(QtCore.QRect(160, 360, 85, 22))
+                                self._2label_speed.setObjectName("_2label_speed")
+                                self._2label_speed.setFont(style_font_11)
+                                self._2label_speed.setText("发送间隔/秒:")
+
+                                self._2doubleSpinBox_speed = QtWidgets.QDoubleSpinBox(self.page_2)
+                                self._2doubleSpinBox_speed.setGeometry(QtCore.QRect(260, 360, 62, 22))
+                                self._2doubleSpinBox_speed.setMinimum(0.01)
+                                self._2doubleSpinBox_speed.setValue(0.1)
+                                self._2doubleSpinBox_speed.setObjectName("_2doubleSpinBox_speed")
+                                self._2doubleSpinBox_speed.setSingleStep(0.05)
+                                self._2doubleSpinBox_speed.setStyleSheet(style_Double)
+
                                 self._2textEdit = QtWidgets.QTextEdit(self.page_2)  # 句柄发送内容
-                                self._2textEdit.setGeometry(QtCore.QRect(20, 430, 280, 110))
+                                self._2textEdit.setGeometry(QtCore.QRect(20, 420, 330, 110))
                                 self._2textEdit.setObjectName("_2textEdit")
                                 self._2textEdit.setStyleSheet("background: transparent;")
-                                self._2textEdit.setPlaceholderText("输入需要发送的内容")
+                                self._2textEdit.setFont(style_font_11)
+                                self._2textEdit.setPlaceholderText("在此处输入需要发送的内容\n注：不能使用数字作为开头")
 
                                 self._2label_9 = QtWidgets.QLabel(self.page_2)  # 内容提示
-                                self._2label_9.setGeometry(QtCore.QRect(20, 410, 111, 16))
+                                self._2label_9.setGeometry(QtCore.QRect(20, 390, 111, 22))
                                 self._2label_9.setObjectName("_2label_9")
-                                self._2label_9.setText("需要发送的内容:")
+                                self._2label_9.setFont(style_font_11)
+                                self._2label_9.setText("需要发送的内容：")
 
-                                self._2pushButton_3 = QtWidgets.QPushButton(self.page_2)  # 句柄式发送消息
+                                self._2pushButton_3 = oo.NormolAnimatedButton(self.page_2)
                                 self._2pushButton_3.setGeometry(QtCore.QRect(20, 550, 280, 31))
                                 self._2pushButton_3.setObjectName("_2pushButton_3")
                                 self._2pushButton_3.setCursor(QCursor(Qt.PointingHandCursor))
                                 self._2pushButton_3.setText("开始发送")
-                                self._2pushButton_3.setStyleSheet("QPushButton#_2pushButton_3 {"
-                                                                  "background-color: #3498db;"  # Blue background color
-                                                                  "border-radius: 5px;"  # 10px border radius for rounded corners
-                                                                  "color: white;"
-                                                                  "padding: 100px 100px;"
-                                                                  "text-align: center;"
-                                                                  "text-decoration: none;"
-                                                                  "font-size: 13px;"
-                                                                  "font-family: SimSun, Arial, sans-serif;"
-                                                                  "}")
+                                self._2pushButton_3.setFont(style_font_11)
 
                                 self._2label = QtWidgets.QLabel(self.page_2)
                                 self._2label.setGeometry(QtCore.QRect(20, 15, 100, 20))
@@ -5212,10 +5626,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
 
                                 self._2label_2 = QtWidgets.QLabel(self.page_2)
                                 self._2label_2.setGeometry(QtCore.QRect(20, 65, 50, 21))
-                                font = QtGui.QFont()
-                                font.setFamily("Arial")
-                                font.setPointSize(10)
-                                self._2label_2.setFont(font)
+                                self._2label_2.setFont(style_font_10)
                                 self._2label_2.setObjectName("_2label_2")
                                 self._2label_2.setText("QQ号:")
 
@@ -5223,73 +5634,49 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self._2lineEdit.setGeometry(QtCore.QRect(70, 65, 140, 20))
                                 self._2lineEdit.setObjectName("_2lineEdit")
                                 self._2lineEdit.setStyleSheet("background: transparent;")
+                                self._2lineEdit.setFont(style_font_9)
                                 self._2lineEdit.setPlaceholderText("点击输入需要@的QQ号")
 
                                 self._2label_3 = QtWidgets.QLabel(self.page_2)
-                                self._2label_3.setGeometry(QtCore.QRect(20, 125, 101, 16))
-                                font = QtGui.QFont()
-                                font.setFamily("Arial")
-                                font.setPointSize(11)
-                                self._2label_3.setFont(font)
-                                self._2label_3.setObjectName("_2label_3")
+                                self._2label_3.setGeometry(QtCore.QRect(20, 125, 101, 20))
+                                self._2label_3.setFont(style_font_11)
                                 self._2label_3.setText("发送间隔/每次:")
 
                                 self._2doubleSpinBox = QtWidgets.QDoubleSpinBox(self.page_2)
-                                self._2doubleSpinBox.setGeometry(QtCore.QRect(130, 125, 62, 21))
+                                self._2doubleSpinBox.setGeometry(QtCore.QRect(130, 125, 62, 20))
                                 self._2doubleSpinBox.setMinimum(0.05)
                                 self._2doubleSpinBox.setValue(0.05)
                                 self._2doubleSpinBox.setObjectName("_2doubleSpinBox")
                                 self._2doubleSpinBox.setSingleStep(0.05)
-                                self._2doubleSpinBox.setStyleSheet("""
-                                                                                                                                        QDoubleSpinBox {
-                                                                                                                                            border: 1px solid gray;
-                                                                                                                                            border-radius: 3px;  /* 设置圆角 */
-                                                                                                                                            background: transparent;
-                                                                                                                                            font: 14px;
-                                                                                                                                            font-family: Calibri;
-                                                                                                                                        }
-                                                                                                                                        QDoubleSpinBox::up-button {
-                                                                                                                                            subcontrol-origin: border;
-                                                                                                                                            subcontrol-position: top right; 
-                                                                                                                                            width: 13px; 
-                                                                                                                                            border-image: url('./image/Component/箭头 上.png');  /* 设置上调按钮的图像 */
-                                                                                                                                        }
-                                                                                                                                        QDoubleSpinBox::down-button {
-                                                                                                                                            subcontrol-origin: border;
-                                                                                                                                            subcontrol-position: bottom right; 
-                                                                                                                                            width: 13px; 
-                                                                                                                                            border-image: url('./image/Component/箭头 下.png');  /* 设置下调按钮的图像 */
-                                                                                                                                        }
-                                                                                                                                    """)
+                                self._2doubleSpinBox.setStyleSheet(style_Double)
 
                                 self._2checkBox = QtWidgets.QCheckBox(self.page_2)
                                 self._2checkBox.setGeometry(QtCore.QRect(20, 170, 121, 21))
                                 self._2checkBox.setObjectName("_2checkBox")
                                 self._2checkBox.setText("输入数字后缀")
                                 self._2checkBox.setToolTip("选中后 在发送时将在内容后添加此次发送的数字序号")
+                                self._2checkBox.setFont(style_font_10)
+                                self._2checkBox.setStyleSheet(style_CheckBox)
 
-                                self._2pushButton = QtWidgets.QPushButton(self.page_2)  # QQ@功能
-                                self._2pushButton.setGeometry(QtCore.QRect(20, 220, 180, 23))
+                                # self._2pushButton = QtWidgets.QPushButton(self.page_2)  # QQ@功能
+                                self._2pushButton = oo.NormolAnimatedButton(self.page_2)
+                                self._2pushButton.setGeometry(QtCore.QRect(20, 220, 180, 25))
                                 self._2pushButton.setObjectName("_2pushButton")
                                 self._2pushButton.setCursor(QCursor(Qt.PointingHandCursor))
                                 self._2pushButton.setText("开始发送")
-                                self._2pushButton.setStyleSheet("QPushButton#_2pushButton {"
+                                self._2pushButton.setFont(style_font_10)
+                                '''self._2pushButton.setStyleSheet("QPushButton#_2pushButton {"
                                                                 "background-color: #3498db;"  # Blue background color
                                                                 "border-radius: 4px;"  # 10px border radius for rounded corners
                                                                 "color: white;"
                                                                 "padding: 300px 300px;"
                                                                 "text-align: center;"
                                                                 "text-decoration: none;"
-                                                                "font-size: 13px;"
-                                                                "font-family: SimSun, Arial, sans-serif;"
-                                                                "}")
+                                                                "}")'''
 
                                 self.label_position_status = QtWidgets.QLabel(self.page_2)
                                 self.label_position_status.setGeometry(QtCore.QRect(240, 120, 150, 16))
-                                font = QtGui.QFont()
-                                font.setFamily("Arial")
-                                font.setPointSize(10)
-                                self.label_position_status.setFont(font)
+                                self.label_position_status.setFont(style_font_10)
                                 self.label_position_status.setObjectName("label_position_status")
                                 if position_status == False:
                                     self.label_position_status.setText(
@@ -5300,19 +5687,13 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
 
                                 self.label_positions = QtWidgets.QLabel(self.page_2)
                                 self.label_positions.setGeometry(QtCore.QRect(240, 90, 160, 21))
-                                font = QtGui.QFont()
-                                font.setFamily("黑体")
-                                font.setPointSize(10)
-                                self.label_positions.setFont(font)
+                                self.label_positions.setFont(style_font_10)
                                 self.label_positions.setObjectName("_2label_2")
                                 self.label_positions.setText("需要先设置位置才能发送")
 
                                 self.label_position_text = QtWidgets.QLabel(self.page_2)
                                 self.label_position_text.setGeometry(QtCore.QRect(240, 150, 180, 16))
-                                font = QtGui.QFont()
-                                font.setFamily("Arial")
-                                font.setPointSize(10)
-                                self.label_position_text.setFont(font)
+                                self.label_position_text.setFont(style_font_10)
                                 self.label_position_text.setObjectName("label_position_text")
                                 if position_status == False:
                                     self.label_position_text.setText(
@@ -5323,10 +5704,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
 
                                 self.label_position_send = QtWidgets.QLabel(self.page_2)
                                 self.label_position_send.setGeometry(QtCore.QRect(240, 180, 180, 16))
-                                font = QtGui.QFont()
-                                font.setFamily("Arial")
-                                font.setPointSize(10)
-                                self.label_position_send.setFont(font)
+                                self.label_position_send.setFont(style_font_10)
                                 self.label_position_send.setObjectName("label_position_send")
                                 if position_status == False:
                                     self.label_position_send.setText(
@@ -5351,25 +5729,25 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                                                   "font-family: SimSun, Arial, sans-serif;"
                                                                   "}")'''
 
-                                self.record_position_button = QtWidgets.QPushButton(self.page_2)
+                                # self.record_position_button = QtWidgets.QPushButton(self.page_2)
+                                self.record_position_button = oo.NormolAnimatedButton(self.page_2)
                                 self.record_position_button.setGeometry(QtCore.QRect(240, 220, 160, 25))
                                 self.record_position_button.setObjectName("record_position_button")
                                 self.record_position_button.setCursor(QCursor(Qt.PointingHandCursor))
                                 self.record_position_button.setText("记录按钮位置")
-                                self.record_position_button.setStyleSheet("QPushButton#record_position_button {"
+                                self.record_position_button.setFont(style_font_10)
+                                '''self.record_position_button.setStyleSheet("QPushButton#record_position_button {"
                                                                           "background-color: #3498db;"  # Blue background color
                                                                           "border-radius: 4px;"  # 10px border radius for rounded corners
                                                                           "color: white;"
                                                                           "padding: 300px 300px;"
                                                                           "text-align: center;"
                                                                           "text-decoration: none;"
-                                                                          "font-size: 13px;"
-                                                                          "font-family: SimSun, Arial, sans-serif;"
-                                                                          "}")
+                                                                          "}")'''
                                 self.record_position_button.clicked.connect(self.open_record_window)
 
                                 self._2label_4 = QtWidgets.QLabel(self.page_2)
-                                self._2label_4.setGeometry(QtCore.QRect(515, 10, 100, 20))
+                                self._2label_4.setGeometry(QtCore.QRect(515, 20, 100, 20))
                                 font = QtGui.QFont()
                                 font.setFamily("Arial")
                                 font.setPointSize(16)
@@ -5381,89 +5759,193 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
 
                                 self._2label_5 = QtWidgets.QLabel(self.page_2)
                                 self._2label_5.setGeometry(QtCore.QRect(520, 40, 200, 200))
-                                font = QtGui.QFont()
-                                font.setFamily("Arial")
-                                font.setPointSize(10)
-                                self._2label_5.setFont(font)
                                 self._2label_5.setObjectName("_2label_5")
-                                self._2label_5.setText("退出方法:若发送完毕需要退出时\n长按F10即可退出 \n或者按下ctrl+alt+del即可关闭\n"
-                                                       "有时可能会出现延时关闭的情况\n句柄发送消息需要将聊天框最大化\n然后点击按钮获取句柄\n最后点击开始发送即可完成!\n当此窗口置顶时 可能会发送失败")
+                                self._2label_5.setFont(style_font_10)
+                                self._2label_5.setText(
+                                    "推荐使用：句柄式发送消息\n其他功能都是通过模拟点击来发送\n如果您没有其他需求不推荐使用\n退出方法:若发送完毕需要退出时\n长按F10即可退出 \n或者按下ctrl+alt+del即可关闭\n"
+                                    "有时可能会出现延时关闭的情况\n")
 
-                                self._2label_6 = QtWidgets.QLabel(self.page_2)
+                                '''self._2label_6 = QtWidgets.QLabel(self.page_2)
                                 self._2label_6.setGeometry(QtCore.QRect(390, 285, 100, 20))
                                 font = QtGui.QFont()
                                 font.setFamily("黑体")
                                 font.setPointSize(16)
                                 self._2label_6.setFont(font)
                                 self._2label_6.setObjectName("_2label_6")
-                                self._2label_6.setText("其他功能")
+                                self._2label_6.setText("其他功能")'''
 
                                 self.label_copy = QtWidgets.QLabel(self.page_2)
-                                self.label_copy.setGeometry(QtCore.QRect(390, 330, 140, 20))
+                                self.label_copy.setGeometry(QtCore.QRect(390, 285, 140, 20))
                                 font = QtGui.QFont()
                                 font.setFamily("黑体")
-                                font.setPointSize(13)
+                                font.setPointSize(16)
                                 self.label_copy.setFont(font)
                                 self.label_copy.setObjectName("label_copy")
                                 self.label_copy.setText("复制内容发送")
 
                                 self.pushButton_tooltip_copy = QtWidgets.QPushButton(self.page_2)
-                                self.pushButton_tooltip_copy.setGeometry(QtCore.QRect(510, 330, 24, 24))
+                                self.pushButton_tooltip_copy.setGeometry(QtCore.QRect(530, 285, 24, 24))
                                 self.pushButton_tooltip_copy.setStyleSheet("QPushButton {"
-                                                                         "    border-image: url(./image/Component/提示3.png);"
-                                                                         "    background-color: rgba(245,245,245,0);"
-                                                                         "}")
+                                                                           "    border-image: url(./image/Component/提示3.png);"
+                                                                           "    background-color: rgba(245,245,245,0);"
+                                                                           "}")
                                 self.CopytoolTipVisible = False
                                 self.pushButton_tooltip_copy.setToolTip(
                                     "此功能的作用是在群聊中发送复制的内容\n此功能需要先复制要发送的内容\n点击开始发送将自动粘贴\n要发送的内容到聊天框中\n发送前仍需要先设置位置")
 
                                 self.copy_label = QtWidgets.QLabel(self.page_2)
-                                self.copy_label.setGeometry(QtCore.QRect(390, 360, 150, 12))
+                                self.copy_label.setGeometry(QtCore.QRect(390, 330, 150, 20))
                                 self.copy_label.setObjectName("copy_label")
-                                self.copy_label.setText("复制消息发送速度 条/秒")
+                                self.copy_label.setFont(style_font_10)
+                                self.copy_label.setText("复制消息发送速度 条/秒:")
 
                                 self.copy_int = QtWidgets.QSpinBox(self.page_2)  # 复制发送次数
-                                self.copy_int.setGeometry(QtCore.QRect(390, 390, 60, 22))
+                                self.copy_int.setGeometry(QtCore.QRect(540, 330, 60, 20))
                                 self.copy_int.setMaximum(15)
                                 self.copy_int.setValue(5)
                                 self.copy_int.setObjectName("copy_int")
-                                self.copy_int.setStyleSheet("""
-                                                                                                                                        QSpinBox {
-                                                                                                                                            border: 1px solid gray;
-                                                                                                                                            border-radius: 3px;  /* 设置圆角 */
-                                                                                                                                            background: transparent;
-                                                                                                                                            font: 14px;
-                                                                                                                                            font-family: Calibri;
-                                                                                                                                        }
-                                                                                                                                        QSpinBox::up-button {
-                                                                                                                                            subcontrol-origin: border;
-                                                                                                                                            subcontrol-position: top right; 
-                                                                                                                                            width: 13px; 
-                                                                                                                                            border-image: url('./image/Component/箭头 上.png');  /* 设置上调按钮的图像 */
-                                                                                                                                        }
-                                                                                                                                        QSpinBox::down-button {
-                                                                                                                                            subcontrol-origin: border;
-                                                                                                                                            subcontrol-position: bottom right; 
-                                                                                                                                            width: 13px; 
-                                                                                                                                            border-image: url('./image/Component/箭头 下.png');  /* 设置下调按钮的图像 */
-                                                                                                                                        }
-                                                                                                                                    """)
+                                self.copy_int.setStyleSheet(style_Spin)
 
-                                self._2pushButton_4 = QtWidgets.QPushButton(self.page_2)
-                                self._2pushButton_4.setGeometry(QtCore.QRect(390, 420, 121, 31))
+                                # self._2pushButton_4 = QtWidgets.QPushButton(self.page_2)
+                                self._2pushButton_4 = oo.NormolAnimatedButton(self.page_2)
+                                self._2pushButton_4.setGeometry(QtCore.QRect(390, 370, 121, 25))
                                 self._2pushButton_4.setObjectName("_2pushButton_4")
                                 self._2pushButton_4.setCursor(QCursor(Qt.PointingHandCursor))
                                 self._2pushButton_4.setText("发送复制内容")
-                                self._2pushButton_4.setStyleSheet("QPushButton#_2pushButton_4 {"
+                                self._2pushButton_4.setFont(style_font_10)
+                                '''self._2pushButton_4.setStyleSheet("QPushButton#_2pushButton_4 {"
                                                                   "background-color: #3498db;"  # Blue background color
                                                                   "border-radius: 4px;"  # 10px border radius for rounded corners
                                                                   "color: white;"
                                                                   "padding: 100px 100px;"
                                                                   "text-align: center;"
                                                                   "text-decoration: none;"
-                                                                  "font-size: 13px;"
-                                                                  "font-family: SimSun, Arial, sans-serif;"
-                                                                  "}")
+                                                                  "}")'''
+
+                                self.label_order = QtWidgets.QLabel(self.page_2)
+                                self.label_order.setGeometry(QtCore.QRect(390, 410, 140, 20))
+                                font = QtGui.QFont()
+                                font.setFamily("黑体")
+                                font.setPointSize(16)
+                                self.label_order.setFont(font)
+                                self.label_order.setObjectName("label_order")
+                                self.label_order.setText("序列内容发送")
+
+                                self.order_select_label = QtWidgets.QLabel(self.page_2)
+                                self.order_select_label.setGeometry(QtCore.QRect(390, 450, 150, 20))
+                                self.order_select_label.setObjectName("order_select_label")
+                                self.order_select_label.setText("文件选择")
+                                self.order_select_label.setFont(style_font_10)
+
+                                self.order_lineEdit = QtWidgets.QLineEdit(self.page_2)
+                                self.order_lineEdit.setGeometry(QtCore.QRect(450, 450, 220, 20))
+                                self.order_lineEdit.setObjectName("order_lineEdit")
+                                self.order_lineEdit.setStyleSheet("background: transparent;")
+                                self.order_lineEdit.setPlaceholderText("选择文件")
+                                self.order_lineEdit.setFont(style_font_9)
+
+                                self.order_toolButton = QtWidgets.QToolButton(self.page_2)
+                                self.order_toolButton.setGeometry(QtCore.QRect(690, 450, 37, 18))
+                                self.order_toolButton.setObjectName("order_toolButton")
+                                self.order_toolButton.setText("选择")
+                                self.order_toolButton.setFont(style_font_9)
+                                self.order_toolButton.setStyleSheet("""
+                                                                    QToolButton {
+                                                                        border: 1px solid #3498db;    /* 设置为RGB颜色#3498db的边框 */
+                                                                        background-color: transparent;    /* 设置透明背景 */
+                                                                        border-radius: 2px;    /* 设置圆角 */
+                                                                    }
+                                                                    QToolButton:hover {
+                                                                        background-color: #3498db;    /* 设置鼠标悬停时的背景颜色为RGB颜色#3498db */
+                                                                        border: 1px solid #3498db;    /* 设置鼠标悬停时的边框颜色为RGB颜色#3498db */
+                                                                    }
+                                                                """)
+                                self.order_radio_list = QtWidgets.QRadioButton(self.page_2)
+                                self.order_radio_list.setGeometry(QtCore.QRect(390, 480, 80, 20))
+                                self.order_radio_list.setObjectName("order_radio_list")
+                                self.order_radio_list.setText("顺序发送")
+                                self.order_radio_list.setChecked(True)
+                                self.order_radio_list.setStyleSheet(style_Radio)
+
+                                self.order_radio_random = QtWidgets.QRadioButton(self.page_2)
+                                self.order_radio_random.setGeometry(QtCore.QRect(550, 480, 80, 20))
+                                self.order_radio_random.setObjectName("order_radio_random")
+                                self.order_radio_random.setText("随机发送")
+                                self.order_radio_random.setStyleSheet(style_Radio)
+
+                                # self.order_pushButton = QtWidgets.QPushButton(self.page_2)
+                                self.order_pushButton = oo.NormolAnimatedButton(self.page_2)
+                                self.order_pushButton.setGeometry(QtCore.QRect(390, 555, 121, 22))
+                                self.order_pushButton.setObjectName("order_pushButton")
+                                self.order_pushButton.setCursor(QCursor(Qt.PointingHandCursor))
+                                self.order_pushButton.setText("开始发送")
+                                self.order_pushButton.setFont(style_font_10)
+                                '''self.order_pushButton.setStyleSheet("QPushButton#order_pushButton {"
+                                                                  "background-color: #3498db;"  # Blue background color
+                                                                  "border-radius: 4px;"  # 10px border radius for rounded corners
+                                                                  "color: white;"
+                                                                  "padding: 100px 100px;"
+                                                                  "text-align: center;"
+                                                                  "text-decoration: none;"
+                                                                  "}")'''
+
+                                self.order_list_int_label = QtWidgets.QLabel(self.page_2)
+                                self.order_list_int_label.setGeometry(QtCore.QRect(390, 500, 150, 20))
+                                self.order_list_int_label.setObjectName("order_list_int_label")
+                                self.order_list_int_label.setText("遍数：")
+                                self.order_list_int_label.setFont(style_font_10)
+
+                                self.order_list_int = QtWidgets.QSpinBox(self.page_2)  # 复制发送次数
+                                self.order_list_int.setGeometry(QtCore.QRect(430, 500, 60, 20))
+                                self.order_list_int.setMaximum(15)
+                                self.order_list_int.setValue(1)
+                                self.order_list_int.setObjectName("order_list_int")
+                                self.order_list_int.setStyleSheet(style_Spin)
+
+                                self.order_random_int_label = QtWidgets.QLabel(self.page_2)
+                                self.order_random_int_label.setGeometry(QtCore.QRect(550, 500, 150, 20))
+                                self.order_random_int_label.setObjectName("order_random_int_label")
+                                self.order_random_int_label.setText("条数：")
+                                self.order_random_int_label.setFont(style_font_10)
+                                self.order_random_int_label.setEnabled(False)
+
+                                self.order_random_int = QtWidgets.QSpinBox(self.page_2)  # 复制发送次数
+                                self.order_random_int.setGeometry(QtCore.QRect(590, 500, 60, 20))
+                                self.order_random_int.setMaximum(15)
+                                self.order_random_int.setValue(10)
+                                self.order_random_int.setObjectName("order_random_int")
+                                self.order_random_int.setStyleSheet(style_Spin)
+                                self.order_random_int.setEnabled(False)
+
+                                self.order_list_speed = QtWidgets.QLabel(self.page_2)
+                                self.order_list_speed.setGeometry(QtCore.QRect(390, 530, 150, 20))
+                                self.order_list_speed.setObjectName("order_list_speed")
+                                self.order_list_speed.setText("操作间隔/秒")
+                                self.order_list_speed.setFont(style_font_10)
+
+                                self._2doubleSpinBox_order_list = QtWidgets.QDoubleSpinBox(self.page_2)
+                                self._2doubleSpinBox_order_list.setGeometry(QtCore.QRect(470, 530, 62, 20))
+                                self._2doubleSpinBox_order_list.setMinimum(0.01)
+                                self._2doubleSpinBox_order_list.setValue(0.1)
+                                self._2doubleSpinBox_order_list.setObjectName("_2doubleSpinBox_order_list")
+                                self._2doubleSpinBox_order_list.setSingleStep(0.05)
+                                self._2doubleSpinBox_order_list.setStyleSheet(style_Double)
+
+                                self.order_random_speed = QtWidgets.QLabel(self.page_2)
+                                self.order_random_speed.setGeometry(QtCore.QRect(550, 530, 150, 20))
+                                self.order_random_speed.setObjectName("order_random_speed")
+                                self.order_random_speed.setText("操作间隔/秒")
+                                self.order_random_speed.setFont(style_font_10)
+                                self.order_random_speed.setEnabled(False)
+
+                                self._2doubleSpinBox_order_random = QtWidgets.QDoubleSpinBox(self.page_2)
+                                self._2doubleSpinBox_order_random.setGeometry(QtCore.QRect(630, 530, 62, 20))
+                                self._2doubleSpinBox_order_random.setMinimum(0.01)
+                                self._2doubleSpinBox_order_random.setValue(0.1)
+                                self._2doubleSpinBox_order_random.setObjectName("_2doubleSpinBox_order_random")
+                                self._2doubleSpinBox_order_random.setSingleStep(0.05)
+                                self._2doubleSpinBox_order_random.setStyleSheet(style_Double)
+                                self._2doubleSpinBox_order_random.setEnabled(False)
 
                             def label_page3(self):
                                 self.create_team_button = QtWidgets.QToolButton(self.page_3)
@@ -5588,7 +6070,12 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
 
                                 self._4pushButton = QtWidgets.QPushButton(self.page_3)
                                 self._4pushButton.setGeometry(QtCore.QRect(10, 180, 141, 141))
-                                icon = QtGui.QIcon("./temp/HImage.png")  # 将此处的路径替换为实际的图像路径
+                                global HImage_load_status
+                                if HImage_load_status == True:  # 判断头像是否成功加载
+                                    icon = QtGui.QIcon("./temp/HImage.png")  # 将此处的路径替换为实际的图像路径
+                                else:
+                                    icon = QtGui.QIcon("./image/float/fc.png")
+
                                 scaled_icon = icon.pixmap(QtCore.QSize(141, 141)).scaled(QtCore.QSize(141, 141),
                                                                                          QtCore.Qt.AspectRatioMode.IgnoreAspectRatio,
                                                                                          QtCore.Qt.TransformationMode.SmoothTransformation)
@@ -5639,26 +6126,31 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self._4label_8.setObjectName("label_8")
                                 self._4label_8.setText("ID:")
                                 self.team_send_handle = QtWidgets.QRadioButton(self.page_3)
-                                self.team_send_handle.setGeometry(QtCore.QRect(20, 330, 131, 16))
+                                self.team_send_handle.setGeometry(QtCore.QRect(20, 330, 131, 20))
                                 self.team_send_handle.setObjectName("team_send_handle")
                                 self.team_send_handle.setText("句柄式发送消息")
                                 self.team_send_handle.setChecked(True)
+                                self.team_send_handle.setStyleSheet(style_Radio)
                                 self.team_send_atqq = QtWidgets.QRadioButton(self.page_3)
-                                self.team_send_atqq.setGeometry(QtCore.QRect(20, 360, 89, 16))
+                                self.team_send_atqq.setGeometry(QtCore.QRect(20, 360, 89, 20))
                                 self.team_send_atqq.setObjectName("team_send_atqq")
                                 self.team_send_atqq.setText("@QQ")
+                                self.team_send_atqq.setStyleSheet(style_Radio)
                                 self.team_send_copy = QtWidgets.QRadioButton(self.page_3)
-                                self.team_send_copy.setGeometry(QtCore.QRect(20, 390, 89, 16))
+                                self.team_send_copy.setGeometry(QtCore.QRect(20, 390, 89, 20))
                                 self.team_send_copy.setObjectName("team_send_copy")
                                 self.team_send_copy.setText("复制消息")
+                                self.team_send_copy.setStyleSheet(style_Radio)
                                 self.team_send_renew = QtWidgets.QRadioButton(self.page_3)
-                                self.team_send_renew.setGeometry(QtCore.QRect(20, 420, 89, 16))
+                                self.team_send_renew.setGeometry(QtCore.QRect(20, 420, 89, 20))
                                 self.team_send_renew.setObjectName("team_send_renew")
                                 self.team_send_renew.setText("QQ个人信息更新")
+                                self.team_send_renew.setStyleSheet(style_Radio)
                                 self.team_send_exe = QtWidgets.QRadioButton(self.page_3)
-                                self.team_send_exe.setGeometry(QtCore.QRect(20, 450, 89, 16))
+                                self.team_send_exe.setGeometry(QtCore.QRect(20, 450, 89, 20))
                                 self.team_send_exe.setObjectName("team_send_exe")
                                 self.team_send_exe.setText("执行自动脚本")
+                                self.team_send_exe.setStyleSheet(style_Radio)
                                 self.buttonGroup2 = QtWidgets.QButtonGroup(self.page_3)
                                 self.buttonGroup2.addButton(self.team_send_handle)
                                 self.buttonGroup2.addButton(self.team_send_atqq)
@@ -5667,26 +6159,31 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self.buttonGroup2.addButton(self.team_send_exe)
 
                                 self.team_send_handle_c = QtWidgets.QRadioButton(self.page_3)
-                                self.team_send_handle_c.setGeometry(QtCore.QRect(370, 330, 121, 16))
+                                self.team_send_handle_c.setGeometry(QtCore.QRect(370, 330, 121, 20))
                                 self.team_send_handle_c.setObjectName("team_send_handle_c")
                                 self.team_send_handle_c.setText("句柄式发送消息")
                                 self.team_send_handle_c.setChecked(True)
+                                self.team_send_handle_c.setStyleSheet(style_Radio)
                                 self.team_send_atqq_c = QtWidgets.QRadioButton(self.page_3)
-                                self.team_send_atqq_c.setGeometry(QtCore.QRect(370, 360, 89, 16))
+                                self.team_send_atqq_c.setGeometry(QtCore.QRect(370, 360, 89, 20))
                                 self.team_send_atqq_c.setObjectName("team_send_atqq_c")
                                 self.team_send_atqq_c.setText("@QQ")
+                                self.team_send_atqq_c.setStyleSheet(style_Radio)
                                 self.team_send_copy_c = QtWidgets.QRadioButton(self.page_3)
-                                self.team_send_copy_c.setGeometry(QtCore.QRect(370, 390, 89, 16))
+                                self.team_send_copy_c.setGeometry(QtCore.QRect(370, 390, 89, 20))
                                 self.team_send_copy_c.setObjectName("team_send_copy_c")
                                 self.team_send_copy_c.setText("复制消息")
+                                self.team_send_copy_c.setStyleSheet(style_Radio)
                                 self.team_send_renew_c = QtWidgets.QRadioButton(self.page_3)
-                                self.team_send_renew_c.setGeometry(QtCore.QRect(370, 420, 89, 16))
+                                self.team_send_renew_c.setGeometry(QtCore.QRect(370, 420, 89, 20))
                                 self.team_send_renew_c.setObjectName("team_send_renew_c")
                                 self.team_send_renew_c.setText("QQ个人信息更新")
+                                self.team_send_renew_c.setStyleSheet(style_Radio)
                                 self.team_send_exe_c = QtWidgets.QRadioButton(self.page_3)
-                                self.team_send_exe_c.setGeometry(QtCore.QRect(370, 450, 89, 16))
+                                self.team_send_exe_c.setGeometry(QtCore.QRect(370, 450, 89, 20))
                                 self.team_send_exe_c.setObjectName("team_send_exe_c")
                                 self.team_send_exe_c.setText("执行自动脚本")
+                                self.team_send_exe_c.setStyleSheet(style_Radio)
                                 self.buttonGroup3 = QtWidgets.QButtonGroup(self.page_3)
                                 self.buttonGroup3.addButton(self.team_send_handle_c)
                                 self.buttonGroup3.addButton(self.team_send_atqq_c)
@@ -5709,7 +6206,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                                                                                                                             """)
                                 self.run_execute.setVisible(False)
                                 pass
-                                
+
                                 for button in self.buttonGroup2.buttons():
                                     button.setVisible(False)
                                 for button in self.buttonGroup3.buttons():
@@ -5728,10 +6225,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
 
                                 self._5label_2 = QtWidgets.QLabel(self.page_4)
                                 self._5label_2.setGeometry(QtCore.QRect(15, 50, 80, 16))
-                                font = QtGui.QFont()
-                                font.setFamily("Arial")
-                                font.setPointSize(10)
-                                self._5label_2.setFont(font)
+                                self._5label_2.setFont(style_font_10)
                                 self._5label_2.setObjectName("_5label_2")
                                 self._5label_2.setText("歌曲链接")
 
@@ -5740,14 +6234,12 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self._5lineEdit.setObjectName("_5lineEdit")
                                 self._5lineEdit.setStyleSheet("background: transparent;")
                                 self._5lineEdit.setPlaceholderText("点击输入音乐链接(Ctrl+V粘贴可快速解析文件名)")
+                                self._5lineEdit.setFont(style_font_9)
                                 self._5lineEdit.setReadOnly(False)
 
                                 self._5label_3 = QtWidgets.QLabel(self.page_4)
                                 self._5label_3.setGeometry(QtCore.QRect(15, 100, 80, 16))
-                                font = QtGui.QFont()
-                                font.setFamily("Arial")
-                                font.setPointSize(10)
-                                self._5label_3.setFont(font)
+                                self._5label_3.setFont(style_font_10)
                                 self._5label_3.setObjectName("_5label_3")
                                 self._5label_3.setText("保存文件名")
 
@@ -5756,14 +6248,12 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self._5lineEdit2.setObjectName("_5lineEdit2")
                                 self._5lineEdit2.setStyleSheet("background: transparent;")
                                 self._5lineEdit2.setPlaceholderText("点击输入保存文件名(包含扩展名)")
+                                self._5lineEdit2.setFont(style_font_9)
                                 self._5lineEdit2.setReadOnly(False)
 
                                 self._5label_4 = QtWidgets.QLabel(self.page_4)
                                 self._5label_4.setGeometry(QtCore.QRect(15, 150, 81, 16))
-                                font = QtGui.QFont()
-                                font.setFamily("Arial")
-                                font.setPointSize(10)
-                                self._5label_4.setFont(font)
+                                self._5label_4.setFont(style_font_10)
                                 self._5label_4.setObjectName("_5label_4")
                                 self._5label_4.setText("保存路径")
 
@@ -5772,22 +6262,15 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self._5lineEdit3.setObjectName("_5lineEdit3")
                                 self._5lineEdit3.setStyleSheet("background: transparent;")
                                 self._5lineEdit3.setText(os.getcwd() + '\\mod\\music')
+                                self._5lineEdit3.setFont(style_font_9)
 
-                                self._5toolButton = QtWidgets.QToolButton(self.page_4)
+                                # self._5toolButton = QtWidgets.QToolButton(self.page_4)
+                                self._5toolButton = oo.NormolAnimatedButton(self.page_4)
                                 self._5toolButton.setGeometry(QtCore.QRect(15, 200, 271, 31))
                                 self._5toolButton.setObjectName("_5toolButton")
                                 self._5toolButton.setText("下载")
                                 self._5toolButton.setCursor(QCursor(Qt.PointingHandCursor))
-                                self._5toolButton.setStyleSheet("QToolButton#_5toolButton {"
-                                                                "background-color: #3498db;"  # Blue background color
-                                                                "border-radius: 4px;"  # 10px border radius for rounded corners
-                                                                "color: white;"
-                                                                "padding: 100px 100px;"
-                                                                "text-align: center;"
-                                                                "text-decoration: none;"
-                                                                "font-size: 13px;"
-                                                                "font-family: SimSun, Arial, sans-serif;"
-                                                                "}")
+                                self._5toolButton.setFont(style_font_11)
 
                                 self._5toolButton2 = QtWidgets.QToolButton(self.page_4)
                                 self._5toolButton2.setGeometry(QtCore.QRect(250, 150, 37, 18))
@@ -5821,8 +6304,6 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                     }
                                 """)
 
-
-
                                 self._5label5 = QtWidgets.QLabel(self.page_4)
                                 self._5label5.setGeometry(QtCore.QRect(305, 10, 180, 31))
                                 self._5label5.setFont(title_font)
@@ -5831,10 +6312,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
 
                                 self._5label6 = QtWidgets.QLabel(self.page_4)
                                 self._5label6.setGeometry(QtCore.QRect(305, 50, 80, 16))
-                                font = QtGui.QFont()
-                                font.setFamily("Arial")
-                                font.setPointSize(10)
-                                self._5label6.setFont(font)
+                                self._5label6.setFont(style_font_10)
                                 self._5label6.setObjectName("_5label6")
                                 self._5label6.setText("图片路径")
 
@@ -5843,21 +6321,20 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self._5lineEdit4.setObjectName("_5lineEdit4")
                                 self._5lineEdit4.setStyleSheet("background: transparent;")
                                 self._5lineEdit4.setPlaceholderText("点击输入图片路径")
+                                self._5lineEdit4.setFont(style_font_9)
 
                                 self._5label7 = QtWidgets.QLabel(self.page_4)
-                                self._5label7.setGeometry(QtCore.QRect(305, 90, 80, 16))
-                                font = QtGui.QFont()
-                                font.setFamily("Arial")
-                                font.setPointSize(10)
-                                self._5label7.setFont(font)
+                                self._5label7.setGeometry(QtCore.QRect(305, 100, 100, 16))
+                                self._5label7.setFont(style_font_10)
                                 self._5label7.setObjectName("_5label7")
                                 self._5label7.setText("输出文件夹路径")
 
                                 self._5lineEdit5 = QtWidgets.QLineEdit(self.page_4)  # 酷狗保存文件名
-                                self._5lineEdit5.setGeometry(QtCore.QRect(305, 110, 370, 20))
+                                self._5lineEdit5.setGeometry(QtCore.QRect(305, 120, 370, 20))
                                 self._5lineEdit5.setObjectName("_5lineEdit5")
                                 self._5lineEdit5.setStyleSheet("background: transparent;")
                                 self._5lineEdit5.setPlaceholderText("点击输入图片输出路径")
+                                self._5lineEdit5.setFont(style_font_9)
 
                                 self._5toolButton3 = QtWidgets.QToolButton(self.page_4)  # 输入图片路径
                                 self._5toolButton3.setGeometry(QtCore.QRect(680, 70, 51, 21))
@@ -5876,7 +6353,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                                                                                         """)
 
                                 self._5toolButton4 = QtWidgets.QToolButton(self.page_4)  # 输出文件夹路径
-                                self._5toolButton4.setGeometry(QtCore.QRect(680, 110, 51, 21))
+                                self._5toolButton4.setGeometry(QtCore.QRect(680, 120, 51, 21))
                                 self._5toolButton4.setObjectName("_5toolButton4")
                                 self._5toolButton4.setText("选择")
                                 self._5toolButton4.setStyleSheet("""
@@ -5892,31 +6369,31 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                                                                                         """)
                                 self.groupPic = QtWidgets.QButtonGroup(self)
                                 self.JPG_radioButton = QtWidgets.QRadioButton(self.page_4)
-                                self.JPG_radioButton.setGeometry(QtCore.QRect(305, 160, 61, 16))
+                                self.JPG_radioButton.setGeometry(QtCore.QRect(305, 160, 61, 18))
                                 self.JPG_radioButton.setObjectName("JPG_radioButton")
                                 self.JPG_radioButton.setText("JPEG")
                                 self.JPG_radioButton.setChecked(True)
+                                self.JPG_radioButton.setStyleSheet(style_Radio)
                                 self.PNG_radioButton = QtWidgets.QRadioButton(self.page_4)
-                                self.PNG_radioButton.setGeometry(QtCore.QRect(380, 160, 61, 16))
+                                self.PNG_radioButton.setGeometry(QtCore.QRect(380, 160, 61, 18))
                                 self.PNG_radioButton.setObjectName("PNG_radioButton")
                                 self.PNG_radioButton.setText("PNG")
+                                self.PNG_radioButton.setStyleSheet(style_Radio)
                                 self.GIF_radioButton = QtWidgets.QRadioButton(self.page_4)
-                                self.GIF_radioButton.setGeometry(QtCore.QRect(450, 160, 61, 16))
+                                self.GIF_radioButton.setGeometry(QtCore.QRect(450, 160, 61, 18))
                                 self.GIF_radioButton.setObjectName("GIF_radioButton")
                                 self.GIF_radioButton.setText("GIF")
+                                self.GIF_radioButton.setStyleSheet(style_Radio)
                                 self.groupPic.addButton(self.JPG_radioButton)
                                 self.groupPic.addButton(self.PNG_radioButton)
                                 self.groupPic.addButton(self.GIF_radioButton)
-                                self._5toolButton5 = QtWidgets.QToolButton(self.page_4)
+
+                                # self._5toolButton5 = QtWidgets.QToolButton(self.page_4)
+                                self._5toolButton5 = oo.NormolAnimatedButton(self.page_4)
                                 self._5toolButton5.setGeometry(QtCore.QRect(310, 200, 200, 31))
                                 self._5toolButton5.setObjectName("_5toolButton5")
-                                self._5toolButton5.setStyleSheet("QToolButton#_5toolButton5 {"
-                                                                 "background-color: #3498db;"  # Blue background color
-                                                                 "border-radius: 5px;"  # 10px border radius for rounded corners
-                                                                 "color: white;"
-                                                                 "font-family: SimSun, Arial, sans-serif;"
-                                                                 "}")
                                 self._5toolButton5.setText("输出")
+                                self._5toolButton5.setFont(style_font_11)
                                 self._5toolButton5.setCursor(QCursor(Qt.PointingHandCursor))
 
                                 self.QQ_label = QtWidgets.QLabel(self.page_4)
@@ -5927,71 +6404,37 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
 
                                 self.QQ_label_t2 = QtWidgets.QLabel(self.page_4)
                                 self.QQ_label_t2.setGeometry(QtCore.QRect(20, 280, 180, 31))
-                                font = QtGui.QFont()
-                                font.setFamily("Arial")
-                                font.setPointSize(10)
-                                self.QQ_label_t2.setFont(font)
+                                self.QQ_label_t2.setFont(style_font_10)
                                 self.QQ_label_t2.setObjectName("QQ_label_t2")
                                 self.QQ_label_t2.setText("随机下载QQ头像")
 
                                 self.QQ_label_t3 = QtWidgets.QLabel(self.page_4)
                                 self.QQ_label_t3.setGeometry(QtCore.QRect(120, 283, 26, 22))
-                                font = QtGui.QFont()
-                                font.setFamily("Arial")
-                                font.setPointSize(10)
-                                self.QQ_label_t3.setFont(font)
+                                self.QQ_label_t3.setFont(style_font_11)
                                 self.QQ_label_t3.setObjectName("QQ_label_t3")
                                 self.QQ_label_t3.setStyleSheet(
-                                    "color: yellow; background-color: gray; border-radius: 3px;")
+                                    "color: GREEN;border-radius: 3px;")
                                 self.QQ_label_t3.setText("Lv2")
 
                                 self.QQ_spinBox = QtWidgets.QSpinBox(self.page_4)  # QQ图像下载次数
                                 self.QQ_spinBox.setGeometry(QtCore.QRect(20, 310, 90, 20))
                                 self.QQ_spinBox.setMinimum(1)
+                                self.QQ_spinBox.setValue(10)
                                 self.QQ_spinBox.setMaximum(9999)
                                 self.QQ_spinBox.setStyleSheet("background: transparent;")
                                 self.QQ_spinBox.setObjectName("QQ_spinBox")
-                                self.QQ_spinBox.setStyleSheet("""
-                                                                                                            QSpinBox {
-                                                                                                                border: 1px solid gray;
-                                                                                                                border-radius: 3px;  /* 设置圆角 */
-                                                                                                                background: transparent;
-                                                                                                                font: 14px;
-                                                                                                                font-family: Calibri;
-                                                                                                            }
-                                                                                                            QSpinBox::up-button {
-                                                                                                                subcontrol-origin: border;
-                                                                                                                subcontrol-position: top right; 
-                                                                                                                width: 13px; 
-                                                                                                                border-image: url('./image/Component/箭头 上.png');  /* 设置上调按钮的图像 */
-                                                                                                            }
-                                                                                                            QSpinBox::down-button {
-                                                                                                                subcontrol-origin: border;
-                                                                                                                subcontrol-position: bottom right; 
-                                                                                                                width: 13px; 
-                                                                                                                border-image: url('./image/Component/箭头 下.png');  /* 设置下调按钮的图像 */
-                                                                                                            }
-                                                                                                        """)
+                                self.QQ_spinBox.setStyleSheet(style_Spin)
 
-                                self.QQ_Button_Dow = QtWidgets.QPushButton(self.page_4)
+                                self.QQ_Button_Dow = oo.AnimatedButton(self.page_4)
                                 self.QQ_Button_Dow.setGeometry(QtCore.QRect(120, 310, 80, 20))
                                 self.QQ_Button_Dow.setObjectName("QQ_Button_Dow")
                                 self.QQ_Button_Dow.setText("开始下载")
-                                self.QQ_Button_Dow.setStyleSheet("""
-                                                                        QPushButton {
-                                                                            border: 1px solid #3498db;    /* 设置为RGB颜色#3498db的边框 */
-                                                                            background-color: transparent;    /* 设置透明背景 */
-                                                                            border-radius: 2px;    /* 设置圆角 */
-                                                                        }
-                                                                        QPushButton:hover {
-                                                                            background-color: #3498db;    /* 设置鼠标悬停时的背景颜色为RGB颜色#3498db */
-                                                                            border: 1px solid #3498db;    /* 设置鼠标悬停时的边框颜色为RGB颜色#3498db */
-                                                                        }
-                                                                    """)
+                                self.QQ_Button_Dow.setFont(style_font_10)
 
                                 self.open_QQ = QPushButton('浏览图片文件夹', self.page_4)
                                 self.open_QQ.clicked.connect(lambda: self.open_folder('picture'))
                                 self.open_QQ.setGeometry(20, 360, 130, 20)
+                                self.open_QQ.setFont(style_font_10)
                                 self.open_QQ.setStyleSheet("""
                                                                                                             QPushButton {
                                                                                                                 border: 1px solid #3498db;    /* 设置为RGB颜色#3498db的边框 */
@@ -6004,117 +6447,74 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                                                                                             }
                                                                                                         """)
 
-                                self.delete_image = QPushButton('一键清空文件夹', self.page_4)
+                                # self.delete_image = QPushButton('一键清空文件夹', self.page_4)
+                                self.delete_image = oo.MoreAnimatedButton(self.page_4, radius=2,
+                                                                          start_color=QColor(207, 207, 207),
+                                                                          hover_color=QColor(172, 172, 172))
                                 self.delete_image.setGeometry(150, 360, 130, 20)
-                                self.delete_image.setStyleSheet("""
-                                                                                                            QPushButton {
-                                                                                                                border: 1px solid #3498db;    /* 设置为RGB颜色#3498db的边框 */
-                                                                                                                background-color: transparent;    /* 设置透明背景 */
-                                                                                                                border-radius: 2px;    /* 设置圆角 */
-                                                                                                            }
-                                                                                                            QPushButton:hover {
-                                                                                                                background-color: #3498db;    /* 设置鼠标悬停时的背景颜色为RGB颜色#3498db */
-                                                                                                                border: 1px solid #3498db;    /* 设置鼠标悬停时的边框颜色为RGB颜色#3498db */
-                                                                                                            }
-                                                                                                        """)
+                                self.delete_image.setText("一键清空文件夹")
+                                self.delete_image.setFont(style_font_10)
 
                                 self.QQ_label_t3 = QtWidgets.QLabel(self.page_4)
                                 self.QQ_label_t3.setGeometry(QtCore.QRect(20, 330, 100, 31))
-                                font = QtGui.QFont()
-                                font.setFamily("Arial")
-                                font.setPointSize(10)
-                                self.QQ_label_t3.setFont(font)
+                                self.QQ_label_t3.setFont(style_font_10)
                                 self.QQ_label_t3.setObjectName("QQ_label_t3")
                                 self.QQ_label_t3.setText("总下载次数:0次")
 
+                                self.QQ_label_t6 = QtWidgets.QLabel(self.page_4)
+                                self.QQ_label_t6.setGeometry(QtCore.QRect(120, 330, 100, 31))
+                                self.QQ_label_t6.setFont(style_font_10)
+                                self.QQ_label_t6.setObjectName("QQ_label_t6")
+                                self.QQ_label_t6.setText("有效次数:0次")
+
                                 self.QQ_label_t4 = QtWidgets.QLabel(self.page_4)
-                                self.QQ_label_t4.setGeometry(QtCore.QRect(20, 410, 180, 31))
+                                self.QQ_label_t4.setGeometry(QtCore.QRect(20, 400, 180, 31))
                                 font = QtGui.QFont()
-                                font.setFamily("Arial")
-                                font.setPointSize(10)
+                                font.setFamily("黑体")
+                                font.setPointSize(16)
                                 self.QQ_label_t4.setFont(font)
                                 self.QQ_label_t4.setObjectName("QQ_label_t4")
                                 self.QQ_label_t4.setText("一键更换QQ资料")
 
                                 self.pushButton_tooltip_imformation = QtWidgets.QPushButton(self.page_4)
-                                self.pushButton_tooltip_imformation.setGeometry(QtCore.QRect(130, 410, 24, 24))
+                                self.pushButton_tooltip_imformation.setGeometry(QtCore.QRect(180, 405, 24, 24))
                                 self.pushButton_tooltip_imformation.setStyleSheet("QPushButton {"
-                                                                           "    border-image: url(./image/Component/提示3.png);"
-                                                                           "    background-color: rgba(245,245,245,0);"
-                                                                           "}")
+                                                                                  "    border-image: url(./image/Component/提示3.png);"
+                                                                                  "    background-color: rgba(245,245,245,0);"
+                                                                                  "}")
                                 self.pushButton_tooltip_imformation.setToolTip(
                                     "此功能的作用是依次按顺序点击QQ更新用户资料的控件来实现更新资料的效果\n如无需要此功能请勿随意使用")
 
                                 self.QQ_label_t5 = QtWidgets.QLabel(self.page_4)
-                                self.QQ_label_t5.setGeometry(QtCore.QRect(20, 430, 180, 31))
-                                font = QtGui.QFont()
-                                font.setFamily("Arial")
-                                font.setPointSize(10)
-                                self.QQ_label_t5.setFont(font)
+                                self.QQ_label_t5.setGeometry(QtCore.QRect(20, 440, 180, 20))
+                                self.QQ_label_t5.setFont(style_font_10)
                                 self.QQ_label_t5.setObjectName("QQ_label_t5")
                                 self.QQ_label_t5.setText("设置点击间隔时间 次\\秒")
 
-                                self.QQ_label_t6 = QtWidgets.QLabel(self.page_4)
-                                self.QQ_label_t6.setGeometry(QtCore.QRect(120, 330, 100, 31))
-                                font = QtGui.QFont()
-                                font.setFamily("Arial")
-                                font.setPointSize(10)
-                                self.QQ_label_t6.setFont(font)
-                                self.QQ_label_t6.setObjectName("QQ_label_t6")
-                                self.QQ_label_t6.setText("有效次数:0次")
-
                                 self.QQ_Doxb = QtWidgets.QDoubleSpinBox(self.page_4)
-                                self.QQ_Doxb.setGeometry(QtCore.QRect(20, 470, 260, 20))
+                                self.QQ_Doxb.setGeometry(QtCore.QRect(170, 440, 60, 20))
                                 self.QQ_Doxb.setMinimum(0.1)
                                 self.QQ_Doxb.setValue(0.3)
                                 self.QQ_Doxb.setSingleStep(0.1)
                                 self.QQ_Doxb.setMaximum(1)
                                 self.QQ_Doxb.setObjectName("QQ_Doxb")
-                                self.QQ_Doxb.setStyleSheet("""QDoubleSpinBox {
-                                                                              border: 1px solid gray;
-                                                                              border-radius: 3px;  /* 设置圆角 */
-                                                                              background: transparent;
-                                                                              font: 14px;
-                                                                              font-family: Calibri;
-                                                                              }
-                                                            QDoubleSpinBox::up-button {
-                                                                                       subcontrol-origin: border;
-                                                                                       subcontrol-position: top right; 
-                                                                                       width: 13px; 
-                                                                                       border-image: url('./image/Component/箭头 上.png');  /* 设置上调按钮的图像 */
-                                                                                       }
-                                                            QDoubleSpinBox::down-button {
-                                                                                         subcontrol-position: bottom right; 
-                                                                                         width: 13px; 
-                                                                                         border-image: url('./image/Component/箭头 下.png');  /* 设置下调按钮的图像 */
-                                                                                         }
-                                                                                         """)
+                                self.QQ_Doxb.setStyleSheet(style_Double)
 
-                                self.QQ_image = QtWidgets.QPushButton(self.page_4)
+                                self.QQ_image = oo.NormolAnimatedButton(self.page_4)
                                 self.QQ_image.setGeometry(QtCore.QRect(20, 500, 260, 30))
                                 self.QQ_image.setObjectName("QQ_image")
                                 self.QQ_image.setText("更换")
-                                self.QQ_image.setStyleSheet("QPushButton#QQ_image {"
-                                                                 "background-color: #3498db;"  # Blue background color
-                                                                 "border-radius: 5px;"  # 10px border radius for rounded corners
-                                                                 "color: white;"
-                                                                 "font-family: SimSun, Arial, sans-serif;"
-                                                                 "}")
-
-
+                                self.QQ_image.setFont(style_font_11)
 
                                 self.QQ_GLabel = QtWidgets.QLabel(self.page_4)
-                                self.QQ_GLabel.setGeometry(QtCore.QRect(310, 245, 200,40))
+                                self.QQ_GLabel.setGeometry(QtCore.QRect(310, 245, 200, 40))
                                 self.QQ_GLabel.setFont(title_font)
                                 self.QQ_GLabel.setObjectName("QQ_GLabel")
                                 self.QQ_GLabel.setText("QQ群信息获取")
 
                                 self.QQ_GLabel2 = QtWidgets.QLabel(self.page_4)
                                 self.QQ_GLabel2.setGeometry(QtCore.QRect(310, 300, 100, 16))
-                                font = QtGui.QFont()
-                                font.setFamily("Arial")
-                                font.setPointSize(10)
-                                self.QQ_GLabel2.setFont(font)
+                                self.QQ_GLabel2.setFont(style_font_10)
                                 self.QQ_GLabel2.setObjectName("QQ_GLabel2")
                                 self.QQ_GLabel2.setText("输出文件夹路径:")
 
@@ -6126,6 +6526,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self.QQ_Group_Save.setStyleSheet("background: transparent;")
                                 self.QQ_Group_Save.setPlaceholderText("点击输入xlsx文件夹路径")
                                 self.QQ_Group_Save.setText(os.getcwd() + '\\mod\\xlsx')
+                                self.QQ_Group_Save.setFont(style_font_9)
 
                                 self.QQ_Group_Selec = QtWidgets.QToolButton(self.page_4)  # 输出文件夹路径
                                 self.QQ_Group_Selec.setGeometry(QtCore.QRect(625, 330, 51, 21))
@@ -6160,19 +6561,23 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                                                                                                                             """)
 
                                 self.Edge = QtWidgets.QRadioButton(self.page_4)
-                                self.Edge.setGeometry(QtCore.QRect(310, 360, 505, 16))
+                                self.Edge.setGeometry(QtCore.QRect(310, 360, 505, 18))
                                 self.Edge.setObjectName("Edge")
                                 self.Edge.setChecked(True)
                                 self.Edge.setText("Edge")
+                                self.Edge.setStyleSheet(style_Radio)
 
                                 self.Chrome = QtWidgets.QRadioButton(self.page_4)
-                                self.Chrome.setGeometry(QtCore.QRect(360, 360, 60, 16))
+                                self.Chrome.setGeometry(QtCore.QRect(380, 360, 70, 18))
                                 self.Chrome.setObjectName("Chrome")
                                 self.Chrome.setText("Chrome")
+                                self.Chrome.setStyleSheet(style_Radio)
+
                                 self.IE = QtWidgets.QRadioButton(self.page_4)
-                                self.IE.setGeometry(QtCore.QRect(420, 360, 50, 16))
+                                self.IE.setGeometry(QtCore.QRect(460, 360, 50, 18))
                                 self.IE.setObjectName("IE")
                                 self.IE.setText("IE")
+                                self.IE.setStyleSheet(style_Radio)
 
                                 self.groupQQ.addButton(self.Edge)
                                 self.groupQQ.addButton(self.Chrome)
@@ -6197,6 +6602,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self.checkBox_gender.setText("序号")
                                 self.checkBox_gender.setChecked(True)
                                 self.checkBox_gender.setEnabled(False)
+                                self.checkBox_gender.setStyleSheet(style_CheckBox)
 
                                 self.checkBox_name = QtWidgets.QCheckBox(self.page_4)
                                 self.checkBox_name.setGeometry(QtCore.QRect(390, 420, 80, 20))
@@ -6205,6 +6611,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self.checkBox_name.setText("名称")
                                 self.checkBox_name.setChecked(True)
                                 self.checkBox_name.setEnabled(False)
+                                self.checkBox_name.setStyleSheet(style_CheckBox)
 
                                 self.checkBox_group_name = QtWidgets.QCheckBox(self.page_4)
                                 self.checkBox_group_name.setGeometry(QtCore.QRect(480, 420, 80, 20))
@@ -6213,6 +6620,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self.checkBox_group_name.setText("群昵称")
                                 self.checkBox_group_name.setChecked(True)
                                 self.checkBox_group_name.setEnabled(False)
+                                self.checkBox_group_name.setStyleSheet(style_CheckBox)
 
                                 self.checkBox_qid = QtWidgets.QCheckBox(self.page_4)
                                 self.checkBox_qid.setGeometry(QtCore.QRect(570, 420, 80, 20))
@@ -6220,6 +6628,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self.checkBox_qid.setObjectName("checkBox_qid")
                                 self.checkBox_qid.setText("QQ号")
                                 self.checkBox_qid.setChecked(True)
+                                self.checkBox_qid.setStyleSheet(style_CheckBox)
 
                                 self.checkBox_sex = QtWidgets.QCheckBox(self.page_4)
                                 self.checkBox_sex.setGeometry(QtCore.QRect(660, 420, 80, 20))
@@ -6227,6 +6636,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self.checkBox_sex.setObjectName("checkBox_sex")
                                 self.checkBox_sex.setText("性别")
                                 self.checkBox_sex.setChecked(True)
+                                self.checkBox_sex.setStyleSheet(style_CheckBox)
 
                                 self.checkBox_qq_year = QtWidgets.QCheckBox(self.page_4)
                                 self.checkBox_qq_year.setGeometry(QtCore.QRect(310, 450, 80, 20))
@@ -6234,6 +6644,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self.checkBox_qq_year.setObjectName("checkBox_qq_year")
                                 self.checkBox_qq_year.setText("QQ年龄")
                                 self.checkBox_qq_year.setChecked(True)
+                                self.checkBox_qq_year.setStyleSheet(style_CheckBox)
 
                                 self.checkBox_join_date = QtWidgets.QCheckBox(self.page_4)
                                 self.checkBox_join_date.setGeometry(QtCore.QRect(390, 450, 80, 20))
@@ -6241,6 +6652,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self.checkBox_join_date.setObjectName("checkBox_join_date")
                                 self.checkBox_join_date.setText("进群日期")
                                 self.checkBox_join_date.setChecked(True)
+                                self.checkBox_join_date.setStyleSheet(style_CheckBox)
 
                                 self.checkBox_send_date = QtWidgets.QCheckBox(self.page_4)
                                 self.checkBox_send_date.setGeometry(QtCore.QRect(480, 450, 120, 20))
@@ -6248,6 +6660,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self.checkBox_send_date.setObjectName("checkBox_send_date")
                                 self.checkBox_send_date.setText("最后发言日期")
                                 self.checkBox_send_date.setChecked(True)
+                                self.checkBox_send_date.setStyleSheet(style_CheckBox)
 
                                 self.checkBox_group_lv = QtWidgets.QCheckBox(self.page_4)
                                 self.checkBox_group_lv.setGeometry(QtCore.QRect(610, 450, 80, 20))
@@ -6255,19 +6668,83 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 self.checkBox_group_lv.setObjectName("checkBox_group_lv")
                                 self.checkBox_group_lv.setText("群等级")
                                 self.checkBox_group_lv.setChecked(True)
+                                self.checkBox_group_lv.setStyleSheet(style_CheckBox)
 
-                                self.QQ_group = QtWidgets.QPushButton(self.page_4)
+                                self.QQ_group = oo.NormolAnimatedButton(self.page_4)
                                 self.QQ_group.setGeometry(QtCore.QRect(310, 500, 200, 30))
                                 self.QQ_group.setObjectName("QQ_group")
                                 self.QQ_group.setText("获取")
-                                self.QQ_group.setStyleSheet("QPushButton#QQ_group {"
-                                                            "background-color: #3498db;"  # Blue background color
-                                                            "border-radius: 5px;"  # 10px border radius for rounded corners
-                                                            "color: white;"
-                                                            "font-family: SimSun, Arial, sans-serif;"
-                                                            "}")
+                                self.QQ_group.setFont(style_font_11)
 
-                            def mixPicture(self):
+                            def update_checks(self):  # 判断哪个 RadioButton 被选中  序列发送类型选择
+                                if self.order_radio_list.isChecked():
+                                    self.order_list_int_label.setEnabled(True)
+                                    self.order_list_int.setEnabled(True)
+                                    self.order_random_int_label.setEnabled(False)
+                                    self.order_random_int.setEnabled(False)
+                                    self.order_list_speed.setEnabled(True)
+                                    self._2doubleSpinBox_order_list.setEnabled(True)
+                                    self.order_random_speed.setEnabled(False)
+                                    self._2doubleSpinBox_order_random.setEnabled(False)
+                                elif self.order_radio_random.isChecked():
+                                    self.order_list_int_label.setEnabled(False)
+                                    self.order_list_int.setEnabled(False)
+                                    self.order_random_int_label.setEnabled(True)
+                                    self.order_random_int.setEnabled(True)
+                                    self.order_list_speed.setEnabled(False)
+                                    self._2doubleSpinBox_order_list.setEnabled(False)
+                                    self.order_random_speed.setEnabled(True)
+                                    self._2doubleSpinBox_order_random.setEnabled(True)
+
+                            def order_send(self):
+                                if self.order_lineEdit.text() == '':
+                                    pyautogui.confirm("请先选择文件")
+                                    return 0
+                                target_process_name = "QQ.exe"
+                                if not check_process_exists(target_process_name):
+                                    pyautogui.confirm("请先启动QQ！")
+                                    return 0
+                                if position_status == False:
+                                    pyautogui.confirm("需要先设置位置才能开始发送")
+                                    return 0
+                                play_prompt_sound("C:\\Windows\\Media\\Windows Notify Messaging.wav")
+                                time.sleep(3)
+
+                                if self.order_radio_list.isChecked():
+                                    wait_time = self._2doubleSpinBox_order_list.value()
+                                    for i in range(self.order_list_int.value()):
+                                        with open(self.order_lineEdit.text(), 'r', encoding='utf-8') as file:
+                                            # 逐行读取文件内容
+                                            for line in file:
+                                                # 去除行尾的换行符
+                                                line = line.strip()
+                                                # 打印该行内容（可以查看复制内容是否正确）
+                                                print(line)
+                                                # 复制该行内容到剪切板
+                                                pyperclip.copy(line)
+                                                pyautogui.click(textedit_position)
+                                                time.sleep(wait_time)
+                                                pyautogui.hotkey('ctrl', 'v')
+                                                time.sleep(wait_time)
+                                                pyautogui.click(send_position)
+                                                # 暂停等待用户操作或观察复制内容
+                                else:
+                                    wait_time = self._2doubleSpinBox_order_random.value()
+                                    # 读取文件内容到列表中
+                                    with open(self.order_lineEdit.text(), 'r', encoding='utf-8') as file:
+                                        lines = file.readlines()
+                                    # 随机选择一行
+                                    for i in range(self.order_random_int.value()):
+                                        random_line = random.choice(lines).strip()
+                                        # 复制该行内容到剪切板
+                                        pyperclip.copy(random_line)
+                                        pyautogui.click(textedit_position)
+                                        time.sleep(wait_time)
+                                        pyautogui.hotkey('ctrl', 'v')
+                                        time.sleep(wait_time)
+                                        pyautogui.click(send_position)
+
+                            def mixPicture(self):  # 图片格式转换
                                 def convert_image_format(input_path, output_folder, output_format):
                                     try:
                                         # 打开待转换图片
@@ -6305,7 +6782,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                 output_folder_path = self._5lineEdit5.text()
                                 convert_image_format(input_image_path, output_folder_path, output_image_format)
 
-                            def download(self): #下载网易云音乐
+                            def download(self):  # 下载网易云音乐
                                 try:
                                     download_url = 'https://music.163.com/song/media/outer/url?id={}'
                                     headers = {
@@ -6317,13 +6794,28 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                     music_id = url.split('=')[1]
                                     response = requests.get(download_url.format(music_id), headers=headers)
                                     file_name = self._5lineEdit2.text()
-                                    with open(f'{self._5lineEdit3.text()}\\{file_name}', 'wb') as file:
+                                    save_path = f'{self._5lineEdit3.text()}\\{file_name}'
+                                    with open(save_path, 'wb') as file:
                                         file.write(response.content)
-                                        self.show_message_box("提示", "下载成功!")
+                                    with open(save_path, 'rb') as f:
+                                        first_line = f.readline().decode('utf-8', errors='ignore')
+                                        if '<!DOCTYPE html>' in first_line:
+                                            self.show_message_box("提示",
+                                                                  "下载失败 该歌曲可能是VIP专属 或其他原因 VIP歌曲暂不支持解析")
+                                        else:
+                                            # 获取文件大小（以字节为单位）
+                                            file_size_bytes = os.path.getsize(save_path)
+                                            # 将字节转换为 KB 或 MB，并格式化输出
+                                            if file_size_bytes < 1_000_000:  # 小于 1 MB
+                                                file_size = f"{(file_size_bytes / 1_024):.2f} KB"  # 转换为 KB
+                                            else:
+                                                file_size = f"{(file_size_bytes / 1_024 / 1_024):.2f} MB"  # 转换为 MB
+
+                                            self.show_message_box("提示", f"下载成功! 文件大小:{file_size}")
                                 except Exception as e:
                                     self.show_message_box("提示", f"下载失败:{e}")
 
-                            def show_folder_dialog(self, number):
+                            def show_folder_dialog(self, number):  # 文件路径选择
                                 if number == 1:  # 网音乐音乐输出路径
                                     folder_path = QFileDialog.getExistingDirectory(self, 'Select Folder')
                                     folder_path = folder_path.replace("/", "\\")
@@ -6349,6 +6841,14 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                                     folder_path = QFileDialog.getExistingDirectory(self, 'Select Folder')
                                     folder_path = folder_path.replace("/", "\\")
                                     self.QQ_Group_Save.setText(folder_path)
+                                elif number == 5:  # QQ序列发送文件选择
+                                    options = QFileDialog.Options()
+                                    options |= QFileDialog.ReadOnly
+                                    file_name, _ = QFileDialog.getOpenFileName(self, "Select Image", "",
+                                                                               "Image Files (*.txt)",
+                                                                               options=options)
+                                    file_name = file_name.replace("/", "\\")
+                                    self.order_lineEdit.setText(file_name)
 
                             def Button_selection(self):
                                 self.Button_1.setStyleSheet(self.Button_Style)
@@ -6358,22 +6858,22 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
 
                             def bt_c1(self):
                                 self.Button_selection()
-                                self.Button_1.setStyleSheet(self.Now_Button_Style)
+                                self.Button_1.setStyleSheet(self.button_sty)
                                 self.stackedWidget.setCurrentIndex(0)
 
                             def bt_c2(self):
                                 self.Button_selection()
-                                self.Button_2.setStyleSheet(self.Now_Button_Style)
+                                self.Button_2.setStyleSheet(self.button_sty)
                                 self.stackedWidget.setCurrentIndex(1)
 
                             def bt_c3(self):
                                 self.Button_selection()
-                                self.Button_3.setStyleSheet(self.Now_Button_Style)
+                                self.Button_3.setStyleSheet(self.button_sty)
                                 self.stackedWidget.setCurrentIndex(2)
 
                             def bt_c4(self):
                                 self.Button_selection()
-                                self.Button_4.setStyleSheet(self.Now_Button_Style)
+                                self.Button_4.setStyleSheet(self.button_sty)
                                 self.stackedWidget.setCurrentIndex(3)
 
                             def quit_team_H(self):
@@ -6524,7 +7024,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
 
                         process = psutil.Process()
                         memory_info = process.memory_info()
-                        memory_info = memory_info.rss / (1024 * 1024)  #输出内存占用
+                        memory_info = memory_info.rss / (1024 * 1024)  # 输出内存占用
                         print(f"内存占用(MB): {memory_info:.2f} MB")
                         end_time = time.time()
                         execution_time = end_time - start_time
@@ -6532,7 +7032,7 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                         global current_time_string
                         sys_list.append('g' + '[' + time.strftime(
                             "%H:%M:%S") + ']' + f"窗口打开成功 本次登录耗时:{execution_time}秒")
-
+                        windows.show()
                     except Exception as e:
                         traceback.print_exc()
                         print(e)
@@ -6540,30 +7040,398 @@ class MyWindow(QMainWindow):  # 实例化登录窗口
                 pyautogui.confirm("账号密码输入次数过多 账号已被锁定!请于一小时后重新登录")
             else:
                 self.ui.Login_Button.setEnabled(False)
+                if Log == True:
+                    window.show()
                 pyautogui.confirm("密码错误")
                 self.ui.Login_Button.setEnabled(True)
         except Exception as e:
             traceback.print_exc()
-            pyautogui.confirm("密码错误",e)
+            pyautogui.confirm("密码错误", e)
 
     def reg(self):
-        pyautogui.confirm("这是账号注册窗口 此处不方便展示")
-    def rew(self):
-        pyautogui.confirm("这是密码重置 此处不方便展示")
+        global resign_window
+        if resign_window is False:
+            windowr.show()
+            resign_window = True
+
+
+class Regis(QMainWindow):  # 实例化注册窗口
+    def __init__(self):
+        super().__init__()
+        self.ui2 = Signin.MainWindow()
+        self.ui2.setupUi(self)
+        self.ui2.pushButton.clicked.connect(self.Registration)
+        self.ui2.pushButton_4.clicked.connect(self.xbf)
+        self.pushButton3 = QPushButton(self)
+        self.pushButton3.setGeometry(QtCore.QRect(255, 290, 105, 31))
+        self.pushButton3.setText("获取验证码")
+        self.pushButton3.setObjectName("pushButton")
+        # 创建圆角按钮样式
+        style = "QPushButton#pushButton {border-radius: 5px; background-color: #55c3ff; color: white;}"
+        self.pushButton3.setStyleSheet(style)
+        self.pushButton3.clicked.connect(self.send)
+
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.update_timer)
+        self.remaining_time = 60
+        self.border_width = 8
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setWindowFlags(Qt.FramelessWindowHint | Qt.Window)
+
+    def send(self):
+        global Email
+        Email = self.ui2.lineEdit_3.text()
+        if validate_email(Email) == 0:
+            send_encry("**--*Registration*--**")
+            time.sleep(0.3)
+            send_encry(f'Email {self.ui2.lineEdit_3.text()}')
+            self.pushButton3.setEnabled(False)
+            style = "QPushButton#pushButton {border-radius: 5px; background-color: #e0e0e0; color: white;}"
+            self.pushButton3.setStyleSheet(style)
+            result = s.recv(256)
+            result = send_decry(result)
+            if result == 'Successfully_send':
+                self.remaining_time = 60
+                self.timer.start(1000)
+                self.update_timer()
+                pyautogui.confirm("验证码发送成功!")
+            else:
+                self.pushButton3.setEnabled(True)
+                pyautogui.confirm("验证码发送失败")
+        else:
+            pyautogui.confirm("请输入正确的邮箱")
+
+    def update_timer(self):  # 验证码更新
+        if self.remaining_time > 0:
+            self.remaining_time -= 1
+            self.pushButton3.setText(f"剩余时间: {self.remaining_time}秒")
+        else:
+            self.timer.stop()
+            self.pushButton3.setText("获取验证码")
+            self.pushButton3.setEnabled(True)
+            style = "QPushButton#pushButton {border-radius: 5px; background-color: #55c3ff; color: white;}"
+            self.pushButton3.setStyleSheet(style)
+
+    def Registration(self):
+        if not (0 < len(self.ui2.lineEdit.text()) < 11):
+            self.show_message_box('提示', '名称只能为1-10位')
+            return 0
+        if not (7 < len(self.ui2.lineEdit_2.text()) < 16):
+            self.show_message_box('提示', '密码只能为8-15位')
+            return 0
+        if validate_email(self.ui2.lineEdit_3.text()) == 1:
+            self.show_message_box('提示', '邮箱格式不正确')
+            return 0
+        if Check(self.ui2.lineEdit.text()) == 1:
+            self.show_message_box('提示', '名称只能包含中文 26个大小写字母以及\'.\' \'-\' \'_\' \'=\'')
+            return 0
+        if Check_Password(self.ui2.lineEdit_2.text()) == 1:
+            self.show_message_box('提示', '密码只能包含26个大小写字母以及\'.\' \'-\' \'_\' \'=\'')
+            return 0
+
+        send_encry("**--*Registration*--**")
+        time.sleep(0.3)
+        Check_e = self.ui2.lineEdit_4.text()
+        Name = self.ui2.lineEdit.text()
+        Password = self.ui2.lineEdit_2.text()
+        global Email
+        try:
+            res = requests.get('http://myip.ipip.net', timeout=5).text
+            # 提取城市信息
+            split_res = res.split('  ')
+            city_info = split_res[-2]  # 倒数第二个元素是城市信息
+            city_info = city_info.split(' ')
+            city_info = city_info[-1]
+            city_name = city_info
+        except:
+            city_name = 'Unknown'
+        info = f"Rigistration {Check_e} {Name} {Password} {Email} {city_name}"
+        send_encry(str(info))
+        Check_Email = s.recv(512)
+        Check_Email = send_decry(Check_Email)
+        if Check_Email == 'Right_Check':
+            Reg_Staus = s.recv(1024)
+            Reg_Staus = send_decry(Reg_Staus)
+            Reg_Staus = Reg_Staus.split()
+            if Reg_Staus[0] == 'Successfully':
+                self.close()
+                window.close()
+                with open("account.txt", "w") as file:
+                    file.write(
+                        f"您已注册成功 \n系统随机分配的账号ID为:{Reg_Staus[1]}  密码:{self.ui2.lineEdit_2.text()}\n")
+                    file.write(f"请妥善保管账号和密码 请勿泄露给他人！\n感谢您的使用")
+
+                def get_desktop_path():
+                    return os.path.join(os.path.expanduser("~"), "Desktop")
+
+                desktop_path = get_desktop_path()
+                shortcut_name = 'Fuchen账号.lnk'
+                original_file_path = rf'{os.getcwd()}\account.txt'
+                shortcut_path = os.path.join(desktop_path, shortcut_name)
+                shell = win32com.client.Dispatch("WScript.Shell")
+                shortcut = shell.CreateShortCut(shortcut_path)
+                shortcut.Targetpath = original_file_path
+                shortcut.save()
+                pyautogui.alert(f"账号注册成功!您的ID为:{Reg_Staus[1]}"
+                                f"账号ID由服务器自动分配 登录时需用ID登录而不是用户名\n\n"
+                                f"为了避免您忘记账号 现已将您的账号ID写入文件 >>Fuchen账号.txt中\n"
+                                f"并创建快捷方式到您的桌面上\n"
+                                f"请您尽快记住账号并妥当保管文件 以防丢失账号 泄露账号等情况\n\n"
+                                f"在此非常感谢您使用我的软件\n"
+                                f"请关闭此窗口 或点击确认按钮 登录线上模式使用吧!")
+            else:
+                pyautogui.confirm("注册失败")
+                self.close()
+
+        elif Check_Email == 'Error_Email':
+            self.pushButton3.setEnabled(False)
+            MyThread(play_warning_sound)
+            pyautogui.confirm("邮箱已被注册!")
+            self.pushButton3.setEnabled(True)
+        else:
+            pyautogui.confirm("验证码不正确")
+
+    def paintEvent(self, event):
+        # 阴影
+        path = QPainterPath()
+        path.setFillRule(Qt.WindingFill)
+
+        pat = QPainter(self)
+        pat.setRenderHint(pat.Antialiasing)
+        pat.fillPath(path, QBrush(Qt.white))
+
+        color = QColor(171, 171, 171, 70)
+
+        for i in range(10):
+            i_path = QPainterPath()
+            i_path.setFillRule(Qt.WindingFill)
+            ref = QRectF(10 - i, 10 - i, self.width() - (10 - i) * 2, self.height() - (10 - i) * 2)
+            # i_path.addRect(ref)
+            i_path.addRoundedRect(ref, self.border_width, self.border_width)
+            color.setAlpha(int(150 - i ** 0.5 * 50))
+            pat.setPen(color)
+            pat.drawPath(i_path)
+
+        # 圆角
+        pat2 = QPainter(self)
+        pat2.setRenderHint(pat2.Antialiasing)  # 抗锯齿
+        pat2.setBrush(Qt.white)
+        pat2.setPen(Qt.transparent)
+
+        rect = self.rect()
+        rect.setLeft(9)
+        rect.setTop(9)
+        rect.setWidth(rect.width() - 9)
+        rect.setHeight(rect.height() - 9)
+        pat2.drawRoundedRect(rect, 4, 4)
+
+    def mousePressEvent(self, e):
+        if e.y() <= 35:  # 35像素的标题栏高度
+            self.start_point = e.globalPos()
+            self.window_point = self.frameGeometry().topLeft()
+
+    def mouseMoveEvent(self, e):
+        if hasattr(self, 'start_point'):
+            relpos = e.globalPos() - self.start_point
+            self.move(self.window_point + relpos)
+
+    def mouseReleaseEvent(self, e):
+        if hasattr(self, 'start_point'):
+            delattr(self, 'start_point')
+
+    def show_message_box(self, head, message):
+        QMessageBox.question(self, head, message,
+                             QMessageBox.Yes)
+
+    def xbf(self):
+        global resign_window
+        if resign_window is True:
+            self.close()
+            resign_window = False
+
+    def closeEvent(self, e):
+        global resign_window
+        resign_window = False
+
+
+class Reword(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        # 存储单例窗口实例的类属性
+        self.ui_reword = ReWord.Ui_MainWindow()
+        self.ui_reword.setupUi(self)
+        self.setWindowIcon(QIcon('./image/Component/重置密码.png'))
+        self.setWindowTitle("重置密码")
+        self.ui_reword.pushButton_check.clicked.connect(self.Check_identity)
+        self.ui_reword.pushButton_getcheck.clicked.connect(self.get_check)
+        self.ui_reword.pushButton_a.clicked.connect(self.reword_password)
+        self.layout = [self.ui_reword.label, self.ui_reword.label_2, self.ui_reword.lineEdit, self.ui_reword.lineEdit_2,
+                       self.ui_reword.pushButton_getcheck, self.ui_reword.pushButton_check]
+
+        self.layout_after = [self.ui_reword.label_a, self.ui_reword.label_a2, self.ui_reword.lineEdit_a,
+                             self.ui_reword.lineEdit_a2, self.ui_reword.pushButton_a]
+
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.update_timer)
+        self.remaining_time = 60
+
+    def update_timer(self):  # 验证码更新
+        if self.remaining_time > 0:
+            self.remaining_time -= 1
+            self.ui_reword.pushButton_getcheck.setText(f"剩余时间: {self.remaining_time}秒")
+        else:
+            self.timer.stop()
+            self.ui_reword.pushButton_getcheck.setText("获取验证码")
+            self.ui_reword.pushButton_getcheck.setEnabled(True)
+            style = "QPushButton#pushButton {border-radius: 5px; background-color: #55c3ff; color: white;}"
+            self.ui_reword.pushButton_getcheck.setStyleSheet(style)
+
+    def show_message_box(self, head, message):
+        QMessageBox.question(self, head, message,
+                             QMessageBox.Yes)
+
+    def get_check(self):
+        global Email
+        Email = self.ui_reword.lineEdit.text()
+        if validate_email(Email) == 0:
+            send_encry("**--*Reword*--**")
+            time.sleep(0.3)
+            send_encry(f'Email {Email}')
+            self.ui_reword.pushButton_getcheck.setEnabled(False)
+            style = "QPushButton#pushButton {border-radius: 5px; background-color: #e0e0e0; color: white;}"
+            self.ui_reword.pushButton_getcheck.setStyleSheet(style)
+            result = s.recv(256)
+            result = send_decry(result)
+            if result == 'Successfully_send':
+                self.remaining_time = 60
+                self.timer.start(1000)
+                self.update_timer()
+                pyautogui.confirm("验证码发送成功!")
+            else:
+                self.ui_reword.pushButton_getcheck.setEnabled(True)
+                pyautogui.confirm("验证码发送失败")
+        else:
+            self.show_message_box("提示", "请输入正确的邮箱")
+
+    def Check_identity(self):
+        global Email
+        Check_word = self.ui_reword.lineEdit_2.text()
+        send_encry("**--*Reword*--**")
+        time.sleep(0.3)
+        send_encry(f"Check {Email} {Check_word}")
+        result = s.recv(1024)
+        result = send_decry(result)
+        if result == "Error_Check":
+            time.sleep(0.5)
+            self.show_message_box("提示", "验证码错误！")
+            return 0
+        elif result == "Error_Email":
+            time.sleep(0.5)
+            self.show_message_box("提示", "账号不存在 无法重置密码")
+            return 0
+        for index in self.layout:
+            if index is not None:
+                start_pos = index.pos()
+                end_pos = QRect(-500, start_pos.y(), index.width(), index.height())
+                animation = QPropertyAnimation(index, b"geometry", self)
+                animation.setDuration(300)
+                animation.setStartValue(QRect(start_pos, index.size()))
+                animation.setEndValue(end_pos)
+                easing_curve = QEasingCurve(QEasingCurve.InQuad)
+                animation.setEasingCurve(easing_curve)
+                animation.start()
+        QTimer.singleShot(100, self.showAfterAnimation)
+
+    def showAfterAnimation(self):
+        self.ui_reword.label.deleteLater()
+        self.ui_reword.label_2.deleteLater()
+        self.ui_reword.lineEdit.deleteLater()
+        self.ui_reword.lineEdit_2.deleteLater()
+        self.ui_reword.pushButton_getcheck.deleteLater()
+        self.ui_reword.pushButton_check.deleteLater()
+        position = [30, 30, 120, 120, 120]
+        num = 0
+        for index in self.layout_after:
+            pox = position[num]
+            num = num + 1
+            if index is not None:
+                start_pos = index.pos()
+                end_pos = QRect(pox, index.y(), index.width(), index.height())
+                animation = QPropertyAnimation(index, b"geometry", self)
+                animation.setDuration(450)
+                animation.setStartValue(QRect(start_pos, index.size()))
+                animation.setEndValue(end_pos)
+                easing_curve = QEasingCurve(QEasingCurve.InQuad)
+                animation.setEasingCurve(easing_curve)
+                animation.start()
+
+    def reword_password(self):
+        Password_First = self.ui_reword.lineEdit_a.text()
+        RePassword = self.ui_reword.lineEdit_a2.text()
+        if Check_Password(Password_First) == True:
+            time.sleep(0.1)
+            self.show_message_box("提示", "密码包含无法识别的字符 密码只能为26个大小写字母 以及数字 和- . ? ~ ")
+            return 0
+        if Password_First != RePassword:
+            time.sleep(0.1)
+            self.show_message_box("提示", "二次输入密码不相同 请确认后再次尝试")
+            return 0
+        if not (7 <= len(Password_First) < 16):
+            time.sleep(0.1)
+            self.show_message_box("提示", "密码只能设置为8-15位")
+            return 0
+        time.sleep(0.2)
+        send_encry("**--*Reword*--**")
+        time.sleep(0.3)
+        send_encry(f"Reword {Password_First}")
+        result = s.recv(1024)
+        result = send_decry(result)
+        if result == 'Successfully_Reword':
+            self.show_message_box("提示", "密码已成功更改！\n请重启客户端后重新登录")
+            self.close()
+            os._exit(0)
+        else:
+            self.show_message_box("提示", "密码更改失败")
+
+    def closeEvent(self, e):
+        global reword_window
+        reword_window = False
 
 
 if __name__ == "__main__":
+    try:
+        # 适应高DPI设备
+        QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling)
+        # 适应Windows缩放
+        QtGui.QGuiApplication.setAttribute(QtCore.Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
+    except:
+        pass
     app = QApplication(sys.argv)
     translator = QTranslator()
     translator.load('./mod/trans/qt_zh_CN.qm')
     app.installTranslator(translator)
-    window = MyWindow()
-    window.show()
+    if initial == False:
+        win = Agreement.AgreementWindow()
+        win.show()
+        app.exec_()
+        if Agreement.User_Agree == False:
+            sys.exit()
+        else:
+            with open('config.json', 'r') as file:
+                config = json.load(file)
+            config["Initial"] = True
+            with open("config.json", "w") as json_file:
+                json.dump(config, json_file, indent=4)
+    window = MyWindow()  # 登录窗口
+    windowr = Regis()  # 注册窗口
+    window_reword = Reword()  # 重置密码窗口
     if Log == True:
         time.sleep(0.1)
         window.pr("login")
+    else:
+        window.show()
     # 输出当前活动的线程
-    active_threads = threading.enumerate()
-    print("进程结束 ",active_threads)
+    # active_threads = threading.enumerate()
+    # print("进程结束 ", active_threads)
     sys.exit(app.exec_())
 os._exit(0)
