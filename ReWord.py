@@ -1,3 +1,4 @@
+#此文件为重置密码窗口UI
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtCore import QRegExp
 from PyQt5.QtGui import QRegExpValidator
@@ -99,7 +100,7 @@ class Ui_MainWindow(object):
         self.pushButton_a.setObjectName("pushButton_a")
         self.pushButton_a.setFont(font_11)
 
-        MainWindow.setCentralWidget(self.centralwidget)
+        #MainWindow.setCentralWidget(self.centralwidget)
 
         self.retranslateUi(MainWindow)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)

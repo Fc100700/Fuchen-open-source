@@ -1,5 +1,5 @@
+#此文件为注册窗口UI
 import random
-
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtCore import QRegExp
 from PyQt5.QtGui import QRegExpValidator
@@ -78,60 +78,61 @@ class MainWindow(object):
                                             "    border-image: url(./image/Component/验证码.png);"
                                             "}")
 
-        self.label_5 = QtWidgets.QLabel(self.centralwidget)
-        self.label_5.setGeometry(QtCore.QRect(30, 400, 300,41))
+        self.prompt = QtWidgets.QLabel(self.centralwidget)
+        self.prompt.setGeometry(QtCore.QRect(30, 400, 300,41))
         font = QtGui.QFont()
         font.setFamily("Arial")
         font.setPointSize(8)
-        self.label_5.setFont(font)
-        self.label_5.setObjectName("label_5")
+        self.prompt.setFont(font)
+        self.prompt.setObjectName("prompt")
 
-        self.label_6 = QtWidgets.QLabel(self.centralwidget)
-        self.label_6.setGeometry(QtCore.QRect(30, 15, 150, 25))
+        self.title = QtWidgets.QLabel(self.centralwidget)
+        self.title.setGeometry(QtCore.QRect(30, 15, 150, 25))
         font = QtGui.QFont()
         font.setFamily("黑体")
         font.setPointSize(12)
-        self.label_6.setFont(font)
-        self.label_6.setObjectName("label_5")
-        self.label_6.setText("账号注册")
+        self.title.setFont(font)
+        self.title.setObjectName("title")
+        self.title.setText("账号注册")
 
-        self.lineEdit = QtWidgets.QLineEdit(self.centralwidget)
-        self.lineEdit.setGeometry(QtCore.QRect(30, 80,330, 31))
-        self.lineEdit.setObjectName("lineEdit")
+        self.NameEdit = QtWidgets.QLineEdit(self.centralwidget)
+        self.NameEdit.setGeometry(QtCore.QRect(30, 80,330, 31))
+        self.NameEdit.setObjectName("lineEdit")
         font = QFont("等线", 15)
         line_style = "QLineEdit {border: 1px solid gray; border-radius: 10px; padding: 2px; background: #f7f8fe;}"
-        self.lineEdit.setStyleSheet(line_style)
-        self.lineEdit.setFont(font)
+        self.NameEdit.setStyleSheet(line_style)
+        self.NameEdit.setFont(font)
         self.image_random.raise_()
 
 
-        self.lineEdit_2 = QtWidgets.QLineEdit(self.centralwidget)
-        self.lineEdit_2.setGeometry(QtCore.QRect(30, 150, 330, 31))
-        self.lineEdit_2.setObjectName("lineEdit_2")
-        self.lineEdit_2.setStyleSheet(line_style)
-        self.lineEdit_2.setFont(font)
+        self.PasswordEdit = QtWidgets.QLineEdit(self.centralwidget)
+        self.PasswordEdit.setGeometry(QtCore.QRect(30, 150, 330, 31))
+        self.PasswordEdit.setObjectName("lineEdit_2")
+        self.PasswordEdit.setStyleSheet(line_style)
+        self.PasswordEdit.setFont(font)
 
-        self.lineEdit_3 = QtWidgets.QLineEdit(self.centralwidget)
-        self.lineEdit_3.setGeometry(QtCore.QRect(30, 220, 330, 31))
-        self.lineEdit_3.setObjectName("lineEdit_3")
-        self.lineEdit_3.setStyleSheet(line_style)
-        self.lineEdit_3.setFont(font)
+        self.EmailEdit = QtWidgets.QLineEdit(self.centralwidget)
+        self.EmailEdit.setGeometry(QtCore.QRect(30, 220, 330, 31))
+        self.EmailEdit.setObjectName("lineEdit_3")
+        self.EmailEdit.setStyleSheet(line_style)
+        self.EmailEdit.setFont(font)
 
-        self.lineEdit_4 = QtWidgets.QLineEdit(self.centralwidget)
-        self.lineEdit_4.setGeometry(QtCore.QRect(30, 290, 220, 31))
-        self.lineEdit_4.setObjectName("lineEdit_3")
-        self.lineEdit_4.setStyleSheet(line_style)
-        self.lineEdit_4.setFont(font)
+        self.CheckEdit = QtWidgets.QLineEdit(self.centralwidget)
+        self.CheckEdit.setGeometry(QtCore.QRect(30, 290, 220, 31))
+        self.CheckEdit.setObjectName("lineEdit_3")
+        self.CheckEdit.setStyleSheet(line_style)
+        self.CheckEdit.setFont(font)
         regex = QRegExp(r'\d{6}')
         validator = QRegExpValidator(regex)
-        self.lineEdit_4.setValidator(validator)
-        self.pushButton = QtWidgets.QPushButton(self.centralwidget)
-        self.pushButton.setGeometry(QtCore.QRect(30, 350, 330, 40))
+        self.CheckEdit.setValidator(validator)
+
+        self.SigninButton = QtWidgets.QPushButton(self.centralwidget)
+        self.SigninButton.setGeometry(QtCore.QRect(30, 350, 330, 40))
         font = QtGui.QFont()
         font.setFamily("Arial")
         font.setPointSize(18)
-        self.pushButton.setFont(font)
-        self.pushButton.setObjectName("pushButton")
+        self.SigninButton.setFont(font)
+        self.SigninButton.setObjectName("pushButton")
         # 创建自定义按钮样式
         style = """
                     QPushButton#pushButton {
@@ -151,17 +152,17 @@ class MainWindow(object):
                 """
 
         # 将样式应用到QPushButton
-        self.pushButton.setStyleSheet(style)
-        self.pushButton_4 = QtWidgets.QPushButton(self.centralwidget)
-        self.pushButton_4.setStyleSheet("QPushButton#pushButton_4 {"
+        self.SigninButton.setStyleSheet(style)
+        self.QuitButton = QtWidgets.QPushButton(self.centralwidget)
+        self.QuitButton.setStyleSheet("QPushButton#pushButton_4 {"
                                            "    border-image: url(./image/quit.png);"
                                            "}")
-        self.pushButton_4.setGeometry(QtCore.QRect(340, 15, 21, 21))
-        self.pushButton_4.setObjectName("pushButton_4")
-        self.pushButton_4.setToolTip('关闭')
-        self.pushButton_4.raise_()
+        self.QuitButton.setGeometry(QtCore.QRect(340, 15, 21, 21))
+        self.QuitButton.setObjectName("pushButton_4")
+        self.QuitButton.setToolTip('关闭')
+        self.QuitButton.raise_()
 
-        MainWindow.setCentralWidget(self.centralwidget)
+        #MainWindow.setCentralWidget(self.centralwidget)
 
         self.retranslateUi(MainWindow)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
@@ -169,8 +170,8 @@ class MainWindow(object):
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
         MainWindow.setWindowTitle(_translate("MainWindow", "MainWindow"))
-        self.label_5.setText(_translate("MainWindow", "注:邮箱将成为您是此账号所有者的唯一证明"))
-        self.pushButton.setText(_translate("MainWindow", "注册"))
+        self.prompt.setText(_translate("MainWindow", "注:邮箱将成为您是此账号所有者的唯一证明"))
+        self.SigninButton.setText(_translate("MainWindow", "注册"))
 
     def random_name(self):
         try:
@@ -178,7 +179,7 @@ class MainWindow(object):
                 lines = file.readlines()
                 if lines:
                     random_line = random.choice(lines).strip()
-                    self.lineEdit.setText(random_line)
+                    self.NameEdit.setText(random_line)
         except FileNotFoundError:
             print("The file 'name.txt' was not found.")
         except Exception as e:

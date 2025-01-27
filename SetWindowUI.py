@@ -2,17 +2,16 @@ from PyQt5.QtCore import Qt, QRectF
 from PyQt5.QtGui import QPainter, QColor, QIcon, QPixmap, QPalette, QBrush, QPainterPath
 from PyQt5.QtWidgets import QFileDialog, QButtonGroup, QDialog
 from PyQt5 import QtCore, QtGui, QtWidgets
-import oo
 import ui.style
 import json
 import os
 import pyautogui
-import webbrowser
 import extend_install
-import SundryUI
 from PIL import Image
-import ui.oo
+import ui.buttons
 from ui.style import style_lineEdit
+
+
 style_CheckBox = ui.style.style_CheckBox
 style_Radio = ui.style.style_Radio
 style_Spin = ui.style.style_Spin
@@ -67,7 +66,7 @@ class SetWindow(QtWidgets.QDialog):
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.Window)  # 设置 窗口无边框和背景透明
 
 
-        self.Button_Close = ui.oo.CloseButton(self)
+        self.Button_Close = ui.buttons.CloseButton(self)
         self.Button_Close.setGeometry(495, 15, 26, 26)
         self.Button_Close.setToolTip('关闭')
         self.Button_Close.setIcon(QIcon("./image/quit.png"))
@@ -83,13 +82,15 @@ class SetWindow(QtWidgets.QDialog):
         self.label.setGeometry(QtCore.QRect(20, 20, 70, 20))
         self.label.setFont(font)
         self.label.setObjectName("label")
-        self.pushButton = oo.AnimatedButton(self)
+
+        self.pushButton = ui.buttons.AnimatedButton(self)
         self.pushButton.setGeometry(QtCore.QRect(370, 292, 150, 31))
         font = QtGui.QFont()
         font.setFamily("微软雅黑")
         font.setPointSize(12)
         self.pushButton.setFont(font)
         self.pushButton.setObjectName("pushButton")
+        self.pushButton.setText("保存")
 
         self.check_autologin = QtWidgets.QCheckBox(self)
         self.check_autologin.setGeometry(QtCore.QRect(20, 50, 161, 20))
@@ -176,11 +177,15 @@ class SetWindow(QtWidgets.QDialog):
         self.line_Custom.setStyleSheet(style_lineEdit)
         self.line_Custom.setFont(style_font_9)
 
-        self.pushButton_2 = QtWidgets.QPushButton(self)
+        #self.pushButton_2 = QtWidgets.QPushButton(self)
+        self.pushButton_2 = ui.buttons.CustomButton(self, radius=2, start_color=QColor(207, 207, 207, 0),
+                                               hover_color=QColor(33, 150, 243, 255),
+                                               border_color=QColor(33, 120, 255), border_width=1,
+                                               font_color=QColor(0, 0, 0))
         self.pushButton_2.setGeometry(QtCore.QRect(460, 94, 51, 23))
         self.pushButton_2.setObjectName("pushButton_2")
         self.pushButton_2.setFont(style_font_10)
-        self.pushButton_2.setStyleSheet(ui.style.style_white_blue_button)
+        #self.pushButton_2.setStyleSheet(ui.style.style_white_blue_button)
 
         self.Slider_label = QtWidgets.QLabel(self)
         self.Slider_label.setGeometry(QtCore.QRect(240, 125, 80, 12))
@@ -224,11 +229,15 @@ class SetWindow(QtWidgets.QDialog):
         self.line_Trend.setStyleSheet(style_lineEdit)
         self.line_Trend.setFont(style_font_9)
 
-        self.pushButton_3 = QtWidgets.QPushButton(self)
+        #self.pushButton_3 = QtWidgets.QPushButton(self)
+        self.pushButton_3 = ui.buttons.CustomButton(self, radius=2, start_color=QColor(207, 207, 207, 0),
+                                                     hover_color=QColor(33, 150, 243, 255),
+                                                     border_color=QColor(33, 120, 255), border_width=1,
+                                                     font_color=QColor(0, 0, 0))
         self.pushButton_3.setGeometry(QtCore.QRect(460, 174, 51, 23))
         self.pushButton_3.setObjectName("pushButton_3")
         self.pushButton_3.setFont(style_font_10)
-        self.pushButton_3.setStyleSheet(ui.style.style_white_blue_button)
+        #self.pushButton_3.setStyleSheet(ui.style.style_white_blue_button)
 
         self.FPS_label = QtWidgets.QLabel(self)
         self.FPS_label.setGeometry(QtCore.QRect(240, 210, 130, 12))
@@ -289,7 +298,7 @@ class SetWindow(QtWidgets.QDialog):
             self.radioButton_white.setChecked(True)
 
         self.label.setText("设置")
-        self.pushButton.setText("保存")
+
         self.check_sound.setText("点击提示音")
         self.check_autologin.setText("自动登录")
         self.radioButton_white.setText("白色主题")

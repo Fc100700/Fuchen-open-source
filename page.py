@@ -6,10 +6,9 @@ from PyQt5.QtWidgets import QApplication, QPushButton, QButtonGroup, QMainWindow
     QToolButton
 from PyQt5.QtCore import Qt, QSize, QRect
 from PyQt5.QtGui import QCursor, QPainter, QColor, QIcon, QKeySequence, QFont, QLinearGradient
-import oo
 import ui.style
 import os
-import ui.oo
+import ui.buttons
 from ui.style import style_lineEdit
 
 style_Radio = ui.style.style_Radio
@@ -205,7 +204,7 @@ class Ui_FormS(QMainWindow):
 
         '''第一个按钮'''
         #self.Button_1 = QtWidgets.QToolButton(MainWindow)
-        self.Button_1 = ui.oo.MainAnimatedButton(MainWindow)
+        self.Button_1 = ui.buttons.MainAnimatedButton(MainWindow)
         self.Button_1.setGeometry(QtCore.QRect(10, 130, 240, 40))
         self.Button_1.setIcon(QIcon("./image/Component/点击.png"))
         self.Button_1.setObjectName("Button_1")
@@ -218,7 +217,7 @@ class Ui_FormS(QMainWindow):
 
         '''第二个按钮'''
         #self.Button_2 = QtWidgets.QToolButton(MainWindow)
-        self.Button_2 = ui.oo.MainAnimatedButton(MainWindow)
+        self.Button_2 = ui.buttons.MainAnimatedButton(MainWindow)
         self.Button_2.setGeometry(QtCore.QRect(10, 190, 240, 40))
         self.Button_2.setIcon(QIcon("./image/Component/QQ.png"))
         self.Button_2.setObjectName("Button_2")
@@ -227,7 +226,7 @@ class Ui_FormS(QMainWindow):
         self.Button_2.setFont(font)
 
         #self.Button_3 = QtWidgets.QToolButton(MainWindow)
-        self.Button_3 = ui.oo.MainAnimatedButton(MainWindow)
+        self.Button_3 = ui.buttons.MainAnimatedButton(MainWindow)
         self.Button_3.setGeometry(QtCore.QRect(10, 250, 240, 40))
         self.Button_3.setIcon(QIcon("./image/Component/组队.png"))
         self.Button_3.setObjectName("Button_3")
@@ -240,7 +239,7 @@ class Ui_FormS(QMainWindow):
             self.Button_3.setToolTip("该功能游客登录暂不可用")
 
         #self.Button_4 = QtWidgets.QToolButton(MainWindow)
-        self.Button_4 = ui.oo.MainAnimatedButton(MainWindow)
+        self.Button_4 = ui.buttons.MainAnimatedButton(MainWindow)
         self.Button_4.setGeometry(QtCore.QRect(10, 310, 240, 40))
         self.Button_4.setIcon(QIcon("./image/Component/工具.png"))
         self.Button_4.setObjectName("Button_4")
@@ -252,7 +251,7 @@ class Ui_FormS(QMainWindow):
         self.Button_4.setFont(font)
 
         #self.Button_More = QtWidgets.QPushButton(MainWindow)
-        self.Button_More = ui.oo.ComponentButton(MainWindow)
+        self.Button_More = ui.buttons.ComponentButton(MainWindow)
         self.Button_More.setGeometry(QtCore.QRect(875, 8, 26, 26))
         self.Button_More.setToolTip('更多')
         self.Button_More.setObjectName("Button_More")
@@ -271,7 +270,7 @@ class Ui_FormS(QMainWindow):
         """)
 
         #self.Button_SetTop = QtWidgets.QPushButton(MainWindow)
-        self.Button_SetTop = ui.oo.ComponentButton(MainWindow)
+        self.Button_SetTop = ui.buttons.ComponentButton(MainWindow)
         self.Button_SetTop.setGeometry(QtCore.QRect(905, 8, 26, 26))
         self.Button_SetTop.setToolTip('置顶')
         self.Button_SetTop.setObjectName("Button_SetTop")
@@ -279,7 +278,7 @@ class Ui_FormS(QMainWindow):
         self.Button_SetTop.setIconSize(QtCore.QSize(21, 21))
 
 
-        self.Button_Minisize = ui.oo.ComponentButton(MainWindow)
+        self.Button_Minisize = ui.buttons.ComponentButton(MainWindow)
         self.Button_Minisize.setGeometry(QtCore.QRect(935, 8, 26, 26))
         self.Button_Minisize.setIcon(QIcon("./image/short.png"))
         self.Button_Minisize.setIconSize(QtCore.QSize(19, 19))
@@ -287,7 +286,7 @@ class Ui_FormS(QMainWindow):
         self.Button_Minisize.setToolTip('最小化')
 
         #self.Button_Close = QtWidgets.QPushButton(MainWindow)
-        self.Button_Close = ui.oo.CloseButton(MainWindow)
+        self.Button_Close = ui.buttons.CloseButton(MainWindow)
         self.Button_Close.setGeometry(965, 8, 26, 26)
         self.Button_Close.setToolTip('关闭')
         self.Button_Close.setIcon(QIcon("./image/quit.png"))
@@ -523,13 +522,17 @@ class Ui_FormS(QMainWindow):
         self._3D.setSingleStep(0.05)
         self._3D.setStyleSheet(style_Double)
 
-        self._3pushButton_4 = QtWidgets.QPushButton(self.page_1)  # 左键点击
+        #self._3pushButton_4 = QtWidgets.QPushButton(self.page_1)  # 左键点击
+        self._3pushButton_4 = ui.buttons.CustomButton(self.page_1, radius=2, start_color=QColor(207, 207, 207, 0),
+                                                     hover_color=QColor(33, 150, 243, 255),
+                                                     border_color=QColor(33, 120, 255), border_width=1,
+                                                     font_color=QColor(0, 0, 0))
         self._3pushButton_4.setGeometry(QtCore.QRect(25, 170, 150, 35))
         self._3pushButton_4.setObjectName("_3pushButton_4")
         self._3pushButton_4.setCursor(QCursor(Qt.PointingHandCursor))
         self._3pushButton_4.setText(f"设置启停快捷键({self.sort})")
         self._3pushButton_4.setFont(style_font_10)
-        self._3pushButton_4.setStyleSheet("""
+        '''self._3pushButton_4.setStyleSheet("""
                                             QPushButton {
                                                 border: 1px solid #3498db;    /* 设置为RGB颜色#3498db的边框 */
                                                 background-color: transparent;    /* 设置透明背景 */
@@ -538,15 +541,19 @@ class Ui_FormS(QMainWindow):
                                             QPushButton:hover {
                                                 background-color: #3498db;    /* 设置鼠标悬停时的背景颜色为RGB颜色#3498db */
                                                 border: 1px solid #3498db;    /* 设置鼠标悬停时的边框颜色为RGB颜色#3498db */
-                                            }""")
+                                            }""")'''
 
-        self._3pushButton_6 = QtWidgets.QPushButton(self.page_1)  # 开启连点器
+        #self._3pushButton_6 = QtWidgets.QPushButton(self.page_1)  # 开启连点器
+        self._3pushButton_6 = ui.buttons.CustomButton(self.page_1, radius=2, start_color=QColor(207, 207, 207, 0),
+                                                      hover_color=QColor(33, 150, 243, 255),
+                                                      border_color=QColor(33, 120, 255), border_width=1,
+                                                      font_color=QColor(0, 0, 0))
         self._3pushButton_6.setGeometry(QtCore.QRect(180, 170, 125, 35))
         self._3pushButton_6.setObjectName("_3pushButton_6")
         self._3pushButton_6.setCursor(QCursor(Qt.PointingHandCursor))
         self._3pushButton_6.setText("开启连点器")
         self._3pushButton_6.setFont(style_font_10)
-        self._3pushButton_6.setStyleSheet("""
+        '''self._3pushButton_6.setStyleSheet("""
                                             QPushButton {
                                                 border: 1px solid #3498db;    /* 设置为RGB颜色#3498db的边框 */
                                                 background-color: transparent;    /* 设置透明背景 */
@@ -555,16 +562,20 @@ class Ui_FormS(QMainWindow):
                                             QPushButton:hover {
                                                 background-color: #3498db;    /* 设置鼠标悬停时的背景颜色为RGB颜色#3498db */
                                                 border: 1px solid #3498db;    /* 设置鼠标悬停时的边框颜色为RGB颜色#3498db */
-                                            }""")
+                                            }""")'''
         self._3pushButton_6.raise_()
 
-        self._3pushButton_7 = QtWidgets.QPushButton(self.page_1)  # 连点器
+        #self._3pushButton_7 = QtWidgets.QPushButton(self.page_1)  # 连点器
+        self._3pushButton_7 = ui.buttons.CustomButton(self.page_1, radius=2, start_color=QColor(207, 207, 207, 0),
+                                                      hover_color=QColor(33, 150, 243, 255),
+                                                      border_color=QColor(33, 120, 255), border_width=1,
+                                                      font_color=QColor(0, 0, 0))
         self._3pushButton_7.setGeometry(QtCore.QRect(310, 170, 50, 35))
         self._3pushButton_7.setObjectName("_3pushButton_7")
         self._3pushButton_7.setCursor(QCursor(Qt.PointingHandCursor))
         self._3pushButton_7.setText("关闭")
         self._3pushButton_7.setFont(style_font_10)
-        self._3pushButton_7.setStyleSheet("""
+        '''self._3pushButton_7.setStyleSheet("""
                                             QPushButton {
                                                 border: 1px solid #3498db;    /* 设置为RGB颜色#3498db的边框 */
                                                 background-color: transparent;    /* 设置透明背景 */
@@ -573,7 +584,7 @@ class Ui_FormS(QMainWindow):
                                             QPushButton:hover {
                                                 background-color: #3498db;    /* 设置鼠标悬停时的背景颜色为RGB颜色#3498db */
                                                 border: 1px solid #3498db;    /* 设置鼠标悬停时的边框颜色为RGB颜色#3498db */
-                                            }""")
+                                            }""")'''
         self._3pushButton_7.setVisible(False)
 
         self.problem_label = QtWidgets.QLabel(self.page_1)
@@ -680,25 +691,22 @@ class Ui_FormS(QMainWindow):
         self.file_lineEdit.setFont(style_font_9)
         self.file_lineEdit.setText(self.generate_initial_filename())
 
-        self.button_create = QtWidgets.QPushButton(self.page_1)
+        #self.button_create = QtWidgets.QPushButton(self.page_1)
+        self.button_create = ui.buttons.CustomButton(self.page_1, radius=2, start_color=QColor(207, 207, 207, 0),
+                                                hover_color=QColor(33, 150, 243, 255),
+                                                border_color=QColor(33, 120, 243), border_width=1,
+                                                font_color=QColor(0, 0, 0))
         self.button_create.setGeometry(QtCore.QRect(280, 400, 50, 20))
         self.button_create.setObjectName("button_create")
         self.button_create.setCursor(QCursor(Qt.PointingHandCursor))
         self.button_create.setText("创建")
-        self.button_create.setStyleSheet("QPushButton#button_create {"
-                                         "background-color: #3498db;"  # Blue background color
-                                         "border-radius: 4px;"  # 10px border radius for rounded corners
-                                         "color: white;"
-                                         "padding: 300px 300px;"
-                                         "text-align: center;"
-                                         "text-decoration: none;"
-                                         "font-size: 13px;"
-                                         "font-family: SimSun, Arial, sans-serif;"
-                                         "}")
+        self.button_create.setFont(style_font_10)
+
+
+
         self.impor_button = QtWidgets.QPushButton(self.page_1)
         #self.impor_button = oo.NormolAnimatedButton(self.page_1)
         self.impor_button.setGeometry(QtCore.QRect(25, 500, 140, 22))
-        #self.impor_button.setGeometry(QtCore.QRect(360, 510, 180, 25))
         self.impor_button.setObjectName("impor_button")
         self.impor_button.setCursor(QCursor(Qt.PointingHandCursor))
         self.impor_button.setText("编辑选中的文件")
@@ -732,7 +740,7 @@ class Ui_FormS(QMainWindow):
                                                     }""")
 
         # self._3pushButton = QtWidgets.QPushButton(self.page_1)
-        self._3pushButton = oo.AnimatedButton(self.page_1)
+        self._3pushButton = ui.buttons.AnimatedButton(self.page_1)
         self._3pushButton.setGeometry(QtCore.QRect(25, 540, 140, 30))
         self._3pushButton.setObjectName("_3pushButton")
         self._3pushButton.setCursor(QCursor(Qt.PointingHandCursor))
@@ -798,22 +806,16 @@ class Ui_FormS(QMainWindow):
 
 
 
-        self._3pushButton_5 = QtWidgets.QPushButton(self.page_1)
+
+        self._3pushButton_5 = ui.buttons.CustomButton(self.page_1, radius=2, start_color=QColor(207, 207, 207, 0),
+                                                hover_color=QColor(33, 150, 243, 255),
+                                                border_color=QColor(33, 120, 243), border_width=1,
+                                                font_color=QColor(0, 0, 0))
         self._3pushButton_5.setGeometry(QtCore.QRect(360, 350, 91, 23))
         self._3pushButton_5.setObjectName("_3pushButton_4")
         self._3pushButton_5.setCursor(QCursor(Qt.PointingHandCursor))
         self._3pushButton_5.setText("鼠标信息")
         self._3pushButton_5.setFont(style_font_10)
-        self._3pushButton_5.setStyleSheet("""
-                                            QPushButton {
-                                                border: 1px solid #3498db;    /* 设置为RGB颜色#3498db的边框 */
-                                                background-color: transparent;    /* 设置透明背景 */
-                                                border-radius: 2px;    /* 设置圆角 */
-                                            }
-                                            QPushButton:hover {
-                                                background-color: #3498db;    /* 设置鼠标悬停时的背景颜色为RGB颜色#3498db */
-                                                border: 1px solid #3498db;    /* 设置鼠标悬停时的边框颜色为RGB颜色#3498db */
-                                            }""")
 
 
 
@@ -823,13 +825,17 @@ class Ui_FormS(QMainWindow):
         self.label_end.setFont(font_11)
         self.label_end.setText("结束录制按键")
 
-        self.end_key_button = QtWidgets.QPushButton(self.page_1)  # 结束按键设置
+        #self.end_key_button = QtWidgets.QPushButton(self.page_1)  # 结束按键设置
+        self.end_key_button = ui.buttons.CustomButton(self.page_1, radius=2, start_color=QColor(207, 207, 207, 0),
+                                                 hover_color=QColor(33, 150, 243, 255),
+                                                 border_color=QColor(33, 120, 255), border_width=1,
+                                                 font_color=QColor(0, 0, 0))
         self.end_key_button.setGeometry(QtCore.QRect(480, 500, 70, 25))
         self.end_key_button.setObjectName("end_key_button")
         self.end_key_button.setCursor(QCursor(Qt.PointingHandCursor))
         self.end_key_button.setText(f"{self.end_key}")
         self.end_key_button.setFont(style_font_10)
-        self.end_key_button.setStyleSheet("""
+        '''self.end_key_button.setStyleSheet("""
                                             QPushButton {
                                                 border: 1px solid #3498db;    /* 设置为RGB颜色#3498db的边框 */
                                                 background-color: transparent;    /* 设置透明背景 */
@@ -838,7 +844,7 @@ class Ui_FormS(QMainWindow):
                                             QPushButton:hover {
                                                 background-color: #3498db;    /* 设置鼠标悬停时的背景颜色为RGB颜色#3498db */
                                                 border: 1px solid #3498db;    /* 设置鼠标悬停时的边框颜色为RGB颜色#3498db */
-                                            }""")
+                                            }""")'''
 
         self.lable_execute_end = QtWidgets.QLabel(self.page_1)
         self.lable_execute_end.setGeometry(QtCore.QRect(360, 550, 130, 21))
@@ -846,13 +852,17 @@ class Ui_FormS(QMainWindow):
         self.lable_execute_end.setFont(font_11)
         self.lable_execute_end.setText("结束执行按键")
 
-        self.end_execute_button = QtWidgets.QPushButton(self.page_1)  # 结束按键设置
+        #self.end_execute_button = QtWidgets.QPushButton(self.page_1)  # 结束按键设置
+        self.end_execute_button = ui.buttons.CustomButton(self.page_1, radius=2, start_color=QColor(207, 207, 207, 0),
+                                                 hover_color=QColor(33, 150, 243, 255),
+                                                 border_color=QColor(33, 120, 255), border_width=1,
+                                                 font_color=QColor(0, 0, 0))
         self.end_execute_button.setGeometry(QtCore.QRect(480, 550, 70, 25))
         self.end_execute_button.setObjectName("end_execute_button")
         self.end_execute_button.setCursor(QCursor(Qt.PointingHandCursor))
         self.end_execute_button.setText(f"{self.end_execute_key}")
         self.end_execute_button.setFont(style_font_10)
-        self.end_execute_button.setStyleSheet("""
+        '''self.end_execute_button.setStyleSheet("""
                                                     QPushButton {
                                                         border: 1px solid #3498db;    /* 设置为RGB颜色#3498db的边框 */
                                                         background-color: transparent;    /* 设置透明背景 */
@@ -861,7 +871,7 @@ class Ui_FormS(QMainWindow):
                                                     QPushButton:hover {
                                                         background-color: #3498db;    /* 设置鼠标悬停时的背景颜色为RGB颜色#3498db */
                                                         border: 1px solid #3498db;    /* 设置鼠标悬停时的边框颜色为RGB颜色#3498db */
-                                                    }""")
+                                                    }""")'''
 
     def label_page2(self):
         custom_widget = ui.style.CustomWidget(self.page_2)  # 句柄框
@@ -990,7 +1000,7 @@ class Ui_FormS(QMainWindow):
         self._2textEdit.setAcceptDrops(False)
         self._2textEdit.setPlaceholderText("在此处输入需要发送的内容\n注：不能使用数字作为开头")
 
-        self._2pushButton_3 = oo.NormolAnimatedButton(self.page_2)
+        self._2pushButton_3 = ui.buttons.NormolAnimatedButton(self.page_2)
         self._2pushButton_3.setGeometry(QtCore.QRect(240, 220, 260, 26))
         self._2pushButton_3.setObjectName("_2pushButton_3")
         self._2pushButton_3.setCursor(QCursor(Qt.PointingHandCursor))
@@ -1061,7 +1071,7 @@ class Ui_FormS(QMainWindow):
         self._2checkBox.setFont(style_font_10)
         self._2checkBox.setStyleSheet(style_CheckBox)
 
-        self._2pushButton = oo.NormolAnimatedButton(self.page_2)
+        self._2pushButton = ui.buttons.NormolAnimatedButton(self.page_2)
         self._2pushButton.setGeometry(QtCore.QRect(20, 450, 180, 25))
         self._2pushButton.setObjectName("_2pushButton")
         self._2pushButton.setCursor(QCursor(Qt.PointingHandCursor))
@@ -1101,7 +1111,7 @@ class Ui_FormS(QMainWindow):
         self.copy_int.setStyleSheet(style_Double)
 
         # self._2pushButton_4 = QtWidgets.QPushButton(self.page_2)
-        self._2pushButton_4 = oo.NormolAnimatedButton(self.page_2)
+        self._2pushButton_4 = ui.buttons.NormolAnimatedButton(self.page_2)
         self._2pushButton_4.setGeometry(QtCore.QRect(20, 550, 180, 25))
         self._2pushButton_4.setObjectName("_2pushButton_4")
         self._2pushButton_4.setCursor(QCursor(Qt.PointingHandCursor))
@@ -1151,7 +1161,7 @@ class Ui_FormS(QMainWindow):
                 f'<font color="black">发送键位置：</font> <font color="green">{send_position}</font>')
 
 
-        self.record_position_button = oo.NormolAnimatedButton(self.page_2)
+        self.record_position_button = ui.buttons.NormolAnimatedButton(self.page_2)
         self.record_position_button.setGeometry(QtCore.QRect(540, 550, 160, 25))
         self.record_position_button.setObjectName("record_position_button")
         self.record_position_button.setCursor(QCursor(Qt.PointingHandCursor))
@@ -1220,12 +1230,16 @@ class Ui_FormS(QMainWindow):
         self.order_lineEdit.setPlaceholderText("选择或拖拽文件到此处")
         self.order_lineEdit.setFont(style_font_9)
 
-        self.order_toolButton = QtWidgets.QToolButton(self.page_2)
-        self.order_toolButton.setGeometry(QtCore.QRect(460, 390, 60, 18))
+        #self.order_toolButton = QtWidgets.QToolButton(self.page_2)
+        self.order_toolButton = ui.buttons.CustomButton(self.page_2, radius=2, start_color=QColor(207, 207, 207, 0),
+                                                      hover_color=QColor(33, 150, 243, 255),
+                                                      border_color=QColor(33, 120, 255), border_width=1,
+                                                      font_color=QColor(0, 0, 0))
+        self.order_toolButton.setGeometry(QtCore.QRect(460, 390, 60, 20))
         self.order_toolButton.setObjectName("order_toolButton")
         self.order_toolButton.setText("选择文件")
         self.order_toolButton.setFont(style_font_9)
-        self.order_toolButton.setStyleSheet("""
+        '''self.order_toolButton.setStyleSheet("""
                                             QToolButton {
                                                 border: 1px solid #3498db;    /* 设置为RGB颜色#3498db的边框 */
                                                 background-color: transparent;    /* 设置透明背景 */
@@ -1235,7 +1249,7 @@ class Ui_FormS(QMainWindow):
                                                 background-color: #3498db;    /* 设置鼠标悬停时的背景颜色为RGB颜色#3498db */
                                                 border: 1px solid #3498db;    /* 设置鼠标悬停时的边框颜色为RGB颜色#3498db */
                                             }
-                                        """)
+                                        """)'''
 
         self.order_radio_list = QtWidgets.QRadioButton(self.page_2)
         self.order_radio_list.setGeometry(QtCore.QRect(240, 420, 80, 20))
@@ -1309,7 +1323,7 @@ class Ui_FormS(QMainWindow):
         self._2doubleSpinBox_order_random.setEnabled(False)
 
         # self.order_pushButton = QtWidgets.QPushButton(self.page_2)
-        self.order_pushButton = oo.NormolAnimatedButton(self.page_2)
+        self.order_pushButton = ui.buttons.NormolAnimatedButton(self.page_2)
         self.order_pushButton.setGeometry(QtCore.QRect(240, 550, 280, 25))
         self.order_pushButton.setObjectName("order_pushButton")
         self.order_pushButton.setCursor(QCursor(Qt.PointingHandCursor))
@@ -1338,7 +1352,11 @@ class Ui_FormS(QMainWindow):
         self.create_team_label.setObjectName("create_team_label")
         self.create_team_label.setText("创建队伍")
 
-        self.create_team_button = QtWidgets.QToolButton(self.page_3)
+        #self.create_team_button = QtWidgets.QToolButton(self.page_3)
+        self.create_team_button = ui.buttons.CustomButton(self.page_3, radius=2, start_color=QColor(207, 207, 207, 0),
+                                                     hover_color=QColor(33, 150, 243, 255),
+                                                     border_color=QColor(33, 120, 255), border_width=1,
+                                                     font_color=QColor(0, 0, 0))
         self.create_team_button.setGeometry(QtCore.QRect(45, 100, 260, 31))
         font = QtGui.QFont()
         font.setFamily("等线")
@@ -1346,7 +1364,7 @@ class Ui_FormS(QMainWindow):
         self.create_team_button.setFont(font)
         self.create_team_button.setObjectName("create_team_button")
         self.create_team_button.setText("点击创建队伍")
-        self.create_team_button.setStyleSheet(style_white_blue_toolbutton)
+        #self.create_team_button.setStyleSheet(style_white_blue_toolbutton)
 
         self.add_team_label_prompt_right = QtWidgets.QLabel(self.page_3)
         self.add_team_label_prompt_right.setGeometry(QtCore.QRect(100, 70, 201, 21))
@@ -1407,14 +1425,22 @@ class Ui_FormS(QMainWindow):
         self.add_team_ID.setObjectName("add_team_ID")
         self.add_team_ID.setText("队伍ID:")
 
-        self.add_team_button = QtWidgets.QToolButton(self.page_3)
+        #self.add_team_button = QtWidgets.QToolButton(self.page_3)
+        self.add_team_button = ui.buttons.CustomButton(self.page_3, radius=2, start_color=QColor(207, 207, 207, 0),
+                                                      hover_color=QColor(33, 150, 243, 255),
+                                                      border_color=QColor(33, 120, 255), border_width=1,
+                                                      font_color=QColor(0, 0, 0))
         self.add_team_button.setGeometry(QtCore.QRect(370, 100, 340, 30))
         self.add_team_button.setObjectName("add_team_button")
         self.add_team_button.setText("加入")
         self.add_team_button.setFont(style_font_12)
-        self.add_team_button.setStyleSheet(style_white_blue_toolbutton)
+        #self.add_team_button.setStyleSheet(style_white_blue_toolbutton)
 
-        self.button_copy_id = QtWidgets.QToolButton(self.page_3)
+        #self.button_copy_id = QtWidgets.QToolButton(self.page_3)
+        self.button_copy_id = ui.buttons.CustomButton(self.page_3, radius=2, start_color=QColor(207, 207, 207, 0),
+                                                          hover_color=QColor(33, 150, 243, 255),
+                                                          border_color=QColor(33, 120, 255), border_width=1,
+                                                          font_color=QColor(0, 0, 0))
         self.button_copy_id.setGeometry(QtCore.QRect(45, 100, 260, 31))
         font = QtGui.QFont()
         font.setFamily("等线")
@@ -1423,7 +1449,7 @@ class Ui_FormS(QMainWindow):
         self.button_copy_id.setObjectName("button_copy_id")
         self.button_copy_id.setText("点击复制ID")
         self.button_copy_id.setVisible(False)
-        self.button_copy_id.setStyleSheet("""QToolButton {
+        '''self.button_copy_id.setStyleSheet("""QToolButton {
                                                 border: 1px solid #3498db;    /* 设置为RGB颜色#3498db的边框 */
                                                 background-color: transparent;    /* 设置透明背景 */
                                                 border-radius: 2px;    /* 设置圆角 */
@@ -1431,7 +1457,7 @@ class Ui_FormS(QMainWindow):
                                             QToolButton:hover {
                                                 background-color: #3498db;    /* 设置鼠标悬停时的背景颜色为RGB颜色#3498db */
                                                 border: 1px solid #3498db;    /* 设置鼠标悬停时的边框颜色为RGB颜色#3498db */
-                                            }""")
+                                            }""")'''
 
 
         self.user1_image = QtWidgets.QToolButton(self.page_3)
@@ -1680,46 +1706,32 @@ class Ui_FormS(QMainWindow):
         self._5lineEdit3.setFont(style_font_9)
 
         # self._5toolButton = QtWidgets.QToolButton(self.page_4)
-        self._5toolButton = oo.NormolAnimatedButton(self.page_4)
+        self._5toolButton = ui.buttons.NormolAnimatedButton(self.page_4)
         self._5toolButton.setGeometry(QtCore.QRect(15, 200, 271, 31))
         self._5toolButton.setObjectName("_5toolButton")
         self._5toolButton.setText("下载")
         self._5toolButton.setCursor(QCursor(Qt.PointingHandCursor))
         self._5toolButton.setFont(style_font_11)
 
-        self._5toolButton2 = QtWidgets.QToolButton(self.page_4)
-        self._5toolButton2.setGeometry(QtCore.QRect(250, 150, 37, 18))
+        #self._5toolButton2 = QtWidgets.QToolButton(self.page_4)
+        self._5toolButton2 = ui.buttons.CustomButton(self.page_4, radius=2, start_color=QColor(207, 207, 207, 0),
+                                             hover_color=QColor(33, 150, 243, 255),
+                                             border_color=QColor(33, 120, 255), border_width=1,
+                                             font_color=QColor(0, 0, 0))
+        self._5toolButton2.setGeometry(QtCore.QRect(185, 150, 45, 18))
         self._5toolButton2.setObjectName("_5toolButton2")
         self._5toolButton2.setText("选择")
-        self._5toolButton2.setFont(style_font_10)
-        self._5toolButton2.setStyleSheet("""
-            QToolButton {
-                border: 1px solid #3498db;    /* 设置为RGB颜色#3498db的边框 */
-                background-color: transparent;    /* 设置透明背景 */
-                border-radius: 2px;    /* 设置圆角 */
-            }
-            QToolButton:hover {
-                background-color: #3498db;    /* 设置鼠标悬停时的背景颜色为RGB颜色#3498db */
-                border: 1px solid #3498db;    /* 设置鼠标悬停时的边框颜色为RGB颜色#3498db */
-            }
-        """)
+        self._5toolButton2.setFont(style_font_9)
 
-        self.view_music = QtWidgets.QToolButton(self.page_4)
-        self.view_music.setGeometry(QtCore.QRect(200, 150, 37, 18))
+        #self.view_music = QtWidgets.QToolButton(self.page_4)
+        self.view_music = ui.buttons.CustomButton(self.page_4, radius=2, start_color=QColor(207, 207, 207, 0),
+                                                 hover_color=QColor(33, 150, 243, 255),
+                                                 border_color=QColor(33, 120, 255), border_width=1,
+                                                 font_color=QColor(0, 0, 0))
+        self.view_music.setGeometry(QtCore.QRect(240, 150, 45, 18))
         self.view_music.setObjectName("view_music")
         self.view_music.setText("浏览")
-        self.view_music.setFont(style_font_10)
-        self.view_music.setStyleSheet("""
-            QToolButton {
-                border: 1px solid #3498db;    /* 设置为RGB颜色#3498db的边框 */
-                background-color: transparent;    /* 设置透明背景 */
-                border-radius: 2px;    /* 设置圆角 */
-            }
-            QToolButton:hover {
-                background-color: #3498db;    /* 设置鼠标悬停时的背景颜色为RGB颜色#3498db */
-                border: 1px solid #3498db;    /* 设置鼠标悬停时的边框颜色为RGB颜色#3498db */
-            }
-        """)
+        self.view_music.setFont(style_font_9)
 
         self._5label5 = QtWidgets.QLabel(self.page_4)
         self._5label5.setGeometry(QtCore.QRect(305, 10, 180, 31))
@@ -1754,39 +1766,26 @@ class Ui_FormS(QMainWindow):
         self._5lineEdit5.setPlaceholderText("点击输入图片输出路径")
         self._5lineEdit5.setFont(style_font_9)
 
-        self._5toolButton3 = QtWidgets.QToolButton(self.page_4)  # 输入图片路径
+        #self._5toolButton3 = QtWidgets.QToolButton(self.page_4)  # 输入图片路径
+        self._5toolButton3 = ui.buttons.CustomButton(self.page_4, radius=2, start_color=QColor(207, 207, 207, 0),
+                                             hover_color=QColor(33, 150, 243, 255),
+                                             border_color=QColor(33, 120, 255), border_width=1,
+                                             font_color=QColor(0, 0, 0))
         self._5toolButton3.setGeometry(QtCore.QRect(680, 70, 51, 21))
         self._5toolButton3.setObjectName("_5toolButton3")
         self._5toolButton3.setText("选择")
         self._5toolButton3.setFont(style_font_10)
-        self._5toolButton3.setStyleSheet("""
-                                                                                    QToolButton {
-                                                                                        border: 1px solid #3498db;    /* 设置为RGB颜色#3498db的边框 */
-                                                                                        background-color: transparent;    /* 设置透明背景 */
-                                                                                        border-radius: 2px;    /* 设置圆角 */
-                                                                                    }
-                                                                                    QToolButton:hover {
-                                                                                        background-color: #3498db;    /* 设置鼠标悬停时的背景颜色为RGB颜色#3498db */
-                                                                                        border: 1px solid #3498db;    /* 设置鼠标悬停时的边框颜色为RGB颜色#3498db */
-                                                                                    }
-                                                                                """)
 
-        self._5toolButton4 = QtWidgets.QToolButton(self.page_4)  # 输出文件夹路径
+        #self._5toolButton4 = QtWidgets.QToolButton(self.page_4)  # 输出文件夹路径
+        self._5toolButton4 = ui.buttons.CustomButton(self.page_4, radius=2, start_color=QColor(207, 207, 207, 0),
+                                                hover_color=QColor(33, 150, 243, 255),
+                                                border_color=QColor(33, 120, 255), border_width=1,
+                                                font_color=QColor(0, 0, 0))
         self._5toolButton4.setGeometry(QtCore.QRect(680, 120, 51, 21))
         self._5toolButton4.setObjectName("_5toolButton4")
         self._5toolButton4.setText("选择")
         self._5toolButton4.setFont(style_font_10)
-        self._5toolButton4.setStyleSheet("""
-                                                                                    QToolButton {
-                                                                                        border: 1px solid #3498db;    /* 设置为RGB颜色#3498db的边框 */
-                                                                                        background-color: transparent;    /* 设置透明背景 */
-                                                                                        border-radius: 2px;    /* 设置圆角 */
-                                                                                    }
-                                                                                    QToolButton:hover {
-                                                                                        background-color: #3498db;    /* 设置鼠标悬停时的背景颜色为RGB颜色#3498db */
-                                                                                        border: 1px solid #3498db;    /* 设置鼠标悬停时的边框颜色为RGB颜色#3498db */
-                                                                                    }
-                                                                                """)
+        
         self.groupPic = QtWidgets.QButtonGroup(self.centralwidget)
         self.JPG_radioButton = QtWidgets.QRadioButton(self.page_4)
         self.JPG_radioButton.setGeometry(QtCore.QRect(305, 160, 61, 18))
@@ -1809,7 +1808,7 @@ class Ui_FormS(QMainWindow):
         self.groupPic.addButton(self.GIF_radioButton)
 
         # self._5toolButton5 = QtWidgets.QToolButton(self.page_4)
-        self._5toolButton5 = oo.NormolAnimatedButton(self.page_4)
+        self._5toolButton5 = ui.buttons.NormolAnimatedButton(self.page_4)
         self._5toolButton5.setGeometry(QtCore.QRect(310, 200, 200, 31))
         self._5toolButton5.setObjectName("_5toolButton5")
         self._5toolButton5.setText("输出")
@@ -1845,17 +1844,22 @@ class Ui_FormS(QMainWindow):
         self.QQ_spinBox.setObjectName("QQ_spinBox")
         self.QQ_spinBox.setStyleSheet(style_Spin)
 
-        self.QQ_Button_Dow = oo.AnimatedButton(self.page_4)
+        self.QQ_Button_Dow = ui.buttons.AnimatedButton(self.page_4)
         self.QQ_Button_Dow.setGeometry(QtCore.QRect(120, 310, 80, 20))
         self.QQ_Button_Dow.setObjectName("QQ_Button_Dow")
         self.QQ_Button_Dow.setText("开始下载")
         self.QQ_Button_Dow.setFont(style_font_10)
 
-        self.open_QQ = QPushButton('浏览图片文件夹', self.page_4)
+       # self.open_QQ = QPushButton('浏览图片文件夹', self.page_4)
+        self.open_QQ = ui.buttons.CustomButton(self.page_4, radius=2, start_color=QColor(207, 207, 207, 0),
+                                                  hover_color=QColor(33, 150, 243, 255),
+                                                  border_color=QColor(33, 120, 255), border_width=1,
+                                                  font_color=QColor(0, 0, 0))
+        self.open_QQ.setText("浏览图片文件夹")
 
         self.open_QQ.setGeometry(20, 360, 130, 20)
         self.open_QQ.setFont(style_font_10)
-        self.open_QQ.setStyleSheet("""
+        '''self.open_QQ.setStyleSheet("""
                                                                                     QPushButton {
                                                                                         border: 1px solid #3498db;    /* 设置为RGB颜色#3498db的边框 */
                                                                                         background-color: transparent;    /* 设置透明背景 */
@@ -1865,11 +1869,11 @@ class Ui_FormS(QMainWindow):
                                                                                         background-color: #3498db;    /* 设置鼠标悬停时的背景颜色为RGB颜色#3498db */
                                                                                         border: 1px solid #3498db;    /* 设置鼠标悬停时的边框颜色为RGB颜色#3498db */
                                                                                     }
-                                                                                """)
+                                                                                """)'''
 
         # self.delete_image = QPushButton('一键清空文件夹', self.page_4)
-        self.delete_image = oo.MoreAnimatedButton(self.page_4, radius=2, start_color=QColor(207, 207, 207),
-                                                  hover_color=QColor(172, 172, 172))
+        self.delete_image = ui.buttons.CustomButton(self.page_4, radius=3, start_color=QColor(207, 207, 207),
+                                            hover_color=QColor(172, 172, 172),border_width=0.5,border_color=QColor(100,100,100))
         self.delete_image.setGeometry(150, 360, 130, 20)
         self.delete_image.setText("一键清空文件夹")
         self.delete_image.setFont(style_font_10)
@@ -1919,7 +1923,7 @@ class Ui_FormS(QMainWindow):
         self.QQ_Doxb.setObjectName("QQ_Doxb")
         self.QQ_Doxb.setStyleSheet(style_Double)
 
-        self.QQ_image = oo.NormolAnimatedButton(self.page_4)
+        self.QQ_image = ui.buttons.NormolAnimatedButton(self.page_4)
         self.QQ_image.setGeometry(QtCore.QRect(20, 500, 260, 30))
         self.QQ_image.setObjectName("QQ_image")
         self.QQ_image.setText("更换")
@@ -1947,39 +1951,23 @@ class Ui_FormS(QMainWindow):
         self.QQ_Group_Save.setText(os.getcwd() + '\\mod\\xlsx')
         self.QQ_Group_Save.setFont(style_font_9)
 
-        self.QQ_Group_Selec = QtWidgets.QToolButton(self.page_4)  # 输出文件夹路径
+        #self.QQ_Group_Selec = QtWidgets.QToolButton(self.page_4)  # 输出文件夹路径
+        self.QQ_Group_Selec = ui.buttons.CustomButton(self.page_4, radius=2, start_color=QColor(207, 207, 207,0),
+                                            hover_color=QColor(33,150,243,255),border_color=QColor(33,150,243),border_width=1,font_color=QColor(0,0,0))
         self.QQ_Group_Selec.setGeometry(QtCore.QRect(625, 330, 51, 21))
         self.QQ_Group_Selec.setObjectName("QQ_Group_Selec")
         self.QQ_Group_Selec.setText("选择")
         self.QQ_Group_Selec.setFont(style_font_10)
-        self.QQ_Group_Selec.setStyleSheet("""
-                                                                                                                        QToolButton {
-                                                                                                                            border: 1px solid #3498db;    /* 设置为RGB颜色#3498db的边框 */
-                                                                                                                            background-color: transparent;    /* 设置透明背景 */
-                                                                                                                            border-radius: 2px;    /* 设置圆角 */
-                                                                                                                        }
-                                                                                                                        QToolButton:hover {
-                                                                                                                            background-color: #3498db;    /* 设置鼠标悬停时的背景颜色为RGB颜色#3498db */
-                                                                                                                            border: 1px solid #3498db;    /* 设置鼠标悬停时的边框颜色为RGB颜色#3498db */
-                                                                                                                        }
-                                                                                                                    """)
 
-        self.QQ_Group_View = QtWidgets.QToolButton(self.page_4)  # 输出文件夹路径
+        #self.QQ_Group_View = QtWidgets.QToolButton(self.page_4)  # 输出文件夹路径
+        self.QQ_Group_View = ui.buttons.CustomButton(self.page_4, radius=2, start_color=QColor(207, 207, 207, 0),
+                                                 hover_color=QColor(33, 150, 243, 255),
+                                                 border_color=QColor(33, 150, 243), border_width=1,
+                                                 font_color=QColor(0, 0, 0))
         self.QQ_Group_View.setGeometry(QtCore.QRect(680, 330, 51, 21))
         self.QQ_Group_View.setObjectName("QQ_Group_View")
         self.QQ_Group_View.setText("浏览")
         self.QQ_Group_View.setFont(style_font_10)
-        self.QQ_Group_View.setStyleSheet("""
-                                                                                                                        QToolButton {
-                                                                                                                            border: 1px solid #3498db;    /* 设置为RGB颜色#3498db的边框 */
-                                                                                                                            background-color: transparent;    /* 设置透明背景 */
-                                                                                                                            border-radius: 2px;    /* 设置圆角 */
-                                                                                                                        }
-                                                                                                                        QToolButton:hover {
-                                                                                                                            background-color: #3498db;    /* 设置鼠标悬停时的背景颜色为RGB颜色#3498db */
-                                                                                                                            border: 1px solid #3498db;    /* 设置鼠标悬停时的边框颜色为RGB颜色#3498db */
-                                                                                                                        }
-                                                                                                                    """)
 
         self.Edge = QtWidgets.QRadioButton(self.page_4)
         self.Edge.setGeometry(QtCore.QRect(310, 360, 505, 18))
@@ -2091,7 +2079,7 @@ class Ui_FormS(QMainWindow):
         self.checkBox_group_lv.setChecked(True)
         self.checkBox_group_lv.setStyleSheet(style_CheckBox)
 
-        self.QQ_group = oo.NormolAnimatedButton(self.page_4)
+        self.QQ_group = ui.buttons.NormolAnimatedButton(self.page_4)
         self.QQ_group.setGeometry(QtCore.QRect(310, 500, 200, 30))
         self.QQ_group.setObjectName("QQ_group")
         self.QQ_group.setText("获取")

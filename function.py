@@ -1,4 +1,5 @@
 import string
+import subprocess
 import traceback
 import json
 import win32com
@@ -46,6 +47,8 @@ def get_dwonload_link():
                 return link
     except:
         return "ERROR"
+
+
 def get_update_data(local_version):
     try:
         # 目标 URL
@@ -457,3 +460,71 @@ def QQ_Group_Obtain(mode, output_folder ,id, Sex, Year, join_Date, send_Date, gr
         return e
 
 
+def write_update_bat():
+    """
+        生成自动清理文件夹的批处理脚本
+
+        :param target_folder: 需要删除的目标文件夹绝对路径
+        :param output_path: 生成的bat文件保存路径
+        """
+    now_path = os.getcwd()
+
+    bat_script = f'''@echo off
+    setlocal enabledelayedexpansion
+
+    :: 配置要删除的文件夹路径
+    set "target_folder={now_path.replace(os.sep, '/')}"
+
+    :CHECK_EXIST
+    if not exist "!target_folder!" (
+        echo 文件夹不存在，无需删除
+        exit /b
+    )
+
+    :DELETE_ATTEMPT
+    echo 正在尝试删除 [!target_folder!]...
+    rmdir /s /q "!target_folder!" 2>nul
+
+    if exist "!target_folder!" (
+        echo 文件夹被占用，等待3秒后重试...
+        timeout /t 3 /nobreak >nul
+        goto DELETE_ATTEMPT
+    ) else (
+        echo 文件夹删除成功！
+        echo 正在删除批处理文件自身...
+        (goto) 2>nul & (
+            timeout /t 1 /nobreak >nul
+            del /f /q "%~f0"
+        )
+        exit /b
+    )
+
+    endlocal
+    '''
+
+    with open('C:\\Fuchen\\Fuchen_Update.bat', 'w', encoding='gbk') as f:  # Windows系统建议使用GBK编码
+        f.write(bat_script)
+
+def run_update_bat(bat_path):
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    #bat_path = "C:\\Fuchen\\Fuchen_Update.bat"
+
+    # 创建独立进程配置
+    startupinfo = subprocess.STARTUPINFO()
+    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+
+    try:
+        # 使用Popen启动独立进程
+        subprocess.Popen(
+            ["cmd.exe", "/C", bat_path],  # 显式调用cmd解释器
+            shell=False,  # 避免额外shell层次
+            startupinfo=startupinfo,  # 隐藏控制台窗口
+            stdin=subprocess.DEVNULL,  # 断开输入流
+            stdout=subprocess.DEVNULL,  # 丢弃标准输出
+            stderr=subprocess.DEVNULL,  # 丢弃错误输出
+            close_fds=True  # 关闭所有文件描述符
+        )
+        print("批处理文件已启动，Python脚本继续执行...")
+    except Exception as e:
+        print(f"启动失败: {str(e)}")
+#write_update_bat()
