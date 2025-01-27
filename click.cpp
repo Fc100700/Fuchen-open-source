@@ -36,12 +36,20 @@ int main(int argc, char* argv[]) {
     ShowWindow(consoleWindow, SW_HIDE);
 
     bool click = false;
+    bool keyPreviouslyPressed = false;  // 记录按键是否已被按下
     auto next_click_time = std::chrono::steady_clock::now();
+
     while (true) {
-        if (GetAsyncKeyState(hotkey)) {
+        SHORT keyState = GetAsyncKeyState(hotkey);
+        bool isKeyPressed = (keyState & 0x8000) != 0;  // 检测按键是否处于按下状态
+
+        if (isKeyPressed && !keyPreviouslyPressed) {
+            // 仅当按键从未按下（松开）切换为按下时触发
             click = !click;
-            Sleep(100);  // 防止热键连续触发
+            Sleep(100);
         }
+
+        keyPreviouslyPressed = isKeyPressed;  // 更新按键状态
 
         if (click) {
             auto now = std::chrono::steady_clock::now();
