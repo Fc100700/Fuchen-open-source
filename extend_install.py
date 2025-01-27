@@ -1,7 +1,10 @@
+import shutil
 import time
 import webbrowser
 import zipfile
 import os
+
+import psutil
 import requests
 import re
 from PyQt5.QtCore import QThread, pyqtSignal, QObject
@@ -44,8 +47,6 @@ def get_transfer_url(host_url, lanzouyun_url):
         ## transfer_url
         transfer_url = host_url + transfer_url_src
 
-        print('\n[*] file_name:', file_name)
-        print('[*] transfer_url:', transfer_url)
 
         return (file_name, transfer_url)
     else:
@@ -73,29 +74,14 @@ def get_ajax_data(lanzouyun_url, transfer_url):
     }
 
     transfer_response = requests.get(url=transfer_url, headers=transfer_headers)
-    # print('\n[*] transfer_response:')
-    # print(transfer_response.text)
-
-    ## 请求data
-    # action=downprocess&signs=%3Fctdf&sign=BWMBPww9VGVVXFFuVGRWalo2V2pTPAs_aADNUYgJpV2NUclR3WztQNVIyBGcEYAE1UjgOMl8yUWIKNQ_c_c&ves=1&websign=&websignkey=z4Fd
-
-    ## 第一次解析
     first_re_data = re.findall(r'data : ({.*?})', transfer_response.text)[0].replace(' ', '')
-    print('\n[*] first_re_data:')
-    print(first_re_data)
 
     signs = re.findall(r'signs\':(.*?),\'sign', first_re_data)[0]
     sign = re.findall(r'sign\':(.*?),\'ves', first_re_data)[0].strip("'")
     websignkey = re.findall(r'websignkey\':(.*?)}', first_re_data)[0]
-    print('\n[*] signs:', signs)
-    print('[*] sign:', sign)
-    print('[*] websignkey:', websignkey)
 
     ajax_data = 'action=downprocess&signs=%s&sign=%s&ves=1&websign=&websignkey=%s' % (
     urllib.parse.quote(signs), sign, websignkey)
-    print('\n[*] ajax_data:')
-    print(ajax_data)
-
     return ajax_data
 
 
@@ -122,18 +108,10 @@ def get_download_url(host_url, transfer_url, ajax_data):
 
     }
 
-    # print('\n[*] ajax_headers:')
-    # print(ajax_headers)
-
     ajax_response = requests.post(url=ajax_url, data=ajax_data, headers=ajax_headers)
     ajax_response_json = ajax_response.json()
-    # print('\n[*] ajax_response_json:')
-    # print(ajax_response_json)
 
     download_url = str(ajax_response_json["dom"] + '/' + 'file' + '/' + ajax_response_json["url"]).replace(r'\/', '/')
-
-    print('\n[*] download_url:')
-    print(download_url)
     return download_url
 
 
@@ -162,7 +140,7 @@ def download_file(download_url, file_name):
         save_file.write(file_data)
         save_file.close()
 
-    print('\n[*] 文件下载完成')
+    print('文件下载完成')
 
 
 # 工作线程类
@@ -253,6 +231,8 @@ class DownloadDialog(QDialog):
         self.label.setText("正在解析链接 请稍后\n窗口可能会未响应 请耐心等待")
 
         self.btn_manual.deleteLater()
+        self.btn_auto.setVisible(False)
+        self.btn_manual.setVisible(False)
         self.btn_auto.deleteLater()
         self.btn_layout.deleteLater()
         self.repaint()
@@ -300,15 +280,42 @@ class DownloadDialog(QDialog):
         size_mb = size_bytes / (1024 * 1024)
 
         # 保留两位小数
-        self.label.setText(f"已下载完毕 {round(size_mb, 2)}MB")
+        self.label.setText(f"已下载完毕 {round(size_mb, 2)}MB\n无需进行任何操作 耐心等待即可")
         self.progress_bar.setValue(100)
         self.repaint()
         time.sleep(1)
         self.label.setText("即将解压")
+        self.repaint()
         time.sleep(1)
+        try:  # 防止用户二次安装扩展包 (有可能删除失败)
+            def find_and_kill_locks(folder_path):
+                """找到占用文件夹的进程并结束"""
+                for proc in psutil.process_iter(attrs=['pid', 'name']):
+                    try:
+                        for file in proc.open_files():
+                            if folder_path in file.path:
+                                print(f"Terminating process {proc.info['name']} (PID: {proc.info['pid']})")
+                                proc.terminate()
+                                proc.wait()
+                    except (psutil.AccessDenied, psutil.NoSuchProcess):
+                        continue
+
+            def delete_folder(folder_path):
+                """解除占用后删除文件夹"""
+                if os.path.exists(folder_path):
+                    print(f"检测占用: {folder_path}...")
+                    find_and_kill_locks(folder_path)
+                    print(f"正在删除: {folder_path}...")
+                    shutil.rmtree(folder_path, ignore_errors=True)
+                    print("文件已删除")
+
+            folder_to_delete = "cv2"
+            delete_folder(folder_to_delete)
+        except:
+            pass
         # 创建线程和工作对象
         self.thread = QThread()
-        self.worker = UnzipWorker(file_name, "")  # 修改为实际路径
+        self.worker = UnzipWorker(file_name, "")
 
         # 将工作对象移动到线程
         self.worker.moveToThread(self.thread)
@@ -328,9 +335,8 @@ class DownloadDialog(QDialog):
         self.thread.start()
 
     def on_finished(self,file_name):
-        #self.btn_start.setEnabled(True)
         print("解压完成！")
-        self.label.setText("解压成功!您已成功安装扩展包 重启软件后生效")
+        self.label.setText("解压成功!您已成功安装扩展包 重启软件后生效\n请勿二次安装扩展包")
         try:
             self.window.trand_problem.setVisible(False)
         except:
@@ -339,7 +345,7 @@ class DownloadDialog(QDialog):
         os.remove(file_name)
 
     def on_error(self, msg):
-        #self.btn_start.setEnabled(True)
+        self.label.setText(f"文件解压失败\n{msg}")
         print(f"发生错误: {msg}")
 
 
