@@ -1,5 +1,6 @@
 #此文件为登录窗口UI
 # -*- coding: utf-8 -*-
+import shutil
 import traceback
 from PyQt5.QtWidgets import QLineEdit, QMainWindow, QPushButton, QToolButton
 from PyQt5 import QtCore, QtGui, QtWidgets
@@ -18,21 +19,59 @@ class Ui_MainWindow(object):
         MainWindow.setObjectName("MainWindow")
         MainWindow.setWindowFlags(Qt.FramelessWindowHint) # 隐藏边框
 
-        def get_random_file(folder_path):
-            # 获取文件夹中的所有文件
-            files = os.listdir(folder_path)
-            # 从文件列表中随机选择一个文件
-            random_file = random.choice(files)
-            # 返回选定的文件的完整路径，并将反斜杠替换为正斜杠
-            return os.path.join(folder_path, random_file).replace("\\", "/")
+        def get_random_image(folder_path):
+            # 定义支持的图像文件扩展名
+            image_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff']
 
-        folder_path = "./image/Background"
-        random_background = get_random_file(folder_path)
-        style_sheet = "#MainWindow{border-image: url('" + random_background + "');}"
+            # 获取文件夹中的所有文件，并过滤出图像文件
+            files = [
+                f for f in os.listdir(folder_path)
+                if os.path.isfile(os.path.join(folder_path, f)) and
+                   os.path.splitext(f)[1].lower() in image_extensions
+            ]
+
+            if not files:
+                raise ValueError(f"No image files found in {folder_path}")
+
+            random_image = random.choice(files)
+            return os.path.join(folder_path, random_image).replace("\\", "/")
         try:
+            image_path = r"C:\Fuchen\image"
+            if not os.path.exists(image_path):
+                os.makedirs(image_path)
+                with open(os.path.join(image_path, '关于此文件夹.txt'), 'w') as f:
+                    f.write('此文件夹为登录随机壁纸文件夹 请将文件放入此文件夹 每次登录将自动随机选择文件作为登录窗口背景\n')
+                    f.write('目前支持的图片文件格式为: .jpg, .jpeg, .png, .gif, .bmp, .webp, .tiff')
+            # 定义支持的图片扩展名集合
+            image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff'}
+
+            # 检查目录中是否存在图片文件
+            if not any(
+                    os.path.isfile(os.path.join(image_path, f)) and
+                    os.path.splitext(f)[1].lower() in image_extensions  # 提取并检查扩展名
+                    for f in os.listdir(image_path)
+            ):
+                source_folder = './image/Background'
+
+                # 获取源文件夹中的所有文件和子文件夹
+                contents = os.listdir(source_folder)
+
+                # 移动每个文件或子文件夹到目标文件夹
+                for item in contents:
+                    source_path = os.path.join(source_folder, item)
+                    destination_path = os.path.join(image_path, item)
+                    shutil.move(source_path, destination_path)
+        except:
+            pass
+        #folder_path = "./image/Background"
+        folder_path = 'C:\\Fuchen\\image'
+        try:
+            random_background = get_random_image(folder_path)
+            style_sheet = "#MainWindow{border-image: url('" + random_background + "');}"
             MainWindow.setStyleSheet(style_sheet)
         except Exception as e:
-            traceback.print_exc()
+            #traceback.print_exc()
+            pass
         # 读取随机选择的背景图片
         background_image = Image.open(random_background)  #用来计算右上角大致亮度 来设置控件颜色 防止用户无法正常点击控件
         # 定义要计算亮度的区域范围，右上角
@@ -195,7 +234,9 @@ class Ui_MainWindow(object):
         self.Number_Label.setObjectName("label_7")
         self.Number_Label.setStyleSheet("color: white;")
         self.Number_Label.setText("当前在线人数:")
+
         self.Number_Label.setFont(style_font_10)
+        self.Number_Label.setToolTip('游客不计入在内')
 
         self.Version_Label = QtWidgets.QLabel(self.centralwidget)
         self.Version_Label.setGeometry(QtCore.QRect(10, 455, 110, 12))
@@ -235,40 +276,14 @@ class Ui_MainWindow(object):
 
 
         if brightness < 90:  #黑色背景白色控件
-            '''self.pushButton_quit.setStyleSheet("QPushButton#pushButton_quit {"
-                                               "    border-image: url(./image/quit_white.png);"
-                                               "}")'''
             self.pushButton_quit.setIcon(QIcon("./image/quit_white.png"))
-            '''self.pushButton_short.setStyleSheet("QPushButton#pushButton_short {"
-                                               "    border-image: url(./image/short_white.png);"
-                                               "}")'''
             self.pushButton_short.setIcon(QIcon("./image/short_white.png"))
-            '''self.pushButton_more.setStyleSheet("QPushButton#pushButton_more {"
-                                               "    border-image: url(./image/same/更多2_white.png);"
-                                               "}")'''
             self.pushButton_more.setIcon(QIcon("./image/same/更多2_white.png"))
 
         else:  #白色背景 黑色控件
-            '''self.pushButton_quit.setStyleSheet("QPushButton#pushButton_quit {"
-                                               "    border-image: url(./image/quit.png);"
-                                               "}")'''
             self.pushButton_quit.setIcon(QIcon("./image/quit.png"))
-            '''self.pushButton_short.setStyleSheet("QPushButton#pushButton_short {"
-                                               "    border-image: url(./image/short.png);"
-                                               "}")'''
             self.pushButton_short.setIcon(QIcon("./image/short.png"))
-            '''self.pushButton_more.setStyleSheet("QPushButton#pushButton_more {"
-                                                "    border-image: url(./image/quit.png);"
-                                                "}")'''
             self.pushButton_more.setIcon(QIcon("./image/same/更多2.png"))
-            '''style_sheet = """
-                        #MainWindow {
-                            border-image: url('""" + random_background + """');
-                        }
-                        * {
-                            color: white;
-                        }
-                        """'''
 
 
         self.pushButton_signin = QtWidgets.QPushButton(self.centralwidget)
@@ -326,3 +341,8 @@ class Ui_MainWindow(object):
         if state == 0:  # 当 checkBox1 被取消时，取消勾选 checkBox2
             if self.checkBox2.isChecked():
                 self.checkBox2.setChecked(False)
+
+    '''def showEvent(self, event):
+        # 窗口显示后设置焦点
+        self.Password_lineEdit.setFocus()
+        super().showEvent(event)'''

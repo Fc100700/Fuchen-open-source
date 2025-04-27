@@ -1,48 +1,33 @@
-import platform
-import concurrent.futures
 import logging
-import os
-import ReWord
-import shutil
-import socket
-import traceback
-from datetime import date
-import threading
+import os, sys, json, re, time, random, string, shutil, psutil, platform, threading, traceback
+import socket,ssl
+import concurrent.futures
+import struct
 import webbrowser
-import random
-import json
 import keyboard as keys
 import pyautogui
 import pyperclip
-import sys
 import requests
-import time
 import win32com.client
-import win32con
-import win32gui
+import win32gui,win32api,win32con
 import win32clipboard as w
-import win32api
 import winsound
-import psutil
-import Login
-import RecordPosition
-import Signin
+import ctypes
+from ctypes import wintypes
 import subprocess
 import pygetwindow as gw
-import re
-import string
+import ui.userinfo
 import function
-import SetWindowUI
-import ui.Agreement
-import ui.style
-import page
-import SundryUI
-import SocketThread
-import update_install
-
+from ui.ResetWindow import Reset
+from ui.RegisterWindow import Register
+import ui.Agreement,ui.RecordPosition,ui.style,ui.console_window,ui.fileEdit,ui.hotkey_record
+import Login, SundryUI,update_install,SocketThread,new_mainpage,extend_install
+from SocketThread import socket_information
+#from function import parse_version
 try:
     import cv2
     cv2_available = True
+    #raise ImportError
 except ImportError:
     cv2_available = False
 try:
@@ -50,24 +35,21 @@ try:
 except:
     pass
 from playsound import playsound
-from pynput import mouse
-from PIL import Image
-from pynput import keyboard
+from PIL import Image, ImageFilter
 from pypinyin import pinyin, Style
 from collections import deque
-from datetime import datetime
+from datetime import datetime,date
+from pynput import mouse,keyboard
 from pynput.keyboard import Key, Controller as KeyboardController, KeyCode
 from pynput.mouse import Button, Controller as MouseController
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from PyQt5.QtCore import Qt, QSize, QRect, QTimer, QUrl, QPropertyAnimation, \
-    QRectF, QTranslator, QEasingCurve, pyqtSignal, QThread
-from PyQt5.QtGui import QCursor, QPainter, QColor, QIcon, QPixmap, QKeySequence, QFont, \
-    QDesktopServices, QPalette, QBrush, QPainterPath, QImage, QLinearGradient
-from PyQt5.QtWidgets import QApplication, QPushButton, QMessageBox, QFileDialog, QWidget, QLabel, QShortcut, \
-    QButtonGroup, QMainWindow, QMenu, QAction, QSystemTrayIcon, QToolButton
-from PyQt5 import QtCore, QtGui, QtWidgets
-import ui.fileEdit
+from PyQt5.QtCore import Qt, QTimer, QUrl, QTranslator, pyqtSignal, QObject
+from PyQt5.QtGui import QColor, QIcon, QPixmap, QKeySequence, QFont, \
+    QDesktopServices, QPalette, QBrush, QImage
+from PyQt5.QtWidgets import QApplication, QMessageBox, QFileDialog, QLabel, QShortcut, \
+    QMainWindow, QMenu, QAction, QSystemTrayIcon, QDialog, QGraphicsOpacityEffect
+from PyQt5 import QtCore, QtGui
 
 logging.basicConfig(filename='INFOR.log', level=logging.ERROR)
 
@@ -75,23 +57,66 @@ logging.basicConfig(filename='INFOR.log', level=logging.ERROR)
 def log_exception(*args):
     # 记录异常信息到日志文件中
     logging.exception(str(time.strftime('%Y-%m-%d  %H:%M:%S', time.localtime())) + "错误:" + str(args))
-# 文件名
-# 检查文件是否存在
-if os.path.isfile('Fuchen.tmp'):  #检测文件是否存在 如果存在则删除旧版本内容
-    try:
-    # 打开文件并读取第一行
-        with open('Fuchen.tmp', 'r', encoding='utf-8') as file:
-            first_line = file.readline().strip()  # 读取第一行并去除首尾空白字符
-        shutil.rmtree(first_line)
-        shutil.rmtree("Fuchen.tmp")
-    except:
-        pass
-
+    print("错误:",args)
 
 sys.excepthook = log_exception  # 日志
 with open("INFOR.log", 'a') as file:
     file.write(str(time.strftime('%Y-%m-%d  %H:%M:%S', time.localtime()) + "  软件运行" + '\n'))
 
+class TimedStream(QObject):
+    text_written = pyqtSignal(str, str)
+
+    def __init__(self, original_stream, stream_type):
+        super().__init__()
+        self.original_stream = original_stream
+        self.stream_type = stream_type
+        self.buffer = ''
+        self.history = []
+
+    def write(self, text):
+        self.buffer += text
+        while '\n' in self.buffer:
+            index = self.buffer.find('\n')
+            line = self.buffer[:index]
+            self.buffer = self.buffer[index + 1:]
+            self._process_line(line)
+
+    def _process_line(self, line):
+        '''timestamp = datetime.now().strftime('[%H:%M:%S] ')
+        full_line = f"{timestamp}{line}"
+
+        self.history.append((full_line, self.stream_type))
+        self.original_stream.write(f"{full_line}\n")  # 保持原始输出
+        self.text_written.emit(full_line, self.stream_type)'''
+
+        timestamp = datetime.now().strftime('[%H:%M:%S] ')
+        if self.stream_type == 'stderr':
+            full_line = f"{timestamp}[ERROR] {line}"  # 添加错误标签
+        else:
+            full_line = f"{timestamp}{line}"
+        self.history.append((full_line, self.stream_type))
+        if self.original_stream is not None:
+            self.original_stream.write(f"{full_line}\n")
+
+        self.text_written.emit(full_line, self.stream_type)
+
+    def flush(self):
+        if self.buffer:
+            self._process_line(self.buffer)
+            self.buffer = ''
+        # 确保原始流存在
+        if self.original_stream is not None:
+            self.original_stream.flush()
+
+    def __getattr__(self, name):
+        return getattr(self.original_stream, name)
+# 最早初始化流重定向
+stdout_stream = TimedStream(sys.stdout, 'stdout')
+stderr_stream = TimedStream(sys.stderr, 'stderr')
+sys.stdout = stdout_stream
+sys.stderr = stderr_stream
+
+function.print_fuchen()
 
 
 class MyThread(threading.Thread):  # 多线程封装（我也看不懂反正就是这么用的）
@@ -101,7 +126,7 @@ class MyThread(threading.Thread):  # 多线程封装（我也看不懂反正就�
         self.func = func
         self.args = args
 
-        self.setDaemon(True)
+        self.daemon=True
         self.start()  # 在这里开始
 
     def run(self):
@@ -112,36 +137,72 @@ def play_prompt_sound(file_path):
     try:
         if Sound:
             MyThread(playsound, file_path)
-    except:
-        pass
+            #winsound.PlaySound(file_path, winsound.SND_FILENAME)
+    except Exception as e:
+        logging.exception(str(time.strftime('%Y-%m-%d  %H:%M:%S', time.localtime())) + "错误:" + str(e))
 
 def play_warning_sound():
     # 设置警告音频文件路径
     try:
         sound_file = "C:\\Windows\\Media\\Windows Foreground.wav"
         winsound.PlaySound(sound_file, winsound.SND_FILENAME)
-    except:
-        pass
+    except Exception as e:
+        logging.exception(str(time.strftime('%Y-%m-%d  %H:%M:%S', time.localtime())) + "错误:" + str(e))
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+# 创建 SSL 上下文（客户端模式）
+context = ssl.create_default_context()
 
-def encrypt(message,text, txt):  #网络数据传输加密 因开源所以无法展示
-    message = message
+# 如果你使用的是自签名证书，需要加载服务器证书用于验证（可选，建议）
+context.load_verify_locations("certificate.pem")
 
-def decrypt(ciphertext,text,txt): #网络数据传输加密 因开源所以无法展示
-    ciphertext = ciphertext
 
-def send_encry(text):  #网络数据传输加密 因开源所以无法展示
-    text = text
 
-def send_decry(text):  #网络数据传输加密 因开源所以无法展示
-    text = text
+s = context.wrap_socket(s, server_hostname='fcyang.cn')
+# 如果你不验证服务器证书（开发阶段可以）：
+#context.check_hostname = False
+#context.verify_mode = ssl.CERT_NONE
+
+
+def TypedJSONClient(msg_type,payload):
+    data = {"type": msg_type, "data": payload}
+    # 发送请求
+    json_data = json.dumps(data).encode('utf-8')
+    header = struct.pack('>I', len(json_data))
+    s.sendall(header + json_data)
+
+
+def recv_json(sock):
+    """接收JSON数据（带长度前缀）"""
+    try:
+        # 读取4字节长度头
+        header = sock.recv(4)
+        if len(header) != 4:
+            return None
+        data_len = struct.unpack('>I', header)[0]
+
+        # 分块读取数据
+        chunks = []
+        bytes_received = 0
+        while bytes_received < data_len:
+            chunk = sock.recv(min(data_len - bytes_received, 4096))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            bytes_received += len(chunk)
+        return json.loads(b''.join(chunks).decode('utf-8'))
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        print(f"JSON解码失败: {e}")
+        return {'error': 'Invalid JSON'}
+    except struct.error:
+        return None
+
 
 function.initialization()
 
 with open('config.json', 'r') as file:
     config = json.load(file)
-Log = config.get("AutoLogin", False)
+AutoLogin = config.get("AutoLogin", False)
 remember = config.get("Remember", False)
 Account = config.get("Account", "") if remember else ""
 Password = config.get("Password", "") if remember else ""
@@ -158,98 +219,137 @@ Random_list = [1, 2, 3]
 handle_position = [30, -60]
 Click_Pause = 0.01
 res = False
-Version = 'V1.66'
+Version = 'V1.72'
+
+
+try:
+    # 获取数据文本
+    url = 'https://fcyang.cn/data.txt'
+    response = requests.get(url,proxies={
+        "http": None,
+        "https": None
+    })
+    data = response.text
+
+    # 解析键值对
+    config = {}
+    for line in data.splitlines():
+        if ':' in line:
+            key, value = line.split(':', 1)
+            config[key.strip()] = value.strip()
+
+    # 提取目标字段
+    formal_version = config.get('formal_version')
+    formal_link = config.get('formal_link')
+except:
+    traceback.print_exc()
+    formal_version = 'V1.0.0'
+
 Number_People = '加载中...'
 
-IP = '47.116.75.93'  # IP地址192.168.2.203 47.116.75.93
-Port = 30003  # 端口号
+IP = '47.116.75.93'  # IP地址192.168.2.75 47.116.75.93
+Port = 30000  # 端口号
 information = '正在加载公告...'
 sys_list = []  # 控制台内容列表
 exp_status = None
-HImage_load_status = False  #头像加载
-resign_window = False  # 注册窗口是否开启
-reword_window = False  # 重置密码窗口是否开启
+avatar_load_status = False  #头像加载
 connect_status = None
 Fuchen_name, Fuchen_type, Fuchen_fullname = function.get_exefile_name()
 Name = None
 mode = None
-HImage_date = None
+avatar_date = None
 exp = None
-
+print('配置加载成功')
 try:  # 连接服务器
-    '''s.settimeout(10)
+    s.settimeout(10)
     s.connect((IP, Port))
-    # 客户端代码
-    Connect_Password = f"Zi7hEfQm6mvMB47sWC"  # 连接密码 (明文)
-    s.send(Connect_Password.encode('utf-8'))  # 将密码发送到服务器端进行验证'''
-    print("服务器已连接", IP, Port)
-    sys_list.append("g[" + str(time.strftime("%H:%M:%S", time.localtime())) + "]" + "服务器已连接")
     connect_status = True
 except Exception as e:
+    traceback.print_exc()
+    logging.exception(str(time.strftime('%Y-%m-%d  %H:%M:%S', time.localtime())) + "错误:" + str(e))
     pyautogui.confirm("服务器连接失败\n请留意服务器公告查询最新消息\n")
-    print(e)
 
-'''try:  # 处理信息\公告
-    # 接收服务端发送的密钥和IV
+try:  # 处理信息\公告
     if connect_status == None:
         raise Exception()
     time.sleep(0.1)
-    key_iv_data = s.recv(128)  # 32 key + 16 IV + 其余password
-    key = key_iv_data[:32]
-    iv = key_iv_data[32:48]
-    key_password = key_iv_data[48:].decode('utf-8')
-    send_encry(key_password)
-    content = s.recv(4096)
-    data = send_decry(content)
-    data = data.split()
-    data = []
-    Versions = data[0]
-    Number_People = data[1]
-    link = data[2]
-    information = data[3]
+
+    TypedJSONClient('Get Notice', 'None')
+    request = recv_json(s)
+    request_data = request.get('data')
+    Server_Version = request_data.get('Version')
+    Number_People = request_data.get('Number')
+    link =  request_data.get('Link')
+    information = request_data.get('Notice')
+    try:
+        status = request_data.get('status')
+        if status == 'Fuchen Maintenance':
+            pyautogui.confirm("服务器正在维护 请稍后")
+            sys.exit()
+    except:
+        pass
+
     try:
         information = re.sub('~~space~~', ' ', information)
         information = re.sub('~~next~~', '\n', information)
-        print(f"更新日志:{information}")
-    except:
-        pass
+        print(f""
+              f"--------------------------------------------------------------------------\n"
+              f"更新日志:\n"
+              f"{information}\n"
+              f"--------------------------------------------------------------------------")
+    except Exception as e:
+        logging.exception(str(time.strftime('%Y-%m-%d  %H:%M:%S', time.localtime())) + "错误:" + str(e))
 except Exception as e:
+    traceback.print_exc()
+    logging.exception(str(time.strftime('%Y-%m-%d  %H:%M:%S', time.localtime())) + "错误:" + str(e))
     if connect_status != None:  #服务器连接成功 但数据接收失败
-        print(traceback.print_exc())
         pyautogui.confirm("数据接收失败 请重新启动软件\n如多次重试失败 请尝试更新到最新版客户端")
         os._exit(0)
-        raise Exception()
     else:  #服务器连接失败 以离线模式启动
         result = pyautogui.confirm("服务器连接失败 是否以离线模式启动?")
         if result == "OK":
-            Versions = Version[0:5]
-            key = b'\x96#e\xad\xc2GQ\xcct\x97\xd9\xb0\xba\x04I\x9d\x83v\xd5\xe0\xa0\xa9\xde\x9fRzN)L7\xce\x88'
-            iv = b':\x0cz\x83Z\xdb U@\x07\x8f\xfbZ_Y<'
+            formal_version = Version
             information = "当前是离线模式 \n部分状态可能未正常显示\n部分功能可能无法正常使用"
         else:
             sys.exit()
 
-if Versions != Version[0:5]:
+if function.parse_version(Version) < function.parse_version(formal_version):
     try:
-        update_window = update_install.show_update_dialog(['', Version, Versions])
+        sys.stdout = sys.__stdout__
+        sys.stderr = sys.__stderr__
+
+        update_window = update_install.show_update_dialog(['', Version, formal_version])
         if update_window == 'update_successful':
             # 创建快捷方式
             desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")
-            Fuchen_name = 'Fuchen'
-            shortcut_name = f'{Fuchen_name}.lnk'
-            back_path = os.path.abspath(os.path.join(os.getcwd(), ".."))
-            old_path = os.path.join(back_path, f'Fuchen_{Versions}')
-            original_file_path = rf'{old_path}\{Fuchen_name}.exe'
+            shortcut_name = f'Fuchen.lnk'
             shortcut_path = os.path.join(desktop_path, shortcut_name)
+            back_path = os.path.abspath(os.path.join(os.getcwd(), ".."))
+            new_version_path = os.path.join(back_path, f'Fuchen_{formal_version}')
+
+            new_exe_path = rf'{new_version_path}\{Fuchen_name}.exe'
+
             shell = win32com.client.Dispatch("WScript.Shell")
             shortcut = shell.CreateShortCut(shortcut_path)
-            shortcut.Targetpath = original_file_path
-            shortcut.WorkingDirectory = os.path.dirname(original_file_path)  # 设置快捷方式的起始位置为exe文件所在的文件夹
+            shortcut.Targetpath = new_exe_path
+            shortcut.WorkingDirectory = os.path.dirname(new_exe_path)  # 设置快捷方式的起始位置为exe文件所在的文件夹
             shortcut.save()
-            current_directory = os.getcwd()
-            with open(f"{old_path}\\Fuchen.tmp", "w") as f:
-                f.write(f'{current_directory}')
-            pyautogui.confirm("您已成功更新 请关闭此窗口 使用桌面的快捷方式启动")
+            try:
+                shutil.copytree('./scripts', rf'{new_version_path}\scripts')
+                shutil.copytree('./mod/music', rf'{new_version_path}\mod\music')
+                shutil.copytree('./mod/picture', rf'{new_version_path}\mod\picture')
+                shutil.copytree('./mod/xlsx', rf'{new_version_path}\mod\xlsx')
+                #迁移旧版数据
+            except:
+                pass
+
+            with open(f"{new_version_path}\\Fuchen.tmp", "w") as f:
+                f.write(f'{os.getcwd()}')
+            OLD_DIR = os.path.dirname(os.path.abspath(sys.argv[0]))
+            function.new_update(new_exe_path,OLD_DIR, shortcut_path)
+
+            #time.sleep(3)
+            #pyautogui.confirm("您已成功更新 请关闭此窗口 使用桌面的快捷方式启动")
 
             sys.exit()
         elif update_window == 'cancel_update':
@@ -258,33 +358,10 @@ if Versions != Version[0:5]:
             sys.exit()
         os._exit(0)
     except Exception as e:
-        print(f"GUI Error: {str(e)}")
-        sys.exit()'''
-
-
-
-def ConfigReEdit(name,value):
-    pass
-
-
-def Check(input_str):  # 检测名称
-    # 定义允许的字符集合：中文、大小写英文字母、数字、- . ? ~ _
-    allowed_characters = re.compile(r'^[\u4e00-\u9fa5a-zA-Z0-9\-.?~_]+$')
-    return not bool(allowed_characters.match(input_str))
-
-
-def Check_Password(input_str):
-    # 定义允许的字符集合：大小写英文字母、数字、- . ? ~ _
-    allowed_characters = re.compile(r'^[a-zA-Z0-9\-.?~_]+$')
-    return not bool(allowed_characters.match(input_str))
-
-
-def validate_email(email):
-    pattern = r'^[\w\.-]+@[\w\.-]+\.\w+$'
-    if re.match(pattern, email):
-        return 0
-    else:
-        return 1
+        traceback.print_exc()
+        logging.exception(str(time.strftime('%Y-%m-%d  %H:%M:%S', time.localtime())) + "错误:" + str(e))
+        print(f"{str(e)}")
+        sys.exit()
 
 
 def check_process_exists(process_name):
@@ -301,29 +378,46 @@ try:
     city_info = city_info[-2]+city_info[-1]+(split_res[-1].replace('\n',''))
     city_name = city_info
     del city_info
-except:
+except Exception as e:
     city_name = 'Unknown'
+    logging.exception(str(time.strftime('%Y-%m-%d  %H:%M:%S', time.localtime())) + "错误:" + str(e))
 
 system = platform.system()  # 系统类型
 computer_name = platform.node()  # 计算机网络名称
+APP_VERSION = 0x2023ABCD
+# Windows API 常量
+WM_SYSCOMMAND = 0x0112
+SC_MINIMIZE = 0xF020
+SC_RESTORE = 0xF120
+# 在类定义前添加共享内存结构体定义
+class SharedParams(ctypes.Structure):
+    _pack_ = 1
+    _fields_ = [
+        ("version", ctypes.c_int),
+        ("hotkey", ctypes.c_int),
+        ("interval", ctypes.c_double),
+        ("clickType", ctypes.c_int),
+    ]
 
 
-class Ui_Form(QtWidgets.QMainWindow):
-    def __init__(self):
+
+class Ui_Form(new_mainpage.MainWindow):  # 主窗口
+    def __init__(self, stdout_stream, stderr_stream):
         super(Ui_Form, self).__init__()
-        page.Name = Name
-        page.Account = Account
-        page.Version = Version
-        page.information = information
-        page.HImage_load_status = HImage_load_status
-        page.position_status = position_status
-        page.textedit_position = textedit_position
-        page.send_position = send_position
-        page.mode = mode
+        self.stdout_stream = stdout_stream
+        self.stderr_stream = stderr_stream
+        self.setStyleSheet('''QDialog {
+                background-color: #ffffff;
+                border-radius: 8px;
+                font-size: 16px;
+                color: #333333;
+                padding: 4px;
+            }''')
 
         self.open_status = False
         self.c_thread_object = None
-
+        self.first_image = False
+        self._is_maximized = False  # 跟踪最大化状态
         if Theme == "White":
             self.should_draw = "White"
         elif Theme == "Custom":
@@ -334,71 +428,102 @@ class Ui_Form(QtWidgets.QMainWindow):
             self.should_draw = "White"
         self.window_icon = False  # 右下角图标存在或不存在 布尔值 存在为True不存在为False
         self.setupUi(self)
-        self.uim.Button_Minisize.clicked.connect(self.showMinimized)  # 最小化按钮
-        self.uim.Button_Close.clicked.connect(self.clo)  # 退出按钮
+        self.title_bar.Button_SetTop.clicked.connect(self.upwindow)
+        self.title_bar.Button_Close.clicked.connect(self.clo)  # 退出按钮
 
-        self.uim.Button_SetTop.clicked.connect(self.upwindow)
-        self.uim.action_option1.triggered.connect(self.open_set_window)  # 设置按钮
-        self.uim.action_option2.triggered.connect(self.about)
-        self.uim.action_option3.triggered.connect(self.open_help_window)
-        self.uim.action_option4.triggered.connect(self.LogRecord)
-        self.uim.action_option5.triggered.connect(self.open_website)
-        self.uim.action_option6.triggered.connect(self.open_view_window)
-        self.uim.action_option7.triggered.connect(self.empyt_log)
-        self.uim.action_option8.triggered.connect(self.clear_temp)
-        self.uim.action_option9.triggered.connect(self.restart_app)
-        self.uim.action_option10.triggered.connect(self.open_website_help)
-        self.uim.action_option11.triggered.connect(self.get_update)
-        #self.uim.action_option11.triggered.connect(lambda: self.open_prompt_window("提示信息"))
-        self.uim.HButton.clicked.connect(self.open_user_window)
+        self.open_window_hotkey = QShortcut(QKeySequence("Ctrl+o"), self)
+        self.open_window_hotkey.activated.connect(self.open_console_window)
 
-        self.uim._3pushButton.clicked.connect(self.Click_Record)  # 记录自动脚本
-        self.uim._3pushButton_2.clicked.connect(self.Click_Record_execute)
-        self.uim._3pushButton_4.setMenu(self.createMenu())
+
+        #self.title_bar.action_option1.triggered.connect(self.open_set_window)  # 设置按钮
+        self.title_bar.action_option2.triggered.connect(self.about)
+        self.title_bar.action_option3.triggered.connect(self.open_help_window)
+        self.title_bar.action_option4.triggered.connect(self.LogRecord)
+        self.title_bar.action_option5.triggered.connect(self.open_website)
+        self.title_bar.action_option6.triggered.connect(self.open_view_window)
+        self.title_bar.action_option7.triggered.connect(self.empyt_log)
+        self.title_bar.action_option8.triggered.connect(self.clear_temp)
+        self.title_bar.action_option9.triggered.connect(self.restart_app)
+        self.title_bar.action_option10.triggered.connect(self.open_website_help)
+
+        self.avatar.clicked.connect(self.open_user_window)
+        self.username.clicked.connect(self.open_user_window)
+        self.userid.clicked.connect(self.open_user_window)
+
+        self.RClick_Radio.clicked.connect(self.update_shared_params)
+        self.MClick_Radio.clicked.connect(self.update_shared_params)
+        self.LClick_Radio.clicked.connect(self.update_shared_params)
+        self._3D.valueChanged.connect(self.update_shared_params)
+        self._3pushButton_6.clicked.connect(lambda: MyThread(self.open_click))
+        self._3pushButton_7.clicked.connect(lambda: MyThread(self.break_click))
+
+        self._3pushButton_4.setMenu(self.createMenu())
+
+        self._3pushButton.clicked.connect(self.Click_Record)  # 记录自动脚本
+        self._3pushButton_2.clicked.connect(self.Click_Record_execute)
+
+        #----消息发送控件----#
+        self.old_QQ.toggled.connect(lambda checked: self.QQ_change("old"))
+        self.new_QQ.toggled.connect(lambda checked: self.QQ_change("new"))
+        self._2pushButton2.clicked.connect(self.gain_handle)
+        self.handle_send_btn.clicked.connect(self.Handle_Send)
+
+        self.QQ_StartSend_At_Button.clicked.connect(self.Send_QQ)  # page2(QQ)页面 绑定
+        self.QQ_Send_Copy_startsend_button.clicked.connect(self.Send_Copy)  # 复制内容
+        self.QQ_Seq_Start_button.clicked.connect(self.order_send)
+        self.record_position_button.clicked.connect(self.open_record_window)
+
+
+        self.btn_custom_start.clicked.connect(self.handle_auto_execute)
+        self.btn_get_position.clicked.connect(self.start_detection)
+        #----team---#
+        self.create_team_button.clicked.connect(self.team)  # 创建队伍
+
+        self.button_copy_id.clicked.connect(self.copy_team_number)  # 复制id
+        self.add_team_button.clicked.connect(self.join_team)
+
+        self.team_btn_start.clicked.connect(self.team_c)  # 开始执行
+        #----工具页面----#
+
+        self.view_music.clicked.connect(lambda: self.open_folder('music'))
+        self.btn_download_music.clicked.connect(self.download)
+
+        self.pic_confirm_button.clicked.connect(self.mixPicture)
+
+        self.btn_download_qq.clicked.connect(lambda: MyThread(self.download_image))
+        self.qq_information_edit_button.clicked.connect(self.QQ_image_update)
+        self.save_setting_btn.clicked.connect(self.save_setting_option)
+
+        self.btn_get_group.clicked.connect(lambda: MyThread(self.QQ_Group_information))
+
+        #----设置页面----#
+
+        self.version_button.clicked.connect(self.check_update)
+        self.update_status_button.clicked.connect(self.get_connect_status)
+
+        '''
         self.uim.end_key_button.setMenu(self.create_key_Menu('record'))
         self.uim.end_execute_button.setMenu(self.create_key_Menu('execute'))
+
+        self.uim.Start_Click_Radio.clicked.connect(lambda: self.record_change('click'))
+        self.uim.Start_Hotkey_Radio.clicked.connect(lambda: self.record_change('hotkey'))
+        self.uim.Hotkey_record_button.clicked.connect(self.record_hotkey_setting)
+
+        self.uim.Execute_Click_Radio.clicked.connect(lambda: self.execute_change('click'))
+        self.uim.Execute_Hotkey_Radio.clicked.connect(lambda: self.execute_change('hotkey'))
+        self.uim.Hotkey_execute_button.clicked.connect(self.execute_hotkey_setting)
+
         self.uim._3pushButton_5.clicked.connect(self.mouseinfo)
-        self.uim._3pushButton_6.clicked.connect(lambda: MyThread(self.open_click))
-        self.uim._3pushButton_7.clicked.connect(lambda: MyThread(self.break_click))
+        
         self.uim.button_create.clicked.connect(self.create_file)
         self.uim.impor_button.clicked.connect(self.open_fileedit_window)
         self.uim.reflash.clicked.connect(lambda: self.uim.populateMenu('scripts'))
         self.uim.delete_button.clicked.connect(self.delete_file)
 
-        self.uim._2pushButton.clicked.connect(self.Send_QQ)  # page2(QQ)页面 绑定
-        self.uim._2pushButton_4.clicked.connect(self.Send_Copy)  # 复制内容
-        self.uim.record_position_button.clicked.connect(self.open_record_window)
-        self.uim._2pushButton2.clicked.connect(self.gain_handle)
-        self.uim._2pushButton_3.clicked.connect(self.Handle_Send)
-        self.uim.order_pushButton.clicked.connect(self.order_send)
-        self.uim.order_toolButton.clicked.connect(lambda: self.show_folder_dialog(5))
-        self.uim.order_radio_list.toggled.connect(self.update_checks)
-        self.uim.order_radio_random.toggled.connect(self.update_checks)
-        self.uim.old_QQ.toggled.connect(lambda checked: self.QQ_change("old"))
-        self.uim.new_QQ.toggled.connect(lambda checked: self.QQ_change("new"))
-
-        self.uim.create_team_button.clicked.connect(self.team)  # 创建队伍
-        self.uim.button_copy_id.clicked.connect(self.copy)  # 复制id
-        self.uim.add_team_button.clicked.connect(self.jointeam)
-        self.uim.run_execute.clicked.connect(self.team_c)  # 开始执行
+        
         self.uim.talk_lineEdit.returnPressed.connect(self.send_talk)
 
-        self.uim._5toolButton.clicked.connect(self.download)
-        self.uim._5toolButton2.clicked.connect(lambda: self.show_folder_dialog(1))
-        self.uim.view_music.clicked.connect(lambda: self.open_folder('music'))
-        self.uim._5toolButton3.clicked.connect(lambda: self.show_folder_dialog(2))
-        self.uim._5toolButton4.clicked.connect(lambda: self.show_folder_dialog(3))
-        self.uim.QQ_Group_View.clicked.connect(lambda: self.open_folder('xlsx'))
-        self.uim.QQ_Group_Selec.clicked.connect(lambda: self.show_folder_dialog(4))
-        self.uim._5toolButton5.clicked.connect(self.mixPicture)
-
-        self.uim.open_QQ.clicked.connect(lambda: self.open_folder('picture'))
-        self.open_window_hotkey = QShortcut(QKeySequence("Ctrl+o"), self)
-        self.open_window_hotkey.activated.connect(self.open_ctrl_window)
-        self.uim.QQ_Button_Dow.clicked.connect(lambda: MyThread(self.download_image))
-        self.uim.QQ_image.clicked.connect(self.QQ_image_update)
-        self.uim.delete_image.clicked.connect(self.delete_images)
-        self.uim.QQ_group.clicked.connect(lambda: MyThread(self.QQ_Group_information))
+        '''
 
         self.image_cache = deque(maxlen=30)
 
@@ -406,33 +531,25 @@ class Ui_Form(QtWidgets.QMainWindow):
         MainWindow.setObjectName("MainWindow")
         self.is_topmost = False
         self.border_width = 8
+        self.record_thread = None
+        self.execute_thread = None
 
-        MainWindow.setWindowFlags(Qt.FramelessWindowHint)  # 隐藏任务栏
+        self.hotkey_record_status = None
+        self.hotkey_execute_status = None
+
+
         MainWindow.setWindowTitle("Fuchen 浮沉制作")
-        self.uim = page.Ui_FormS()
-        self.uim.setupUi(self)
 
         self.Trend_Status = False
         self.Trend_Now = False
-        if Theme == "Custom":  # 自定义图片背景设置
-            global Path_Custom_S
-            im = Image.open(Path_Custom_S)
-            reim = im.resize((1000, 600))  # 宽*高
-            reim.save('./temp/background_custom.png',
-                      dpi=(200.0, 200.0))  ##200.0,200.0分别为想要设定的dpi值
-            palette = QPalette()
-            palette.setBrush(QPalette.Background,
-                             QBrush(QPixmap('./temp/background_custom.png')))
-            self.setPalette(palette)
-            self.setAttribute(QtCore.Qt.WA_StyledBackground, True)
-            del Path_Custom_S
-        if Theme == 'Trend':
-            self.execute_trend()
 
-        icon = QIcon("./image/window.ico")  # 设置窗口图标
+
+        icon = QIcon("image/window.ico")  # 设置窗口图标
         self.setWindowIcon(icon)
 
         MyThread(self.Update_weather)
+        MyThread(self.tourist_prompt)
+        MyThread(self.setting_page_check)
 
         self.weather_timer = QtCore.QTimer(self)
         self.weather_timer.timeout.connect(self.Update_weather)
@@ -443,17 +560,353 @@ class Ui_Form(QtWidgets.QMainWindow):
         self.startTime = QtCore.QTime.currentTime()
         self.run_timer.start(1000)  # 每秒更新一次
 
-        self.timer = QtCore.QTimer(self)
-        self.timer.timeout.connect(self.update_time)
-        self.timer.start(1000)  # 更新时间的间隔，单位为毫秒
-
         self.global_timer = QtCore.QTimer(self)
         self.global_timer.timeout.connect(self.get_current_time_string)
         self.global_timer.start(1000)  # 更新时间的间隔，单位为毫秒
 
         # self.data_thread = DataThread()
-        self.data_thread = SocketThread.DataThread([self, s, 'key', 'iv', sys_list])
+        self.data_thread = SocketThread.DataThread([self, s])
+        self.data_thread.show_message_signal.connect(self.handle_message)
+        self.data_thread.team_send_response.connect(self.deal_team_send)
         self.data_thread.start()
+
+        # 将文本分割成行
+        global information
+        lines = information.split('\n')
+
+        # 生成HTML内容
+        html_content = f"""
+        <p style='color: rgba(255,255,255,0.95); margin:2px;'>
+            <b>📢{lines[0]}</b><br/>
+            {"".join([f"· {line}<br/>" for line in lines[1:]])}
+            <a href='https://fcyang.cn/others/log.html' 
+           style='color: #ffdd55; text-decoration: none;'>[详情]</a>
+        </p>
+        """
+        self.notice_browser.setHtml(html_content)
+
+    def setting_page_check(self):
+        if Account == '游客':
+            self.avatar.setEnabled(False)
+            self.username.setEnabled(False)
+            self.userid.setEnabled(False)
+            self.button_3.setEnabled(False)
+            self.avatar.setToolTip("游客暂不支持该功能")
+            self.username.setToolTip("游客暂不支持该功能")
+            self.userid.setToolTip("游客暂不支持该功能")
+            self.button_3.setToolTip("游客暂不支持该功能")
+
+        if AutoLogin == True:
+            self.auto_login_check.setChecked(True)
+        else:
+            self.auto_login_check.setChecked(False)
+        if Sound == True:
+            self.sound_check.setChecked(True)
+        else:
+            self.sound_check.setChecked(False)
+        if ClosePrompt == True:
+            self.close_check.setChecked(True)
+        else:
+            self.close_check.setChecked(False)
+        if CloseExecute == "Close":
+            self.close_radio.setChecked(True)
+        elif CloseExecute == "Hide":
+            self.tray_radio.setChecked(True)
+        else:
+            self.close_radio.setChecked(False)
+            self.tray_radio.setChecked(False)
+        # 要检查的文件名
+        file_name = 'Fuchen_Start_File.bat'
+        startup_folder = os.path.join(os.getenv('APPDATA'), 'Microsoft', 'Windows',
+                                      'Start Menu', 'Programs', 'Startup')
+        file_path = os.path.join(startup_folder, file_name)
+        self.First = False
+        if os.path.exists(file_path):
+            self.boot_check.setChecked(True)
+            self.First = True
+        else:
+            self.boot_check.setChecked(False)
+        if window_s == True:
+            self.float_check.setChecked(True)
+        else:
+            self.float_check.setChecked(False)
+        if cv2_available:
+            self.trand_problem.setStyleSheet("""
+                        QPushButton {
+                            border-image: url(./image/Component/提示.png);
+                            background-color: rgba(245,245,245,0);
+                        }
+                    """)
+
+            print('设置成功')
+        else:
+            self.trand_problem.setStyleSheet("""
+                        QPushButton {
+                            border-image: url(./image/Component/下载.png);
+                            background-color: rgba(245,245,245,0);
+                        }
+                    """)
+            self.bg_dynamic.setEnabled(False)
+            self.bg_dynamic.setToolTip("需要安装扩展内容")
+            self.bg_dynamic_path.setPlaceholderText("需要先安装CV2扩展包才可使用")
+            self.bg_dynamic_path.setEnabled(False)
+            self.fps_spin.setEnabled(False)
+        self.trand_problem.clicked.connect(self.problems)
+        if Theme == "White":
+            self.bg_default.setChecked(True)
+        elif Theme == 'Custom':
+            try:
+                self.bg_custom.setChecked(True)
+                with open('config.json', 'r') as file:  # 填充自定义图片壁纸的输入栏
+                    config = json.load(file)
+                # 添加新元素到数据结构
+                Path_Custom = config["Path"]
+                self.bg_custom_path.setText(Path_Custom)
+            except Exception as e:
+                print(e)
+        elif Theme == 'Trend':
+            self.bg_dynamic.setChecked(True)
+            with open('config.json', 'r') as file:  # 填充自定义图片壁纸的输入栏
+                config = json.load(file)
+            # 添加新元素到数据结构
+            Path_Trend = config["Path"]
+            self.bg_dynamic_path.setText(Path_Trend)
+        else:
+            self.bg_default.setChecked(True)
+        self.fps_spin.setValue(FPS)
+        self.opacity_slider.setValue(transparent)
+
+    def problems(self):
+        if not cv2_available:
+            window = extend_install.DownloadDialog(self)
+            window.exec_()
+        else:
+            QMessageBox.information(self, '提示',"此功能对电脑占用较高\n不推荐使用大于20秒的视频 否则可能会过多占用内存!!!")
+
+    def save_setting_option(self):
+        global AutoLogin, Sound, ClosePrompt, CloseExecute, window_s, Theme, transparent, FPS
+
+        if self.auto_login_check.isChecked():
+            AutoLogin = True
+        else:
+            AutoLogin = False
+        if self.sound_check.isChecked():
+            Sound = True
+        else:
+            Sound = False
+        if self.close_check.isChecked():
+            ClosePrompt = True
+        else:
+            ClosePrompt = False
+        if self.close_radio.isChecked():
+            CloseExecute = "Close"
+        else:
+            CloseExecute = "Hide"
+        with open('config.json', 'r') as file:
+            config = json.load(file)
+        transparent = self.opacity_slider.value()
+        config["AutoLogin"] = AutoLogin
+        config["Sound"] = Sound
+        config["ClosePrompt"] = ClosePrompt
+        config["CloseExecute"] = CloseExecute
+        config["transparent"] = transparent
+        fps_value = self.fps_spin.value()
+        if fps_value != FPS:
+            config["FPS"] = fps_value
+            FPS = fps_value
+        # 将更新后的数据写入 JSON 文件
+        with open('config.json', 'w') as file:
+            json.dump(config, file, indent=4)
+        n = True
+        if (self.boot_check.isChecked()) and (self.First == False):
+            try:
+                exe_file_name = 'Fuchen.exe'
+                startup_folder = os.path.join(os.getenv('APPDATA'), 'Microsoft', 'Windows',
+                                              'Start Menu', 'Programs', 'Startup')
+                bat_file_path = os.path.join(startup_folder, 'Fuchen_Start_File.bat')
+
+                with open(bat_file_path, 'w') as file:
+                    file.write(f'cd /d {os.path.dirname(os.path.abspath(__file__))}\n')
+                    file.write(f'start {exe_file_name}')
+
+                print(f'成功创建并写入.bat文件到启动文件夹: {bat_file_path}')
+                self.First = True
+            except Exception as e:
+                pyautogui.confirm(e)
+        elif (self.boot_check.isChecked() == False) and (self.First == True):
+            try:
+                # 要移除的文件名
+                file_name = 'Fuchen_Start_File.bat'
+                startup_folder = os.path.join(os.getenv('APPDATA'), 'Microsoft', 'Windows',
+                                              'Start Menu', 'Programs', 'Startup')
+                file_path = os.path.join(startup_folder, file_name)
+
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                    print(f'{file_name} 已从启动文件夹中移除')
+                else:
+                    print(f'{file_name} 不存在于启动文件夹中')
+                self.First = False
+            except Exception as e:
+                pyautogui.confirm(e)
+        if self.float_check.isChecked() and window_s == False:
+            self.open_floating_window()
+            window_s = True
+        elif self.float_check.isChecked() == False and window_s == True:
+            self.close_floating_window()
+            window_s = False
+        self.repaint()
+        if self.bg_default.isChecked():
+            if Theme == "Trend":
+                self.stop_dynamic_background()
+            self.should_draw = "White"  # 清空背景图片
+            self.sidebar.setGraphicsEffect(QGraphicsOpacityEffect(opacity=1))
+            self.stack.setGraphicsEffect(QGraphicsOpacityEffect(opacity=1))
+            # 重置调色板为默认（例如白色主题）
+            default_palette = QApplication.palette()
+            self.setPalette(default_palette)
+            # 读取 JSON 文件
+            with open('config.json', 'r') as file:
+                config = json.load(file)
+            config["Theme"] = "White"
+            # 将更新后的数据写入 JSON 文件
+            with open('config.json', 'w') as file:
+                json.dump(config, file, indent=4)
+            Theme = "White"
+
+        if self.bg_custom.isChecked():
+            try:
+                if Theme == "Trend":
+                    self.stop_dynamic_background()
+                file_name = self.bg_custom_path.text()
+                with open('config.json', 'r') as file:
+                    config = json.load(file)
+                if config["Theme"] != "Custom" or config["Path"] != file_name:  # 这个判断是为了防止目前的背景和选择的背景相同而设置 因此当选择的文件和现有设置的文件相同时 将不会执行
+                    if file_name != '':
+                        self.should_draw = "Custom"
+                        # 读取 JSON 文件
+                        with open('config.json', 'r') as file:
+                            config = json.load(file)
+                        config["Theme"] = "Custom"
+                        config["Path"] = file_name
+                        # 将更新后的数据写入 JSON 文件
+                        with open('config.json', 'w') as file:
+                            json.dump(config, file, indent=4)
+                        im = Image.open(file_name)
+                        reim = im.resize((1000, 600))  # 宽*高
+                        reim.save('./temp/background_custom.png',
+                                  dpi=(400, 400))  ##200.0,200.0分别为想要设定的dpi值
+                        # 打开图片
+                        image = Image.open('./temp/background_custom.png')
+                        # 应用高斯模糊，radius参数控制模糊程度（半径越大越模糊）
+                        blurred_image = image.filter(ImageFilter.GaussianBlur(radius=5))
+                        # 保存处理后的图片
+                        blurred_image.save('./temp/background_custom.png')
+
+                        palette = QPalette()
+                        palette.setBrush(QPalette.Background,
+                                         QBrush(QPixmap('./temp/background_custom.png')))
+                        self.setPalette(palette)
+                        self.repaint()
+                        self.update()  # 新增此行
+
+                        Theme = "Custom"
+
+                    else:
+                        n = False
+                        pyautogui.confirm("请选择文件!")
+                trp = transparent / 100
+                # 设置整体透明度（会影响所有子元素）
+                self.sidebar.setGraphicsEffect(QGraphicsOpacityEffect(opacity=trp))
+                self.stack.setGraphicsEffect(QGraphicsOpacityEffect(opacity=trp - 0.1))
+            except Exception as e:
+                print(e)
+
+        if self.bg_dynamic.isChecked():
+            file_name_V = self.bg_dynamic_path.text()
+            with open('config.json', 'r') as file:
+                config = json.load(file)
+            if config["Theme"] != "Trend" or config["Path"] != file_name_V:
+                if config["Theme"] != "Trend":
+                    if file_name_V != '':
+                        self.should_draw = "Trend"
+                        # 读取 JSON 文件
+                        with open('config.json', 'r') as file:
+                            config = json.load(file)
+                        config["Theme"] = f"Trend"
+                        config["Path"] = file_name_V
+                        # 将更新后的数据写入 JSON 文件
+                        with open('config.json', 'w') as file:
+                            json.dump(config, file, indent=4)
+                        self.save_setting_btn.setText("正在加载 请等待")
+                        self.save_setting_btn.repaint()
+                        self.deal_pictures(file_name_V)
+                        self.execute_trend()
+                        self.save_setting_btn.setText("设置")
+                        Theme = "Trend"
+                elif config["Path"] != file_name_V:
+                    with open('config.json', 'r') as file:
+                        config = json.load(file)
+                    config["Theme"] = f"Trend"
+                    config["Path"] = file_name_V
+                    # 将更新后的数据写入 JSON 文件
+                    with open('config.json', 'w') as file:
+                        json.dump(config, file, indent=4)
+                    self.save_setting_btn.setText("正在加载 请等待")
+                    self.save_setting_btn.repaint()
+                    self.deal_pictures(file_name_V)
+                    self.execute_trend_again()
+                    self.save_setting_btn.setText("设置")
+
+        if n == True:
+            pyautogui.confirm("设置成功!")
+
+    def tourist_prompt(self):
+        if Account == "游客":
+            try:
+                # 读取 JSON 文件
+                with open('config.json', 'r') as f:
+                    config = json.load(f)
+
+                # 修改数值（确保原值是整数）
+                config['tourist_number'] += 1
+
+                # 重新写入文件（覆盖原文件）
+                with open('config.json', 'w') as f:
+                    json.dump(config, f, indent=4)  # indent 保持美观格式
+
+                with open('config.json') as f:
+                    config = json.load(f)
+
+                tourist_status = config['tourist_status']
+                tourist_number = config['tourist_number']
+
+                print(tourist_status, type(tourist_status))  # 输出示例: True <class 'bool'>
+                print(tourist_number, type(tourist_number))  # 输出示例: 5 <class 'int'>
+
+                if tourist_status == False:
+                    if tourist_number == (5 or 20 or 100):
+                        time_wait = random.randint(5, 15)
+                        time.sleep(time_wait)
+                        result = pyautogui.confirm(f"您已启动Fuchen {tourist_number} 次\n注册账号可以使用更全面的功能 推荐您注册账号使用完整功能")
+
+            except:
+                pass
+            pass
+        else:
+            try:
+                # 读取 JSON 文件
+                with open('config.json', 'r') as f:
+                    config = json.load(f)
+
+                # 修改数值（确保原值是整数）
+                config['tourist_status'] = True
+
+                # 重新写入文件（覆盖原文件）
+                with open('config.json', 'w') as f:
+                    json.dump(config, f, indent=4)  # indent 保持美观格式
+            except:
+                pass
 
     def get_current_time_string(self):
         global current_time_string
@@ -512,6 +965,9 @@ class Ui_Form(QtWidgets.QMainWindow):
             self.image_index = (self.image_index + 1) % len(self.images)
 
     def execute_trend(self):
+        trp = transparent / 100
+        self.sidebar.setGraphicsEffect(QGraphicsOpacityEffect(opacity=trp))
+        self.stack.setGraphicsEffect(QGraphicsOpacityEffect(opacity=trp - 0.1))
         self.image_index = 0  # 当前显示的图片索引
         # 加载文件夹里的图片
         self.images = self.load_images('./trend')  # 设置图片文件夹路径
@@ -549,34 +1005,21 @@ class Ui_Form(QtWidgets.QMainWindow):
         frame_resized = cv2.resize(frame, new_size, interpolation=cv2.INTER_AREA)
         return frame_resized
 
-    def close_float_prompt(self):
-        self.point_window = SundryUI.ExpandingWindow()
-        self.point_window.close()
-
     def updateTime(self):
         currentTime = QtCore.QTime.currentTime()
         elapsedTime = self.startTime.secsTo(currentTime)
-        hours = elapsedTime // 3600
-        minutes = (elapsedTime % 3600) // 60
-        seconds = elapsedTime % 60
-        self.uim.run_label.setText(f"运行时间 {hours:02d}:{minutes:02d}:{seconds:02d}")
 
     def upwindow(self):  # 置顶窗口
         if self.is_topmost == False:  # 置顶
             self.windowHandle().setFlags(
                 self.windowFlags() | QtCore.Qt.WindowStaysOnTopHint)
             self.is_topmost = True
-            self.uim.Button_SetTop.setIcon(QIcon("./image/Component/Top2.png"))
+            self.title_bar.Button_SetTop.setIcon(QIcon("./image/Component/Top2.png"))
         else:  #取消置顶
             self.windowHandle().setFlags(
                 self.windowFlags() & ~QtCore.Qt.WindowStaysOnTopHint)
             self.is_topmost = False
-            self.uim.Button_SetTop.setIcon(QIcon("./image/Component/Top.png"))
-
-    def update_time(self):
-        current_time = QtCore.QDateTime.currentDateTime().toString("hh:mm:ss")
-        self.uim.time_label.setText('当前时间 ' + current_time)
-        self.timer.start(1000 - QtCore.QTime.currentTime().msec())
+            self.title_bar.Button_SetTop.setIcon(QIcon("./image/Component/Top.png"))
 
     def QQ_change(self, checked):  # 句柄发送位置切换
         global handle_position
@@ -585,6 +1028,25 @@ class Ui_Form(QtWidgets.QMainWindow):
         else:
             handle_position = [-30, -60]
 
+    def get_connect_status(self):
+        TypedJSONClient('get_connect_status', 'N')
+        try:
+            color = QColor(36, 152, 42)
+            self.status_label.setStyleSheet(f"color: {color.name()};")  # 设置字体颜色
+            self.status_label.setText("与服务器状态: 已连接")
+            result = socket_information.get(timeout=3)
+            print(result)
+        except:
+            traceback.print_exc()
+            print('与服务器断开连接')
+            color = QColor(164, 38, 15)  # 使用RGB值设置颜色为红色
+            self.status_label.setStyleSheet(f"color: {color.name()};")  # 设置字体颜色
+            self.status_label.setText("与服务器状态: 断开连接")
+
+    def response_value(self, value):
+        # 通过全局变量字典获取
+        param = globals()[value]
+        return param
     def clear_temp(self):
         #global Theme
         total_size = 0
@@ -626,18 +1088,9 @@ class Ui_Form(QtWidgets.QMainWindow):
         else:
             self.show_message_box("Fuchen", f"暂无缓存内容")
 
-    def open_set_window(self):
-        if self.is_topmost == False:
-            SetList = [self, cv2_available, Log, Sound, ClosePrompt, CloseExecute, window_s, Theme, transparent,
-                       FPS]
-            self.set_window = SetWindowUI.SetWindow(SetList)
-            self.set_window.exec_()
-        else:
-            self.show_message_box('Fuchen', "窗口置顶时设置窗口不可打开 请取消置顶后重试")
-
     def setValue(self, Set):
-        global Log, Sound, ClosePrompt, CloseExecute,window_s, Theme, transparent, FPS
-        Log = Set[0]
+        global AutoLogin, Sound, ClosePrompt, CloseExecute,window_s, Theme, transparent, FPS
+        AutoLogin = Set[0]
         Sound = Set[1]
         ClosePrompt = Set[2]
         CloseExecute = Set[3]
@@ -645,9 +1098,11 @@ class Ui_Form(QtWidgets.QMainWindow):
         Theme = Set[5]
         transparent = Set[6]
         FPS = Set[7]
+
     def update_exp(self, value):
         global exp
         exp = value
+
     def update_position(self, value):
         global position_status, textedit_position, send_position
         position_status = True
@@ -658,6 +1113,7 @@ class Ui_Form(QtWidgets.QMainWindow):
         global handle_position
         handle_position[0] = x
         handle_position[1] = y
+
     def update_information(self, value):
         global Name
         Name = value
@@ -680,8 +1136,10 @@ class Ui_Form(QtWidgets.QMainWindow):
         # 判断窗口是否存在
         if usr_win:
             usr_win[0].close()  # 关闭第一个匹配的窗口
-        lis = [self, Account, Name, HImage_date, exp, s,'key', 'iv', HImage_load_status]
-        self.user_window = SundryUI.UserInfo(lis)
+        global exp
+
+        lis = [self, Account, Name, avatar_date, exp, s,  avatar_load_status]
+        self.user_window = ui.userinfo.InfoPopup(lis)
         self.user_window.show()
 
     def open_help_window(self):
@@ -689,21 +1147,9 @@ class Ui_Form(QtWidgets.QMainWindow):
         self.help_window.show()
 
     def open_view_window(self):
-        if mode == "tourist_login":
-            pyautogui.confirm(
-                "游客模式下此功能正处于测试阶段 每次登录只能反馈一次\n如有更多信息请发送至Fcyang_top@126.com")
-            lis = [self, s, 'key', 'iv']
-            self.view_window = SundryUI.View(lis)
-            self.view_window.show()
-        else:
-            lis = [self, s, 'key', 'iv']
-            self.view_window = SundryUI.View(lis)
-            self.view_window.show()
-
-    def open_ctrl_window(self):
-        lis = [self, s, 'key', 'iv', sys_list]
-        self.ctrl_window = SundryUI.Control(lis)
-        self.ctrl_window.show()
+        lis = [self, s]
+        self.view_window = SundryUI.View(lis)
+        self.view_window.show()
 
     def open_floating_window(self):
         self.floating_window = SundryUI.floating_window(self)
@@ -714,12 +1160,23 @@ class Ui_Form(QtWidgets.QMainWindow):
         self.floating_window.close()
 
     def open_point_window(self):
-        self.point_window = SundryUI.ExpandingWindow2()
+        self.point_window = SundryUI.ExpandingWindow()
         self.point_window.show()
 
     def open_record_window(self):
-        self.record__position_window = RecordPosition.record_position(self)
+        self.record__position_window = ui.RecordPosition.record_position(self)
         self.record__position_window.exec_()
+
+    def open_console_window(self):
+        with open("config.json", "r") as file:
+            config = json.load(file)
+        if config['console_theme'] == 'light':
+            console_theme = 'light'
+        else:
+            console_theme = 'dark'
+        self.console_window = ui.console_window.ConsoleWindow(
+            [self.stdout_stream, self.stderr_stream, self, s,console_theme])
+        self.console_window.show()
 
     def open_fileedit_window(self):
         if (self.uim.button_file.text() in ('选择配置文件', '暂无配置文件 需要创建')):
@@ -740,27 +1197,43 @@ class Ui_Form(QtWidgets.QMainWindow):
         else:  # 不提示关闭窗口
             if execute == "Close":
                 self.close()
+
                 #self.close_MainWindow()
                 os._exit(0)
             else:
                 SundryUI.Hide([self, self.window_icon])
+
     def play_sound(self):
         play_prompt_sound("C:\\Windows\\Media\\Windows Notify Messaging.wav")
 
 
-    def send_talk(self):
+    '''def send_talk(self):
         text = self.uim.talk_lineEdit.text()
         text = re.sub(' ', '~~space~~', text)
         send_encry("20030 "+text)
-        self.uim.talk_lineEdit.clear()
+        self.uim.talk_lineEdit.clear()'''
 
 
     def closeEvent(self, e):
         try:
             if self.open_status == True:
                 self.c_thread_object.kill()
+            try:
+                if hasattr(self, 'shm_ptr'):
+                    kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
+                    UnmapViewOfFile = kernel32.UnmapViewOfFile
+                    CloseHandle = kernel32.CloseHandle
+
+                    UnmapViewOfFile(self.shm_ptr)
+                    CloseHandle(self.shm_handle)
+
+                    del self.shm_ptr
+                    del self.shm_handle
+            except:
+                pass
             if self.window_icon == True:
                 self.tray_icon.hide()
+
             os._exit(0)
         except Exception as e:
             print(e)
@@ -772,115 +1245,111 @@ class Ui_Form(QtWidgets.QMainWindow):
         result = function.get_dwonload_link()
         print(result)
         return result
+
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_F12:
-            self.open_ctrl_window()
+            self.open_console_window()
 
     def Update_weather(self):  # 获取天气
-        api_key = "dce92b382ffb9409ca31ae4c1b240d4f"
-        # 发送请求获取IP地址信息
-        res = requests.get('http://myip.ipip.net', timeout=5).text
-        # 提取城市信息
-        split_res = res.split('  ')
-        city_info = split_res[-2]  # 倒数第二个元素是位置信息
-        city_info = city_info.split(' ')
-        country = city_info[-3]
-        city_info = city_info[-1]
-        global city_name, weather_status, temperature, humidity, weather_info
-        if country[-2:] == '中国':
-            city_name = city_info
-            pinyin_list = pinyin(city_info, style=Style.NORMAL)
-            # 从拼音列表中提取拼音并连接成字符串
-            pinyin_str = ''.join([item[0] for item in pinyin_list])
-            # 设置API请求的URL
-            base_url = "http://api.openweathermap.org/data/2.5/weather"
-            url = f"{base_url}?q={pinyin_str}&appid={api_key}"
-            # 发送API请求并获取响应
-            response = requests.get(url)
-            data = response.json()
-            # 提取天气信息
-            if data["cod"] == 200:
-                weather_info = data["weather"][0]["main"]  # 天气类型
-                temperature = data["main"]["temp"] - 273.15  # 摄氏度
-                humidity = data["main"]["humidity"]  # 湿度
-                print(f"City:{city_name} ", end='\t')
-                print(f"Weather: {weather_info} ", end='\t')
-                print(f"Temperature: {temperature:.2f}°C ", end='\t')
-                print(f"Humidity: {humidity}% ")
-                weather_status = True
-            else:
-                weather_status = False
-                print("未知城市 天气获取失败")
-            if weather_status == True:
-                self.uim.weather_button.setGeometry(QtCore.QRect(5, 580, 200, 20))
-                self.uim.weather_button.setText(
-                    f"{city_name}  T: {temperature:.2f}°C H: {humidity}%")
-                if weather_info == 'Clear':
-                    icon = QIcon("./image/weather/晴.png")
-                elif weather_info == 'Clouds':
-                    icon = QIcon("./image/weather/多云.png")
-                elif weather_info == 'Rain':
-                    icon = QIcon("./image/weather/中雨.png")
-                elif weather_info == 'Drizzle':
-                    icon = QIcon("./image/weather/小雨.png")
-                elif weather_info == 'Thunderstorm':
-                    icon = QIcon("./image/weather/雷暴.png")
-                elif weather_info == 'Snow':
-                    icon = QIcon("./image/weather/雪.png")
-                elif weather_info == 'Mist' or 'Fog':
-                    icon = QIcon("./image/weather/雾.png")
-                elif weather_info == 'Haze':
-                    icon = QIcon("./image/weather/霾.png")
+        try:
+            api_key = "dce92b382ffb9409ca31ae4c1b240d4f"
+            # 发送请求获取IP地址信息
+            res = requests.get('http://myip.ipip.net', timeout=5).text
+            # 提取城市信息
+            split_res = res.split('  ')
+            city_info = split_res[-2]  # 倒数第二个元素是位置信息
+            city_info = city_info.split(' ')
+            country = city_info[-3]
+            city_info = city_info[-1]
+            global city_name, weather_status, temperature, humidity, weather_info
+            if country[-2:] == '中国':
+                city_name = city_info
+                pinyin_list = pinyin(city_info, style=Style.NORMAL)
+                # 从拼音列表中提取拼音并连接成字符串
+                pinyin_str = ''.join([item[0] for item in pinyin_list])
+                # 设置API请求的URL
+                base_url = "http://api.openweathermap.org/data/2.5/weather"
+                url = f"{base_url}?q={pinyin_str}&appid={api_key}"
+                # 发送API请求并获取响应
+                response = requests.get(url, timeout=15)
+                data = response.json()
+                # 提取天气信息
+                if data["cod"] == 200:
+                    temperature = data["main"]["temp"] - 273.15  # 摄氏度
+                    temp = round(temperature)
+                    humidity = data["main"]["humidity"]  # 湿度
+                    weather_main = data["weather"][0]["main"]
+                    weather_id = data["weather"][0]["id"]
+
+                    # 根据天气类型设置emoji和描述
+                    emoji, weather_desc = '🌡️', '未知天气'
+                    if weather_main == 'Clear':
+                        emoji, weather_desc = '☀️', '晴天'
+                    elif weather_main == 'Clouds':
+                        if 801 <= weather_id <= 802:
+                            emoji, weather_desc = '⛅', '晴间多云'
+                        elif 803 <= weather_id <= 804:
+                            emoji, weather_desc = '☁️', '多云'
+                    elif weather_main == 'Rain':
+                        emoji, weather_desc = '🌧️', '下雨'
+                    elif weather_main == 'Drizzle':
+                        emoji, weather_desc = '🌧️', '小雨'
+                    elif weather_main == 'Thunderstorm':
+                        emoji, weather_desc = '⛈️', '雷雨'
+                    elif weather_main == 'Snow':
+                        emoji, weather_desc = '🌨️', '下雪'
+                    elif weather_main in ('Mist', 'Fog'):
+                        emoji, weather_desc = '🌫️', '雾'
+                    elif weather_main == 'Haze':
+                        emoji, weather_desc = '🌫️', '霾'
+                    elif weather_main == 'Squall':
+                        emoji, weather_desc = '💨', '大风'
+                    elif weather_main == 'Tornado':
+                        emoji, weather_desc = '🌪️', '龙卷风'
+
+                    # 更新天气标签
+                    # 生成完整显示文本
+                    full_text = f"{emoji} {temp}°C {weather_desc} | {city_name}"
+
+                    # 获取字体度量
+                    font_metrics = self.weather_label.fontMetrics()
+                    available_width = self.weather_label.width() - 10  # 保留边距
+
+                    # 自动缩短文本算法
+                    def shorten_text(text, max_width):
+                        if font_metrics.horizontalAdvance(text) <= max_width:
+                            return text
+                        # 逐步移除城市名的最后一个字符
+                        parts = text.split(" | ")
+                        base = parts[0] + " | "
+                        city = parts[1]
+                        for i in range(len(city) - 1, 0, -1):
+                            shortened = base + city[:i] + "…"
+                            if font_metrics.horizontalAdvance(shortened) <= max_width:
+                                return shortened
+                        return text[:3] + "…"  # 保底方案
+
+                    # 应用自适应缩短
+                    display_text = shorten_text(full_text, available_width)
+
+                    # 设置显示文本和悬浮提示
+                    self.weather_label.setText(display_text)
+                    self.weather_label.setToolTip(full_text)  # 悬浮显示完整信息
+                    weather_status = True
+                    print(f"天气获取成功 城市:{city_name} 温度:{temp}°C 湿度:{humidity}%")
                 else:
-                    icon = QIcon("./image/weather/晴.png")
-                self.uim.weather_button.setIcon(icon)
-                self.uim.weather_button.setIconSize(self.uim.weather_button.size())
-                sys_list.append(
-                    "b[" + str(time.strftime("%H:%M:%S",
-                                             time.localtime())) + "] " + '天气获取成功 ' + f'城市:{city_name} ' + f'温度:{temperature:.2f}°C ' + f'湿度:{humidity}%')
+                    self.weather_label.setText("天气获取失败")
+                    weather_status = False
+                    print('天气获取失败')
             else:
-                self.uim.weather_button.setGeometry(QtCore.QRect(5, 580, 80, 20))
-                self.uim.weather_button.setText(f"天气获取失败")
-                sys_list.append(
-                    "r[" + str(
-                        time.strftime("%H:%M:%S", time.localtime())) + "] " + '天气获取失败')
-        else:
-            self.uim.weather_button.setGeometry(QtCore.QRect(10, 580, 120, 20))
-            self.uim.weather_button.setText(f"暂不支持非中国天气解析")
-            sys_list.append(
-                "r[" + str(
-                    time.strftime("%H:%M:%S",
-                                  time.localtime())) + "] " + '暂不支持非中国天气解析')
-
-    def paintEvent(self, event):
-        if self.should_draw == "White":  # 白色主题
-            painter = QPainter(self)
-            # 左侧灰色矩形
-            left_rect = QRect(0, 0, 260, 600)
-            left_color = QColor(224, 224, 224)
-            #left_color.setAlpha(250)
-            painter.fillRect(left_rect, left_color)
-
-            # 右侧渐变矩形（从灰色到白色）
-            right_rect = QRect(260, 0, 740, 600)
-            '''right_color = QColor(245, 245, 245)
-            right_color.setAlpha(230)
-            painter.fillRect(right_rect, right_color)'''
-            gradient = QLinearGradient(right_rect.topLeft(), right_rect.bottomLeft())  # 从上到下的渐变
-            gradient.setColorAt(0.0, QColor(230, 230, 230))  # 顶部为灰色
-            gradient.setColorAt(1.0, QColor(241, 241, 241))  # 底部为白色
-            painter.fillRect(right_rect, gradient)
-        else:  # 自定义主题 动态主题不知道为什么不生效
-            painter = QPainter(self)
-            left_rect = QRect(0, 0, 260, 600)
-            left_color = QColor(224, 224, 224)
-            left_color.setAlpha(transparent)  # 设置左边区域颜色的透明度为 50%
-            painter.fillRect(left_rect, left_color)
-            right_rect = QRect(260, 0, 740, 600)
-            right_color = QColor(245, 245, 245)
-            right_color.setAlpha(transparent - 20)
-            painter.fillRect(right_rect, right_color)
-            # 设置右边区域颜色的透明度为 75%
+                self.weather_label.setText("暂不支持非中国天气解析")
+                print("暂不支持非中国天气解析")
+        except requests.exceptions.Timeout:
+            self.weather_label.setText("获取天请求超时")
+            print(f'获取天气请求超时')
+        except Exception as e:
+            self.weather_label.setText("天气获取失败")
+            print(f'天气获取失败: {str(e)}')
 
     def empyt_log(self):  # 清空日志
         log_file_path = "INFOR.log"
@@ -890,96 +1359,180 @@ class Ui_Form(QtWidgets.QMainWindow):
 
     def open_folder(self, page):  # 浏览QQ头像下载文件夹
         if page == 'picture':
-            folder_path = './mod/picture'  # 修改为你要打开的文件夹路径
+            folder_path = './mod/picture'
             url = QUrl.fromLocalFile(folder_path)
             QDesktopServices.openUrl(url)
 
         elif page == 'music':
-            folder_path = self.uim._5lineEdit3.text()
+            folder_path = self.music_savepath.text()
             url = QUrl.fromLocalFile(folder_path)
             QDesktopServices.openUrl(url)
 
         elif page == 'xlsx':
-            folder_path = './mod/xlsx'  # 修改为你要打开的文件夹路径
+            folder_path = '.mod/xlsx'
             url = QUrl.fromLocalFile(folder_path)
             QDesktopServices.openUrl(url)
 
     def open_music_folder(self):  # 浏览QQ头像下载文件夹
-        folder_path = './mod/music'
+        folder_path = '.mod/music'
         url = QUrl.fromLocalFile(folder_path)
         QDesktopServices.openUrl(url)
 
     def LogRecord(self):  # 打开日志
         subprocess.Popen(["notepad.exe", "INFOR.log"])
 
-    def join_team(self):  # 加入队伍
-        num = self.uim._5lineEdit.text()
-        send_encry(f'20001 {num}')
+
+    # 在类中新增共享内存相关方法K0KNFmrcBB4V9MKkfxyoTwXoQEjevR
+    # 在类外部或类初始化时定义Windows API（推荐放在类初始化中）
+    def init_shared_memory(self):
+        # 确保kernel32的API正确定义
+        kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
+
+        # 定义CloseHandle（需要补充这部分声明）
+        CloseHandle = kernel32.CloseHandle
+        CloseHandle.argtypes = [wintypes.HANDLE]
+        CloseHandle.restype = wintypes.BOOL
+
+        # 定义UnmapViewOfFile（虽然当前函数未使用，但后续需要）
+        UnmapViewOfFile = kernel32.UnmapViewOfFile
+        UnmapViewOfFile.argtypes = [wintypes.LPCVOID]
+        UnmapViewOfFile.restype = wintypes.BOOL
+
+        # 定义CreateFileMappingW（已有定义需要保留）
+        CreateFileMappingW = kernel32.CreateFileMappingW
+        CreateFileMappingW.argtypes = [
+            wintypes.HANDLE,
+            ctypes.c_void_p,
+            wintypes.DWORD,
+            wintypes.DWORD,
+            wintypes.DWORD,
+            wintypes.LPCWSTR
+        ]
+        CreateFileMappingW.restype = wintypes.HANDLE
+
+        # 定义MapViewOfFile（已有定义需要保留）
+        MapViewOfFile = kernel32.MapViewOfFile
+        MapViewOfFile.argtypes = [
+            wintypes.HANDLE,
+            wintypes.DWORD,
+            wintypes.DWORD,
+            wintypes.DWORD,
+            ctypes.c_size_t
+        ]
+        MapViewOfFile.restype = wintypes.LPVOID
+
+        # 共享内存参数
+        SHM_NAME = "Local\\ClickParamsSharedMemory"
+        SHM_SIZE = ctypes.sizeof(SharedParams)
+
+        # 创建共享内存
+        h_map = CreateFileMappingW(
+            wintypes.HANDLE(-1),
+            None,
+            0x04,  # PAGE_READWRITE
+            0,
+            SHM_SIZE,
+            SHM_NAME
+        )
+        if h_map == 0:
+            error = ctypes.GetLastError()
+            # 重要修改：这里必须先声明CloseHandle才能调用
+            CloseHandle(h_map)  # 清理无效句柄
+            raise ctypes.WinError(error)
+
+        # 映射内存
+        ptr = MapViewOfFile(
+            h_map,
+            0xF001F,  # FILE_MAP_ALL_ACCESS
+            0,
+            0,
+            SHM_SIZE
+        )
+        if not ptr:
+            error = ctypes.GetLastError()
+            CloseHandle(h_map)  # 映射失败时关闭句柄
+            raise ctypes.WinError(error)
+
+        return h_map, ptr
+
+    def write_shared_memory(self, ptr, hotkey, interval, click_type):
+        params = SharedParams()
+        params.version = APP_VERSION
+        params.hotkey = int(hotkey)
+        params.interval = interval
+        params.clickType = click_type
+        ctypes.memmove(ptr, ctypes.byref(params), ctypes.sizeof(params))
+
+    def update_shared_params(self):
+        """更新共享内存参数"""
+        if hasattr(self, 'shm_ptr'):
+            # 转换当前参数
+            hotkey = self._convert_hotkey_to_code()
+            if hotkey == 8888:
+                self.show_message_box('提示', '按键错误 请重新输入')
+                return 0
+            interval = float(self._3D.value())
+            print(interval)
+            click_type = self._get_current_click_type()  # 新增获取点击类型方法
+            if interval != 0:
+                # 写入共享内存
+                self.write_shared_memory(self.shm_ptr, hotkey, interval, click_type)
+
+    def _get_current_click_type(self):
+        """获取当前点击类型的数字表示"""
+        if self.LClick_Radio.isChecked():
+            return 0
+        elif self.MClick_Radio.isChecked():
+            return 1
+        else:
+            return 2
 
     def open_click(self):  # 开启连点器部分
-        if (self.uim.RClick_Radio.isChecked()) and (self.uim.sort == '鼠标右键'):
+        if (self.RClick_Radio.isChecked()) and (self.sort == '鼠标右键'):
             pyautogui.confirm("点击按键和监听热键不可相同!")
             return 0
-        elif (self.uim.MClick_Radio.isChecked()) and (self.uim.sort == '鼠标中键'):
+        elif (self.MClick_Radio.isChecked()) and (self.sort == '鼠标中键'):
             pyautogui.confirm("点击按键和监听热键不可相同!")
             return 0
         try:
             print("开启中")
-            self.uim._3pushButton_4.setEnabled(False)
-            self.uim.LClick_Radio.setEnabled(False)
-            self.uim.MClick_Radio.setEnabled(False)
-            self.uim.RClick_Radio.setEnabled(False)
-            self.uim._3pushButton_6.setText("正在开启...")
-            self.uim._3pushButton_6.setEnabled(False)
-            self.uim._3D.setEnabled(False)
-
-            if self.uim.sort == 'F8':
-                hotkey = "119"  # F8
-            elif self.uim.sort == 'F9':
-                hotkey = "120"  # F9
-            elif self.uim.sort == 'F10':
-                hotkey = "121"
-            elif self.uim.sort == '鼠标右键':
-                hotkey = "2"
-            elif self.uim.sort == '鼠标中键':
-                hotkey = "4"
-            elif self.uim.sort == 'Alt':
-                hotkey = "18"
-            elif self.uim.sort == '空格':
-                hotkey = "32"
-            elif self.uim.sort == 'Ctrl':
-                hotkey = "17"
-            elif self.uim.sort == 'Shift':
-                hotkey = "16"
-            elif self.uim.sort == 'Tab':
-                hotkey = "9"
-            elif self.uim.sort == 'Caps':
-                hotkey = "20"
-            elif self.uim.sort[0] == '自':
-                hotkey = (self.uim.sort.split(' '))[1]
-            else:
-                hotkey = '2'
-            interval = str(float(self.uim._3D.value()))
-            if self.uim.LClick_Radio.isChecked():
-                sort = 'left'
-            elif self.uim.MClick_Radio.isChecked():
-                sort = 'mid'
-            else:
-                sort = 'right'
+            self._3pushButton_6.setText("正在开启...")
+            self._3pushButton_6.setEnabled(False)
             try:
-                self.c_thread_object = subprocess.Popen(["./mod/more/click.exe", hotkey, interval, sort])
+                # 转换点击类型为数字
+                click_type = self._get_current_click_type()
+                # 转换热键为数字
+                hotkey = self._convert_hotkey_to_code()  # 需要实现这个转换方法
+                interval = float(self._3D.value())
+
+                if self.high_speed_radio.isChecked():
+                    # 创建共享内存
+                    h_map, ptr = self.init_shared_memory()
+                    self.write_shared_memory(ptr, hotkey, interval, click_type)
+
+                    # 启动click.exe
+                    self.c_thread_object = subprocess.Popen(
+                        ["./mod/more/click.exe", str(APP_VERSION)],  # 添加版本参数
+                        creationflags=subprocess.CREATE_NO_WINDOW  # 隐藏控制台
+                    )
+
+                    # 保存句柄和指针用于后续清理
+                    self.shm_handle = h_map
+                    self.shm_ptr = ptr
                 self.open_status = True
-                self.uim._3pushButton_6.setText("连点器已开启")
-                self.uim._3pushButton_7.setVisible(True)
-                self.c_thread_object.wait()
+                self._3pushButton_6.setText("连点器已开启")
+                self._3pushButton_7.setVisible(True)
+                self.high_speed_radio.setEnabled(False)
+                self.low_speed_radio.setEnabled(False)
             except KeyboardInterrupt:
                 # 处理 Ctrl+C 中断
                 self.c_thread_object.terminate()
                 sys.exit()
             except Exception as e:
+                traceback.print_exc()
                 print(e)
-                self.uim._3pushButton_6.setText("开启失败")
-                self.uim._3pushButton_7.setVisible(True)
+                self._3pushButton_6.setText("开启失败")
+                self._3pushButton_7.setVisible(True)
                 # 处理其他异常
                 pyautogui.confirm(f"Error: {e}")
 
@@ -995,22 +1548,36 @@ class Ui_Form(QtWidgets.QMainWindow):
     def break_click(self):  # 关闭连点器
         try:
             if self.open_status == True:
-                print(type(self.c_thread_object))
                 self.c_thread_object.terminate()
+                # 清理共享内存
+                '''if hasattr(self, 'shm_ptr'):
+                    kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
+                    UnmapViewOfFile = kernel32.UnmapViewOfFile
+                    CloseHandle = kernel32.CloseHandle
+
+                    UnmapViewOfFile(self.shm_ptr)
+                    CloseHandle(self.shm_handle)
+
+                    del self.shm_ptr
+                    del self.shm_handle'''
                 del self.c_thread_object
                 self.c_thread_object = None
                 self.open_status = False
-                self.uim._3pushButton_6.setText("开启连点器")
-                self.uim._3pushButton_4.setEnabled(True)
-                self.uim.LClick_Radio.setEnabled(True)
-                self.uim.MClick_Radio.setEnabled(True)
-                self.uim.RClick_Radio.setEnabled(True)
-                self.uim._3pushButton_6.setEnabled(True)
-                self.uim._3D.setEnabled(True)
-                self.uim._3pushButton_7.setVisible(False)
+                self._3pushButton_6.setText("开启连点器")
+                self._3pushButton_6.setEnabled(True)
+                self._3D.setEnabled(True)
+                self._3pushButton_7.setVisible(False)
+                self.high_speed_radio.setEnabled(False)
+                self.low_speed_radio.setEnabled(False)
         except Exception as e:
+            traceback.print_exc()
             print(e)
             pyautogui.confirm(e)
+
+    def _convert_hotkey_to_code(self):
+
+        # 返回对应的键值或默认值
+        return function.keycode_dict.get(self.sort.lower(), 8888)
 
     def gain_handle(self):  # 获取句柄
         self.showMinimized()
@@ -1019,7 +1586,7 @@ class Ui_Form(QtWidgets.QMainWindow):
             if pressed:
                 if button == mouse.Button.left:  # 如果是左键点击
                     hwnd = win32gui.WindowFromPoint((x, y))  # 获取句柄
-                    self.uim._2lineEdit_3.setText(str(hwnd))  # 设置句柄到lineEdit
+                    self._2lineEdit_3.setText(str(hwnd))  # 设置句柄到lineEdit
                     listener.stop()  # 停止监听
                 elif button == mouse.Button.right:  # 如果是右键点击
                     listener.stop()
@@ -1033,27 +1600,105 @@ class Ui_Form(QtWidgets.QMainWindow):
         click_listener()
         self.showNormal()
 
+    def handle_auto_execute(self):
+        # 获取所有配置数据示例
+        configurations = []
+        for group in self.operation_groups:
+            config = {
+                "handle": group.edit_handle.text(),
+                "action": group.combo_action.currentText(),
+                "param": group.edit_param.text()
+            }
+            configurations.append(config)
+
+        if configurations != []:
+            print(configurations)
+            for i in range(self.spin_executions.value()):
+
+
+                for x in configurations:
+                    action = x['action']
+                    if action == '点击':
+                        try:
+                            hwnd = int(x['handle'])
+                            win32gui.SetForegroundWindow(hwnd)
+                            time.sleep(0.5)  # 等待窗口聚焦
+                            parts = x['param'].split(',')
+                            click_x = int(parts[0])
+                            click_y = int(parts[1])
+                            long_position = win32api.MAKELONG(click_x, click_y)  # 模拟鼠标指针 传送到指定坐标
+                            win32api.PostMessage(hwnd, win32con.WM_LBUTTONDOWN, win32con.MK_LBUTTON,
+                                                 long_position)  # 模拟鼠标按下
+                            win32api.PostMessage(hwnd, win32con.WM_LBUTTONUP, win32con.MK_LBUTTON,
+                                                 long_position)  # 模拟鼠标弹起
+                        except Exception as e:
+                            traceback.print_exc()
+                    elif action == '右键':
+                        try:
+                            hwnd = int(x['handle'])
+                            print(hwnd, type(hwnd))
+                            win32gui.SetForegroundWindow(hwnd)
+                            time.sleep(0.5)  # 等待窗口聚焦
+                            parts = x['param'].split(',')
+                            click_x = int(parts[0])
+                            click_y = int(parts[1])
+                            long_position = win32api.MAKELONG(click_x, click_y)  # 模拟鼠标指针 传送到指定坐标
+                            print(long_position, type(long_position))
+                            win32api.PostMessage(hwnd, win32con.WM_RBUTTONDOWN, win32con.MK_RBUTTON,
+                                                 long_position)  # 模拟鼠标按下
+                            win32api.PostMessage(hwnd, win32con.WM_RBUTTONUP, win32con.MK_RBUTTON,
+                                                 long_position)  # 模拟鼠标弹起
+                        except Exception as e:
+                            traceback.print_exc()
+                    elif action == '粘贴':
+                        win32api.keybd_event(win32con.VK_CONTROL, 0, 0, 0)
+                        # 按下 Ctrl 键
+                        win32api.keybd_event(ord('V'), 0, 0, 0)
+                        # 按下 V 键
+                        win32api.keybd_event(ord('V'), 0, win32con.KEYEVENTF_KEYUP, 0)
+                        # 放开 V 键
+                        win32api.keybd_event(win32con.VK_CONTROL, 0, win32con.KEYEVENTF_KEYUP, 0)
+                        # 放开 Ctrl 键
+                    elif action == '按键':
+                        # 向指定窗口发送 Enter 键
+                        win32api.keybd_event(x, 0, 0, 0)  # 按下 Enter 键
+                        win32api.keybd_event(win32con.VK_RETURN, 0, win32con.KEYEVENTF_KEYUP, 0)  # 放开 Enter 键
+                    elif action == '回车':
+                        # 向指定窗口发送 Enter 键
+                        win32api.keybd_event(win32con.VK_RETURN, 0, 0, 0)  # 按下 Enter 键
+                        win32api.keybd_event(win32con.VK_RETURN, 0, win32con.KEYEVENTF_KEYUP, 0)  # 放开 Enter 键
+                    elif action == '等待':
+                        time.sleep(int(x['param']))
+
+                time.sleep(self.spin_interval.value())
+            print('执行完毕')
+
+    def start_detection(self):
+        #self.mask = page.ScreenMask(self)
+        self.mask = new_mainpage.ScreenMask(self)
+        self.mask.showFullScreen()
+
     def mouseinfo(self):  # 鼠标信息
         pyautogui.mouseInfo()
 
     def QQ_Group_information(self):  # QQ群信息获取
         play_prompt_sound("C:\\Windows\\Media\\Windows Notify Messaging.wav")
-        if self.uim.Edge.isChecked():
+        if self.Edge_Radio.isChecked():
             mode = 'Edge'
-        elif self.uim.Chrome.isChecked():
+        elif self.Chrome_Radio.isChecked():
             mode = 'Chrome'
-        elif self.uim.IE.isChecked():
+        elif self.Ie_Radio.isChecked():
             mode = 'Ie'
         else:
             pyautogui.confirm("文件选择类型错误 请重试!")
             return 0
-        Qid = self.uim.checkBox_qid.isChecked()
-        sex = self.uim.checkBox_sex.isChecked()
-        QQ_year = self.uim.checkBox_qq_year.isChecked()
-        join_date = self.uim.checkBox_join_date.isChecked()
-        send_date = self.uim.checkBox_send_date.isChecked()
-        group_lv = self.uim.checkBox_group_lv.isChecked()
-        folder = self.uim.QQ_Group_Save.text()
+        Qid = self.checkBox_qid.isChecked()
+        sex = self.checkBox_sex.isChecked()
+        QQ_year = self.checkBox_qq_year.isChecked()
+        join_date = self.checkBox_join_date.isChecked()
+        send_date = self.checkBox_send_date.isChecked()
+        group_lv = self.checkBox_group_lv.isChecked()
+        folder = self.lineEdit_group_path.text()
         result = function.QQ_Group_Obtain(mode, folder, Qid, sex, QQ_year, join_date, send_date, group_lv)
         if str(type(result)) == '<class \'selenium.common.exceptions.NoSuchWindowException\'>':
             pyautogui.confirm("操作取消")
@@ -1064,11 +1709,79 @@ class Ui_Form(QtWidgets.QMainWindow):
         else:
             pyautogui.confirm(result, "错误:")
 
+    def check_update(self):
+        local_ver = Version
+        url = "https://fcyang.cn/data.txt"
+
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+
+            config = {}
+            for line in response.text.splitlines():
+                line = line.strip()
+                if line and ":" in line:
+                    key, value = line.split(":", 1)
+                    config[key.strip()] = value.strip()
+
+            server_ver = config.get("last_version")
+            last_link = config.get("last_link")
+
+            print(f"Last Version: {server_ver}")
+            print(f"Last Link: {last_link}")
+
+        except requests.exceptions.RequestException as e:
+            print(f"请求失败: {e}")
+            return
+
+        def parse_version(version):
+            cleaned = re.sub(r'^[^\d.]*', '', version, flags=re.IGNORECASE)
+            parts = cleaned.split('.')
+            nums = []
+            for part in parts:
+                try:
+                    nums.append(int(part))
+                except ValueError:
+                    nums.append(0)
+            return nums
+
+        local_parts = parse_version(local_ver)
+        server_parts = parse_version(server_ver)
+
+        max_length = max(len(local_parts), len(server_parts))
+        update_needed = False
+
+        # 比较所有对应的版本号部分
+        for i in range(max_length):
+            local_num = local_parts[i] if i < len(local_parts) else 0
+            server_num = server_parts[i] if i < len(server_parts) else 0
+
+            if server_num > local_num:
+                update_needed = True
+                break
+            elif server_num < local_num:
+                QMessageBox.information(self, '提示:', '当前已是最新版本 无需更新')
+                return
+
+        # 如果前面部分完全相同，检查服务器是否有额外非零子版本
+        if not update_needed and len(server_parts) > len(local_parts):
+            for i in range(len(local_parts), len(server_parts)):
+                if server_parts[i] > 0:
+                    update_needed = True
+                    break
+
+        if update_needed:
+            result = pyautogui.confirm(f"发现新版本: {server_ver}，是否更新？")
+            if result == "OK":
+                webbrowser.open(last_link)
+        else:
+            QMessageBox.information(self, '提示:', '当前已是最新版本 无需更新')
+
     def download_image(self):  # 下载QQ头像
         if exp < 20:
             pyautogui.confirm("该功能需要Lv2才能使用!\n按ctrl+o 或按f12 打开控制台 输入签到 签到一天即可使用!")
             return 0
-        self.uim.QQ_Button_Dow.setEnabled(False)
+        self.btn_download_qq.setEnabled(False)
 
         def generate_random_number():
             # 生成随机位数（6到10之间）
@@ -1088,7 +1801,7 @@ class Ui_Form(QtWidgets.QMainWindow):
 
         success = 0
         total = 0
-        for i in range(self.uim.QQ_spinBox.value()):
+        for i in range(self.qq_image_down_spinbox.value()):
             random_number = generate_random_number()
             url = f"https://q1.qlogo.cn/g?b=qq&nk={random_number}&s=640"
             response = requests.get(url)
@@ -1103,11 +1816,12 @@ class Ui_Form(QtWidgets.QMainWindow):
                     os.remove(f"./mod/picture/{random_number}.jpg")
                 else:
                     success = success + 1
-                    self.uim.QQ_label_t6.setText(f"有效次数:{success}次")
-            self.uim.QQ_label_t3.setText(f"总下载次数:{total}次")
+                    #self.uim.QQ_label_t6.setText(f"有效次数:{success}次")
+            #self.uim.QQ_label_t3.setText(f"总下载次数:{total}次")
         if success == 0:
-            self.uim.QQ_label_t6.setText("有效次数:0次")
-        self.uim.QQ_Button_Dow.setEnabled(True)
+            pass
+            #self.uim.QQ_label_t6.setText("有效次数:0次")
+        self.btn_download_qq.setEnabled(True)
         MyThread(play_warning_sound)
         pyautogui.confirm(f"图片下载成功!\n本次已成功下载{success}张图片(已删除默认头像)")
 
@@ -1117,7 +1831,7 @@ class Ui_Form(QtWidgets.QMainWindow):
         if result != "OK":
             return 0
         try:
-            rest = self.uim.QQ_Doxb.value()
+            rest = self.qq_image_update_spinbox_interval.value()
             result = function.QQ_Information_Update(rest)
             if result == 0:
                 MyThread(play_warning_sound)
@@ -1131,67 +1845,6 @@ class Ui_Form(QtWidgets.QMainWindow):
             MyThread(play_warning_sound)
             pyautogui.confirm(e)
             traceback.print_exc()
-
-    def Send_QQ(self):  # @QQ
-        # 要检查的进程名称
-        target_process_name = "QQ.exe"
-        if check_process_exists(target_process_name):
-            if position_status == False:
-                pyautogui.confirm("需要先设置位置才能开始发送")
-                return 0
-            play_prompt_sound("C:\\Windows\\Media\\Windows Notify Messaging.wav")
-            if self.uim._2lineEdit.text() == "":
-                pyautogui.confirm('请输入QQ号')
-            elif self.uim._2doubleSpinBox.value() == 0.0:
-                pyautogui.confirm("请输入间隔")
-            elif len(self.uim._2lineEdit.text()) > 11 or len(
-                    self.uim._2lineEdit.text()) <= 5 or not self.uim._2lineEdit.text().isdigit():
-                pyautogui.confirm('请输入正确的QQ号')
-            else:
-                time.sleep(3)
-                math = 0
-                pause_time = self.uim._2doubleSpinBox.value()
-                pyautogui.PAUSE = pause_time
-                if self.uim._2checkBox.isChecked():
-                    while True:
-                        if keys.is_pressed("F10"):  # 按下F10退出
-                            self.open_point_window()
-                            break
-                        math = math + 1
-                        pyautogui.click(textedit_position)
-                        pyautogui.write(f'@{self.uim._2lineEdit.text()}')
-                        time.sleep(0.02)
-                        pyautogui.press('enter')
-                        pyautogui.hotkey('ctrl', 'v')
-                        pyautogui.write(str(math))
-                        randfigure = random.choice(Random_list)  # 随机符号
-                        if randfigure == 1:
-                            pyautogui.press('.')
-                        elif randfigure == 2:
-                            pyautogui.press('。')
-                        else:
-                            pyautogui.press(',')
-                        pyautogui.click(send_position)
-                else:
-                    while True:
-                        if keys.is_pressed("F10"):  # 按下F10退出
-                            self.open_point_window()
-                            break
-                        pyautogui.click(textedit_position)
-                        pyautogui.write(f'@{self.uim._2lineEdit.text()}')
-                        time.sleep(0.03)
-                        pyautogui.press('enter')
-                        pyautogui.hotkey('ctrl', 'v')
-                        randfigure = random.choice(Random_list)  # 随机符号
-                        if randfigure == 1:
-                            pyautogui.press('.')
-                        elif randfigure == 2:
-                            pyautogui.press('。')
-                        else:
-                            pyautogui.press(',')
-                        pyautogui.click(send_position)
-        else:
-            pyautogui.confirm("QQ未启动")
 
     def Handle_Send(self):  # 句柄式发送消息
         def setText(aString):  # 设置剪贴板文本
@@ -1235,17 +1888,17 @@ class Ui_Form(QtWidgets.QMainWindow):
                 setText(msg)
             # 投递剪贴板消息到QQ窗体
             play_prompt_sound("C:\\Windows\\Media\\Windows Notify Messaging.wav")
-            figure = self.uim._2spinBox.value()
-            wait_time = self.uim._2doubleSpinBox_speed.value()
+            times = self.handle_send_times.value()
+            wait_time = self.handle_send_interval.value()
             win32gui.SetForegroundWindow(hwnd)
             time.sleep(0.5)  # 等待窗口聚焦
 
-            for i in range(int(figure)):
+            for i in range(int(times)):
                 doClick(handle_position[0], handle_position[1], hwnd)  # 点击 (30, height-60)
                 time.sleep(wait_time)  # 等待操作完成
 
-        hwnd = self.uim._2lineEdit_3.text()
-        massage = self.uim._2textEdit.toPlainText()
+        hwnd = self._2lineEdit_3.text()
+        massage = self._2textEdit.toPlainText()
         if hwnd == '':
             play_prompt_sound("C:\\Windows\\Media\\Windows Notify Messaging.wav")
             pyautogui.confirm("请输入句柄")
@@ -1259,6 +1912,61 @@ class Ui_Form(QtWidgets.QMainWindow):
             except Exception as e:
                 pyautogui.confirm(f"发送失败 错误信息如下:\n {e}")
 
+    def Send_QQ(self):  # @QQ
+        # 要检查的进程名称
+        target_process_name = "QQ.exe"
+        if check_process_exists(target_process_name):
+            if position_status == False:
+                pyautogui.confirm("需要先设置位置才能开始发送")
+                return 0
+            play_prompt_sound("C:\\Windows\\Media\\Windows Notify Messaging.wav")
+            target_number = self.QQ_StartSend_At_target_lineedit.text()
+            pause_time = self.QQ_StartSend_At_pause_doublespb.value()
+            times = self.QQ_StartSend_At_times_spinbox.value()
+            number_send = False
+            if target_number == "":
+                pyautogui.confirm('请输入QQ号')
+            elif pause_time == 0.0:
+                pyautogui.confirm("请输入间隔")
+            elif len(target_number) > 11 or len(
+                    target_number) <= 5 or not target_number.isdigit():
+                pyautogui.confirm('请输入正确的QQ号')
+            else:
+                time.sleep(3)
+                number = 0
+                pyautogui.PAUSE = pause_time
+                if self.QQ_StartSend_At_number_checkbox.isChecked():
+                    number_send = True
+                self.showMinimized()
+                while True:
+                    if keys.is_pressed("F10"):  # 按下F10退出
+                        self.showNormal()
+                        self.open_point_window()
+                        break
+                    number = number + 1# 新增次数检测逻辑
+                    if times != 0 and number >= times:
+                        self.showNormal()
+                        self.open_point_window()
+                        break
+                    pyautogui.click(textedit_position)
+                    pyautogui.write(f'@{target_number}')
+                    time.sleep(0.02)
+                    pyautogui.press('enter')
+                    pyautogui.hotkey('ctrl', 'v')
+                    if number_send == True:
+                        pyautogui.write(str(number))
+                    randfigure = random.choice(Random_list)  # 随机符号
+                    if randfigure == 1:
+                        pyautogui.press('.')
+                    elif randfigure == 2:
+                        pyautogui.press('。')
+                    else:
+                        pyautogui.press(',')
+                    pyautogui.click(send_position)
+
+        else:
+            pyautogui.confirm("QQ未启动")
+
     def Send_Copy(self):  # 发送复制消息
         # 要检查的进程名称
         target_process_name = "QQ.exe"
@@ -1268,12 +1976,15 @@ class Ui_Form(QtWidgets.QMainWindow):
                 return 0
             play_prompt_sound("C:\\Windows\\Media\\Windows Notify Messaging.wav")
             time.sleep(3)
-            pause_time = self.uim.copy_int.value()
+            pause_time = self.QQ_Send_Copy_pause_doublespb.value()
+            times = self.QQ_Send_Copy_times_spinbox.value()
             pyautogui.PAUSE = pause_time
-            b = 0
+            number = 0
             start_time = time.time()
+            self.showMinimized()
             while True:
                 if keys.is_pressed("F10"):  # 按下F10退出
+                    self.showNormal()
                     self.open_point_window()
                     end_time = time.time()
                     # 计算执行时间
@@ -1281,7 +1992,11 @@ class Ui_Form(QtWidgets.QMainWindow):
                     # 打印执行时间
                     print(f"执行时间: {execution_time} 秒")
                     break
-                b = b + 1
+                number = number + 1
+                if times != 0 and number >= times:
+                    self.showNormal()
+                    self.open_point_window()
+                    break
                 pyautogui.click(textedit_position)
                 pyautogui.hotkey('ctrl', 'v')  # 粘贴
                 time.sleep(0.02)
@@ -1293,12 +2008,12 @@ class Ui_Form(QtWidgets.QMainWindow):
                 else:
                     pyautogui.press(',')
                 pyautogui.click(send_position)  # 点击第二处位置
-            print(f"本次Fuchen累计发送{b}条消息")
+            print(f"本次Fuchen累计发送{number}条消息")
         else:
             pyautogui.confirm("QQ未启动!")
 
     def order_send(self):
-        if self.uim.order_lineEdit.text() == '':
+        if self.QQ_Seq_lineEdit == '':
             pyautogui.confirm("请先选择文件")
             return 0
         target_process_name = "QQ.exe"
@@ -1310,12 +2025,12 @@ class Ui_Form(QtWidgets.QMainWindow):
             return 0
         play_prompt_sound("C:\\Windows\\Media\\Windows Notify Messaging.wav")
         time.sleep(3)
+        wait_time = self.QQ_Seq_doublebox.value()
+        if self.QQ_Seq_combobox.currentText() == '顺序发送':
 
-        if self.uim.order_radio_list.isChecked():
-            wait_time = self.uim._2doubleSpinBox_order_list.value()
             pyautogui.PAUSE = wait_time
-            for i in range(self.uim.order_list_int.value()):
-                with open(self.uim.order_lineEdit.text(), 'r', encoding='utf-8') as file:
+            for i in range(self.QQ_Seq_Times_spinBox.value()):
+                with open(self.QQ_Seq_lineEdit.text(), 'r', encoding='utf-8') as file:
                     # 逐行读取文件内容
                     for line in file:
                         # 去除行尾的换行符
@@ -1333,15 +2048,15 @@ class Ui_Form(QtWidgets.QMainWindow):
                         pyautogui.click(send_position)
                         # 暂停等待用户操作或观察复制内容
         else:
-            wait_time = self.uim._2doubleSpinBox_order_random.value()
             pyautogui.PAUSE = wait_time
             # 读取文件内容到列表中
-            with open(self.uim.order_lineEdit.text(), 'r', encoding='utf-8') as file:
+            with open(self.QQ_Seq_lineEdit.text(), 'r', encoding='utf-8') as file:
                 lines = file.readlines()
             # 随机选择一行
-            for i in range(self.uim.order_random_int.value()):
+            for i in range(self.QQ_Seq_Times_spinBox.value()):
                 random_line = random.choice(lines).strip()
                 if keys.is_pressed("F10"):  # 按下F10退出
+                    self.showNormal()
                     self.open_point_window()
                     break
                 # 复制该行内容到剪切板
@@ -1352,29 +2067,136 @@ class Ui_Form(QtWidgets.QMainWindow):
                 time.sleep(0.02)
                 pyautogui.click(send_position)
 
-    def Click_Record(self):  # 记录自动脚本
-        if self.uim.button_file.text() in ('选择配置文件', '暂无配置文件 需要创建'):
-            pyautogui.confirm("需要先选择或创建配置文件")
-            return 0
+    def handle_minimize(self):  #通过主进程最小化
         self.showMinimized()
-        play_prompt_sound("C:\\Windows\\Media\\Windows Notify Messaging.wav")
-        wait_time = self.uim.wait_doubleSpinBox.value()
+
+    def handle_restore(self):  # 通过主进程恢复
+        self.showNormal()
+        self.repaint()  # 或者调用 update() 来刷新界面
+
+    def record_change(self, type):  #记录脚本模式选择
+        if type == 'hotkey':
+            self.uim._3pushButton.setVisible(False)
+            self.uim.Hotkey_record_button.setVisible(True)
+            if self.uim.record_hotkey != '未设置':
+                self.hotkey_record_status = keys.add_hotkey(self.uim.record_hotkey, self.start_recording)
+        else:
+            self.uim._3pushButton.setVisible(True)
+            self.uim.Hotkey_record_button.setVisible(False)
+            if self.hotkey_record_status != None:
+                self.hotkey_record_status()
+                self.hotkey_record_status = None
+
+    def execute_change(self, type):  #执行脚本模式选择
+        if type == 'hotkey':
+            self.uim._3pushButton_2.setVisible(False)
+            self.uim.Hotkey_execute_button.setVisible(True)
+            if self.uim.execute_hotkey != '未设置':
+                self.hotkey_execute_status = keys.add_hotkey(self.uim.execute_hotkey, self.start_executing)
+        else:
+            self.uim._3pushButton_2.setVisible(True)
+            self.uim.Hotkey_execute_button.setVisible(False)
+            if self.hotkey_execute_status != None:
+                self.hotkey_execute_status()
+                self.hotkey_execute_status = None
+
+    def record_hotkey_setting(self):
+        if self.hotkey_execute_status != None:
+            self.hotkey_execute_status()
+        # 创建并显示热键对话框（模态对话框）
+        dialog = ui.hotkey_record.HotkeyDialog(self)
+        if dialog.exec_() == QDialog.Accepted:  # 等待对话框关闭
+            hotkey = dialog.hotkey
+            if hotkey == '':
+                return
+            if hotkey == self.uim.execute_hotkey:
+                pyautogui.confirm('记录按键不可与执行按键相同')
+                return
+            self.uim.record_hotkey = hotkey
+            if self.hotkey_record_status == None:
+                self.hotkey_record_status = keys.add_hotkey(hotkey, self.start_recording)
+            else:
+                self.hotkey_record_status()
+                self.hotkey_record_status = keys.add_hotkey(hotkey, self.start_recording)
+            self.uim.Hotkey_record_button.setText(f"当前热键：{hotkey}")
+            print("获取到的热键：", hotkey)
+        if self.uim.execute_hotkey != '未设置':
+            self.hotkey_execute_status = keys.add_hotkey(self.uim.execute_hotkey, self.start_executing)
+
+    '''def start_recording(self):
+        if (self.record_thread is None or not self.record_thread.isRunning()) and (self.execute_thread is None or not self.execute_thread.isRunning()):  #检测录制/执行是否同时开启
+            self.record_thread = ClickRecordThread(self)
+            self.record_thread.finished_signal.connect(self.on_record_finished)
+            self.record_thread.start()
+        else:
+            print('记录已经开始 请等待结束后再进行操作')'''
+
+    def on_record_finished(self):
+        self.handle_restore()
+        print("录制结束")
+        self.record_thread = None
+
+    def execute_hotkey_setting(self):
+        if self.hotkey_record_status != None:
+            self.hotkey_record_status()
+        # 创建并显示热键对话框（模态对话框）
+        dialog = ui.hotkey_record.HotkeyDialog(self)
+        if dialog.exec_() == QDialog.Accepted:  # 等待对话框关闭
+            hotkey = dialog.hotkey
+            if hotkey == '':
+                return
+            if hotkey == self.uim.record_hotkey:
+                pyautogui.confirm('执行按键不可与记录按键相同')
+                return
+            self.uim.execute_hotkey = hotkey
+            if self.hotkey_execute_status == None:
+                self.hotkey_execute_status = keys.add_hotkey(hotkey, self.start_executing)
+            else:
+                self.hotkey_execute_status()
+                self.hotkey_execute_status = keys.add_hotkey(hotkey, self.start_executing)
+            self.uim.Hotkey_execute_button.setText(f"当前热键：{hotkey}")
+            print("获取到的热键：", hotkey)
+        if self.uim.record_hotkey != '未设置':
+            self.hotkey_record_status = keys.add_hotkey(self.uim.record_hotkey, self.start_recording)
+
+    '''def start_executing(self):
+        if (self.execute_thread is None or not self.execute_thread.isRunning()) and (self.record_thread is None or not self.record_thread.isRunning()):  #检测录制/执行是否同时开启
+            self.execute_thread = ClickExecuteRecordThread(self)
+            self.execute_thread.finished_signal.connect(self.on_execute_finished)
+            self.execute_thread.start()
+        else:
+            print("执行已经开始 请等待结束后再进行操作")'''
+
+    def on_execute_finished(self):
+        self.handle_restore()
+        print("执行结束")
+        self.execute_thread = None
+
+    def Click_Record(self):  # 记录自动脚本
+        if self.file_lineEdit.text() == '':
+            QMessageBox.information(self, "提示", f"配置文件为空 请先选则文件")
+            return 0
+        self.handle_minimize()
+        #self.showMinimized()
+
+        wait_time = self.wait_doubleSpinBox.value()
         time.sleep(wait_time)
+        play_prompt_sound("C:\\Windows\\Media\\Windows Notify Messaging.wav")
         current_position = pyautogui.position()
         print("开始记录自动脚本")
         global last_time, records, last_key, last_event_type
 
         records = []
         last_time = time.time()
-        if self.uim.end_key_button.text() == "ESC":
+        if self.end_key_combo.currentText() == "ESC":
             ed_bu = Key.esc
-        elif self.uim.end_key_button.text() == "F8":
+        elif self.end_key_combo.currentText() == "F8":
             ed_bu = Key.f8
-        elif self.uim.end_key_button.text() == "F9":
+        elif self.end_key_combo.currentText() == "F9":
             ed_bu = Key.f9
-        elif self.uim.end_key_button.text() == "F10":
+        elif self.end_key_combo.currentText() == "F10":
             ed_bu = Key.f10
-        elif self.uim.end_key_button.text() == "END":
+        elif self.end_key_combo.currentText() == "END":
             ed_bu = Key.end
         else:
             ed_bu = Key.esc
@@ -1402,18 +2224,18 @@ class Ui_Form(QtWidgets.QMainWindow):
                 records.append([interval, 'M', action, [x, y]])
                 last_time = current_time
 
-        def on_scroll(dx, dy):
+        def on_scroll(x, y, dx, dy):
             global last_time
             current_time = time.time()
             interval = int((current_time - last_time) * 1000)
             action = 'mouse scroll'
-            records.append([interval, 'M', action, [dx, dy]])
+            records.append([interval, 'M', action, [0, dy]])
             last_time = current_time
 
         # 设置防抖时间间隔（毫秒）
         debounce_interval = 200
         last_key = None
-        last_event_type = None  # 'down' 或 'up'
+        last_event_type = None
 
         def on_press(key):
             global last_time, last_key, last_event_type
@@ -1464,37 +2286,14 @@ class Ui_Form(QtWidgets.QMainWindow):
         keyboard_listener = keyboard.Listener(on_press=on_press, on_release=on_release)
 
         mouse_listener.start()
+
         keyboard_listener.start()
 
         keyboard_listener.join()
 
-        move_times = 0
-        move_total_time = 0
-        for list_record in records:
-            if list_record[2] == 'mouse move':
-                if list_record[0] < 10:
-                    if move_times == 0:
-                        move_times = move_times + 1
-                        move_total_time = move_total_time + list_record[0]
-                        list_record[0] = 0
-                    else:
-                        move_total_time = move_total_time + list_record[0]
-                        if move_total_time >= 10:
-                            move_times = 0
-                            list_record[0] = move_total_time
-                            move_total_time = 0
-                        else:
-                            move_times = move_times + 1
-                            list_record[0] = 0
-                else:
-                    move_times = 0
-                    move_total_time = 0
-            else:
-                move_times = 0
-                move_total_time = 0
 
         # 打开文件进行写入
-        with open('./scripts/' + self.uim.button_file.text(), 'w') as f:
+        with open(self.file_lineEdit.text(), 'w') as f:
             for record in records:
                 if record[0] != 0:
                     if isinstance(record[3][1], str) and len(record[3][1]) == 1 and record[3][
@@ -1502,41 +2301,47 @@ class Ui_Form(QtWidgets.QMainWindow):
                         record[3] = (record[3][0], record[3][1].lower())
                     f.write(str(record) + '\n')
 
-        print("记录完毕")
+
+        mouse_listener.stop()
+        keyboard_listener.stop()
+
+        self.handle_restore()
         play_prompt_sound("C:\\Windows\\Media\\Windows Notify Messaging.wav")
-        self.showNormal()
+
         pyautogui.moveTo(current_position.x, current_position.y)
+        print("记录完毕")
 
     def Click_Record_execute(self):  # 执行自动脚本
-        if self.uim.button_file.text() in ('选择配置文件', '暂无配置文件 需要创建'):
-            pyautogui.confirm("需要先选择或创建配置文件")
+        if self.file_lineEdit.text() == '':
+            QMessageBox.information(self, "提示", f"配置文件为空 请先选则文件")
             return 0
         stop_script = False  # 局部变量，用于控制脚本停止
         listener = None  # 全局引用监听器
-
+        param = self.param_lineEdit.text()
         def key_listener():
             """监听键盘按键，检测终止按键"""
             nonlocal stop_script  # 使用非局部变量
+            nonlocal listener
 
             def on_press(key):
                 try:
                     # 检测到按键时停止脚本
-                    if self.uim.end_key_button.text() == "ESC":
+                    if self.end_key_combo.currentText() == "ESC":
                         ed_bu = Key.esc
-                    elif self.uim.end_key_button.text() == "F8":
+                    elif self.end_key_combo.currentText() == "F8":
                         ed_bu = Key.f8
-                    elif self.uim.end_key_button.text() == "F9":
+                    elif self.end_key_combo.currentText() == "F9":
                         ed_bu = Key.f9
-                    elif self.uim.end_key_button.text() == "F10":
+                    elif self.end_key_combo.currentText() == "F10":
                         ed_bu = Key.f10
-                    elif self.uim.end_key_button.text() == "END":
+                    elif self.end_key_combo.currentText() == "END":
                         ed_bu = Key.end
                     else:
                         ed_bu = Key.esc
                     if key == ed_bu:
                         nonlocal stop_script
                         stop_script = True
-                        print(f"检测到 {self.uim.end_key_button.text()}，脚本终止中...")
+                        print(f"检测到 {self.end_key_combo.currentText()}，脚本终止中...")
                 except Exception as e:
                     print(f"按键监听异常: {e}")
 
@@ -1548,14 +2353,17 @@ class Ui_Form(QtWidgets.QMainWindow):
         listener_thread = threading.Thread(target=key_listener, daemon=True)
         listener_thread.start()
 
+        self.showMinimized()
+
 
         play_prompt_sound("C:\\Windows\\Media\\Windows Notify Messaging.wav")
-        wait_time = self.uim.wait_doubleSpinBox.value()
+        wait_time = self.wait_doubleSpinBox.value()
         current_position = pyautogui.position()
-        count = self.uim._3spinBox_3.value()
+        count = self._3spinBox_3.value()
         time.sleep(wait_time)
 
-        self.showMinimized()
+
+        #self.handle_minimize()
 
         mouse_controller = MouseController()
         keyboard_controller = KeyboardController()
@@ -1633,9 +2441,14 @@ class Ui_Form(QtWidgets.QMainWindow):
 
         records = []
         record_time = 0
-        speed = self.uim.spinbox_play_speed.value()/100
-        print('speed:', speed)
-        with open('./scripts/' + self.uim.button_file.text(), 'r') as f:
+        pyautogui.PAUSE = 0
+        speed = self.spinbox_play_speed.value()/100
+        # 获取主屏幕
+        screen = app.primaryScreen()
+        # 获取屏幕分辨率
+        screen_width = screen.size().width()
+        screen_height = screen.size().height()
+        with open(self.file_lineEdit.text(), 'r') as f:
             for line in f:
                 if line[0] != '#':
                     record = eval(line.strip())
@@ -1655,11 +2468,16 @@ class Ui_Form(QtWidgets.QMainWindow):
                     listener.stop()  # 停止按键监听器
                     break
                 #time.sleep((record[0] - 1) / 1000)  # 等待时间````
-                precise_sleep(record[0]-1)
+                #precise_sleep(record[0]-1)
+                precise_sleep(record[0])
                 if record[1] == 'M':  # 鼠标事件
                     x, y = record[3] if record[2] != 'mouse scroll' else (None, None)
                     if 'mouse move' in record[2]:
+                        #pyautogui.moveTo(x, y)
                         mouse_controller.position = (x, y)
+                        '''absolute_x = (x * 65535) // screen_width
+                        absolute_y = (y * 65535) // screen_height
+                        win32api.mouse_event(win32con.MOUSEEVENTF_ABSOLUTE | win32con.MOUSEEVENTF_MOVE, absolute_x, absolute_y, 0, 0)'''
                     elif 'mouse left down' in record[2]:
                         mouse_controller.press(Button.left)
                     elif 'mouse left up' in record[2]:
@@ -1675,6 +2493,11 @@ class Ui_Form(QtWidgets.QMainWindow):
                     elif 'mouse scroll' in record[2]:
                         dx, dy = record[3]
                         mouse_controller.scroll(dx, dy)
+                    elif 'mouse scroll' in record[2]:
+                        dx, dy = record[3]
+                        mouse_controller.scroll(dx, dy)
+                        #win32api.SetCursorPos((x, y))
+
 
                 elif record[1] == 'K':  # 键盘事件
                     key_code, key_char = record[3]
@@ -1683,15 +2506,29 @@ class Ui_Form(QtWidgets.QMainWindow):
                         keyboard_controller.press(key)
                     elif 'up' in record[2]:
                         keyboard_controller.release(key)
-
-        end_ti = time.time()
-        print(f"实际执行时间:{(end_ti - star):.2f}秒")
-        self.showNormal()
-        pyautogui.moveTo(current_position.x, current_position.y)
-
+                """
+                        elif 'mouse left down' in record[2]:
+                        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
+                    elif 'mouse left up' in record[2]:
+                    win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+                elif 'mouse right down' in record[2]:
+                win32api.mouse_event(win32con.MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, 0)
+        
+            elif 'mouse right up' in record[2]:
+            win32api.mouse_event(win32con.MOUSEEVENTF_RIGHTUP, 0, 0, 0, 0)
+        
+        elif 'mouse middle down' in record[2]:
+        win32api.mouse_event(win32con.MOUSEEVENTF_MIDDLEDOWN, 0, 0, 0, 0)
+        elif 'mouse middle up' in record[2]:
+        win32api.mouse_event(win32con.MOUSEEVENTF_MIDDLEUP, 0, 0, 0, 0)"""
         # 停止监听器
         if listener is not None:
             listener.stop()
+        end_ti = time.time()
+        print(f"实际执行时间:{(end_ti - star):.2f}秒")
+        #self.showNormal()
+        self.handle_restore()
+        pyautogui.moveTo(current_position.x, current_position.y)
 
     def about(self):
         pyautogui.confirm(
@@ -1704,14 +2541,7 @@ class Ui_Form(QtWidgets.QMainWindow):
     def open_website_help(self):
         webbrowser.open("https://fcyang.cn/others/help.html")
 
-    def delete_images(self):
-        reply = QMessageBox.question(self, '确认删除', "你确定要删除文件夹内容吗?",
-                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
-        if reply == QMessageBox.Yes:
-            shutil.rmtree('./mod/picture')
-            # 重新创建空文件夹
-            os.mkdir('./mod/picture')
-            pyautogui.confirm("图片清除成功!")
+
 
     def createMenu(self):  #连点器开启按键
         menu = QMenu(self)
@@ -1819,26 +2649,29 @@ class Ui_Form(QtWidgets.QMainWindow):
 
     def action_Clicked(self, key):
         if key == '自定义':
-            custom = pyautogui.prompt()
-            if custom.isdigit():
-                self.uim.sort = f'自 {custom}'
-                self.uim._3pushButton_4.setText(f"设置启停快捷键({self.uim.sort})")
-            else:
-                RESULT = pyautogui.confirm(
-                    "格式错误 请输入正确的按键所对应的数字 详情请参考: https://fcyang.cn/others/key.html\n是否跳转到该页面?")
-                if RESULT == "OK":
-                    webbrowser.open("https://fcyang.cn/others/key.html")
+            detector = SundryUI.KeyDetector()
+            if detector.exec_() == QDialog.Accepted:
+                name = detector.inverted_dict.get(
+                    detector.current_keycode,
+                    f"未知按键: {detector.current_keycode}"
+                )
+                if detector.current_keycode != 1:
+                    self.sort = name
+                    self._3pushButton_4.setText(f"设置启停快捷键({self.sort})")
+                    self.update_shared_params()
+                    print(name,detector.current_keycode)
         else:
-            self.uim.sort = key
-            self.uim._3pushButton_4.setText(f"设置启停快捷键({self.uim.sort})")
+            self.sort = key
+            self._3pushButton_4.setText(f"设置启停快捷键({self.sort})")
+            self.update_shared_params()
 
     def key_menu_com(self, types, key):
         if types == 'record':
-            self.uim.end_key = key
-            self.uim.end_key_button.setText(f"{key}")
+            self.end_key = key
+            self.end_key_button.setText(f"{key}")
         elif types == 'execute':
-            self.uim.end_execute_key = key
-            self.uim.end_execute_button.setText(f"{key}")
+            self.end_execute_key = key
+            self.end_execute_button.setText(f"{key}")
 
     def delete_file(self):
         if (self.uim.button_file.text() not in ('选择配置文件', '暂无配置文件 需要创建')):
@@ -1897,40 +2730,24 @@ class Ui_Form(QtWidgets.QMainWindow):
         next_number = max_number + 1
         return f"{date_str}-{next_number:02d}.txt"
 
-    def update_checks(self):  # 判断哪个 RadioButton 被选中  序列发送类型选择
-        if self.uim.order_radio_list.isChecked():
-            self.uim.order_list_int_label.setEnabled(True)
-            self.uim.order_list_int.setEnabled(True)
-            self.uim.order_random_int_label.setEnabled(False)
-            self.uim.order_random_int.setEnabled(False)
-            self.uim.order_list_speed.setEnabled(True)
-            self.uim._2doubleSpinBox_order_list.setEnabled(True)
-            self.uim.order_random_speed.setEnabled(False)
-            self.uim._2doubleSpinBox_order_random.setEnabled(False)
-        elif self.uim.order_radio_random.isChecked():
-            self.uim.order_list_int_label.setEnabled(False)
-            self.uim.order_list_int.setEnabled(False)
-            self.uim.order_random_int_label.setEnabled(True)
-            self.uim.order_random_int.setEnabled(True)
-            self.uim.order_list_speed.setEnabled(False)
-            self.uim._2doubleSpinBox_order_list.setEnabled(False)
-            self.uim.order_random_speed.setEnabled(True)
-            self.uim._2doubleSpinBox_order_random.setEnabled(True)
+
 
     def mixPicture(self):  # 图片格式转换
         # 检查选择的格式
-        if self.uim.JPG_radioButton.isChecked():
+        if self.JPG_radioButton.isChecked():
             output_image_format = "JPG"
-        elif self.uim.PNG_radioButton.isChecked():
+        elif self.PNG_radioButton.isChecked():
             output_image_format = "PNG"
-        elif self.uim.GIF_radioButton.isChecked():
+        elif self.GIF_radioButton.isChecked():
             output_image_format = "GIF"
+        elif self.PDF_radioButton.isChecked():
+            output_image_format = "PDF"
         else:
             pyautogui.confirm("ERROR!")
             return 0
 
-        input_image_path = self.uim._5lineEdit4.text()
-        output_folder_path = self.uim._5lineEdit5.text()
+        input_image_path = self.pic_input_lineEdit.text()
+        output_folder_path = self.pic_output_lineEdit.text()
         if input_image_path == '' or output_folder_path == '':
             pyautogui.confirm("请选则文件")
             return 0
@@ -1955,11 +2772,11 @@ class Ui_Form(QtWidgets.QMainWindow):
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/69.0.3497.100 Safari/537.36'
             }
 
-            url = self.uim._5lineEdit.text()
+            url = self.music_url.text()
             music_id = url.split('=')[1]
             response = requests.get(download_url.format(music_id), headers=headers)
-            file_name = self.uim._5lineEdit2.text()
-            save_path = f'{self.uim._5lineEdit3.text()}\\{file_name}'
+            file_name = self.music_filename.text()
+            save_path = f'{self.music_savepath.text()}\\{file_name}'
             with open(save_path, 'wb') as file:
                 file.write(response.content)
             with open(save_path, 'rb') as f:
@@ -1975,7 +2792,7 @@ class Ui_Form(QtWidgets.QMainWindow):
                     else:
                         file_size = f"{(file_size_bytes / 1_024 / 1_024):.2f} MB"  # 转换为 MB
 
-                    self.show_message_box("提示", f"下载成功! 文件大小:{file_size}")
+                    self.show_message_box("提示", f"下载成功! {file_name} 文件大小:{file_size}")
         except Exception as e:
             self.show_message_box("提示", f"下载失败:{e}")
 
@@ -2018,189 +2835,198 @@ class Ui_Form(QtWidgets.QMainWindow):
             executor.map(save_frame, frame_list)
         print(f"Frames saved successfully. Total frames: {frame_count}")
 
-    def show_folder_dialog(self, number):  # 文件路径选择
-        if number == 1:  # 网音乐音乐输出路径
-            folder_path = QFileDialog.getExistingDirectory(self, 'Select Folder')
-            folder_path = folder_path.replace("/", "\\")
-            self.uim._5lineEdit3.setText(folder_path)
-        elif number == 2:  # 图片输入
-            options = QFileDialog.Options()
-            options |= QFileDialog.ReadOnly
-            file_name, _ = QFileDialog.getOpenFileName(self, "Select Image", "",
-                                                       "Image Files (*.jpg *.png *.bmp *.gif *.pdf *.docx)",
-                                                       options=options)
-            file_name = file_name.replace("/", "\\")
-            if file_name:
-                self.uim._5lineEdit4.setText(file_name)
-                if self.uim._5lineEdit5.text() == '':
-                    parent_folder = os.path.dirname(file_name)
-                    self.uim._5lineEdit5.setText(parent_folder)
-        elif number == 3:  # 图片输出路径
-            folder_path = QFileDialog.getExistingDirectory(self, 'Select Folder')
-            folder_path = folder_path.replace("/", "\\")
-            self.uim._5lineEdit5.setText(folder_path)
-        elif number == 4:  # QQ群信息保存
-            folder_path = QFileDialog.getExistingDirectory(self, 'Select Folder')
-            folder_path = folder_path.replace("/", "\\")
-            self.uim.QQ_Group_Save.setText(folder_path)
-        elif number == 5:  # QQ序列发送文件选择
-            options = QFileDialog.Options()
-            options |= QFileDialog.ReadOnly
-            file_name, _ = QFileDialog.getOpenFileName(self, "Select Image", "",
-                                                       "Image Files (*.txt)",
-                                                       options=options)
-            file_name = file_name.replace("/", "\\")
-            self.uim.order_lineEdit.setText(file_name)
 
     def quit_team_H(self):  #队员退出队伍
-        self.uim.create_team_button.setVisible(True)  # 创建队伍按钮
-        self.uim.button_copy_id.setVisible(False)  # 复制
-        self.uim.random_id_Label.setText("队伍ID为:")
-        self.uim.random_id_Label.setVisible(False)
-        self.uim.add_team_label.setVisible(True)  # 加入队伍标签
-        self.uim.button_copy_id.setVisible(False)  # 复制ID按钮
-        self.uim.add_team_ID.setVisible(True)
-        self.uim.add_team_lineEdit.setVisible(True)
-        self.uim.add_team_button.setVisible(True)
-        self.uim.create_team_label_prompt.setVisible(False)
 
+        self.create_team_button.setVisible(True)  # 创建队伍按钮
+        self.add_team_lineEdit.setVisible(True)  # 加入队伍标签
+        self.add_team_button.setVisible(True)
+        self.button_copy_id.setVisible(False)  # 复制ID按钮
 
-        for button in self.uim.buttonGroup2.buttons():
-            button.setVisible(False)
-        for button in self.uim.buttonGroup3.buttons():
-            button.setVisible(False)
-        self.uim.run_execute.setVisible(False)
+        self.add_team_ID.setText(f"队伍ID为:")
+        self.add_team_ID.setVisible(False)
 
-        icon = QIcon("./image/other_user.png")  # 将此处的路径替换为实际的图像路径
-        scaled_icon = icon.pixmap(QSize(140, 140)).scaled(
-            QSize(140, 140),
-            Qt.AspectRatioMode.IgnoreAspectRatio,
-            Qt.TransformationMode.SmoothTransformation)
-        self.uim.user2_image.setIcon(QIcon(scaled_icon))
-        self.uim.user2_image.update()
-        self.uim.user2_name.setText("等待用户加入")
-        self.uim.user2_id.setText("ID:")
+        self.user2.lbl_name.setText("等待用户加入")
+        self.user2.lbl_id.setText("id: ")
+        self.user2.avatar_user_team = QPixmap('.image/other_user.png').scaled(100, 100,Qt.KeepAspectRatio,Qt.SmoothTransformation)
+        self.user2.avatar_frame.setPixmap(self.user2.avatar_user_team)
 
-        self.uim.talk_textBrowser.setVisible(False)
-        self.uim.talk_lineEdit.setVisible(False)
+    def set_variables(self, vars_dict, namespace=None):
+        """
+        通过变量名字符串动态修改指定命名空间中的变量值
+        :param vars_dict: 字典格式 {变量名: 新值}
+        :param namespace: 命名空间字典，默认使用全局作用域
+        """
+        namespace = namespace or globals()
+        assignments = "; ".join(
+            [f"{k} = {repr(v)}" for k, v in vars_dict.items()]
+        )
+        exec(assignments, namespace)
 
     def quit_team_C(self):  # 队长退出队伍
-        self.uim.create_team_label.setVisible(True)
-        self.uim.random_id_Label.setText("队伍ID为:")
-        self.uim.random_id_Label.setVisible(False)
-        self.uim.create_team_button.setVisible(True)
-        self.uim.add_team_label_prompt_right.setVisible(False)
+        self.create_team_button.setVisible(True)  # 创建队伍按钮
+        self.add_team_lineEdit.setVisible(True)  # 加入队伍标签
+        self.add_team_button.setVisible(True)
+        self.create_team_label_prompt.setVisible(False)  # 复制ID按钮
+        self.user1.combo_options.setVisible(True)
+        self.user2.combo_options.setVisible(True)
+        self.team_execute_prompt.setText("等待队长开始执行...")
+        self.team_layout.removeWidget(self.team_execute_prompt)  # 解绑控件与布局
+        self.team_execute_prompt.setParent(None)  # 解除父级关联
+        self.team_execute_prompt.hide()  # 隐藏控件
+        self.team_btn_start.setVisible(True)
 
+        self.user1.lbl_name.setText(f"{self.username.text()}[我]")
+        self.user1.lbl_id.setText(f"{self.username.text()}")
+        self.user1.avatar_user_team = QPixmap('./temp/avatar.png').scaled(100, 100,
+                                                                             Qt.KeepAspectRatio,
+                                                                             Qt.SmoothTransformation)
+        self.user1.avatar_frame.setPixmap(self.user1.avatar_user_team)
 
-        self.uim.add_team_label.setVisible(True)
-        self.uim.add_team_label_prompt.setVisible(False)
-        self.uim.add_team_ID.setVisible(True)
-        self.uim.add_team_lineEdit.setText("")
-        self.uim.add_team_lineEdit.setVisible(True)
-        self.uim.add_team_button.setVisible(True)
-
-        icon = QIcon("./image/other_user.png")  # 将此处的路径替换为实际的图像路径
-        scaled_icon = icon.pixmap(QSize(140, 140)).scaled(QSize(140, 140), Qt.AspectRatioMode.IgnoreAspectRatio,
-                                                          Qt.TransformationMode.SmoothTransformation)
-        self.uim.user2_image.setIcon(QIcon(scaled_icon))
-        self.uim.user2_image.setIconSize(QSize(140, 140))
-        self.uim.user2_name.setText("等待用户加入")
-        self.uim.user2_id.setText("ID:")
-        self.uim.talk_textBrowser.setVisible(False)
-        self.uim.talk_lineEdit.setVisible(False)
-        self.uim.talk_textBrowser.setGeometry(20, 480, 240, 80)
-        self.uim.talk_lineEdit.setGeometry(20, 560, 240, 20)
-        self.uim.wait_label.setVisible(False)
+        self.user2.lbl_name.setText("等待用户加入")
+        self.user2.lbl_id.setText("id: ")
+        self.user2.avatar_user_team = QPixmap('.image/other_user.png').scaled(100, 100,Qt.KeepAspectRatio,Qt.SmoothTransformation)
+        self.user2.avatar_frame.setPixmap(self.user2.avatar_user_team)
 
     def team(self):  # 创建队伍
-        self.uim.create_team_button.setVisible(False)  # 创建队伍按钮
-        self.uim.add_team_label.setVisible(False)  #加入队伍标签
-        self.uim.button_copy_id.setVisible(True)  # 复制ID按钮
+        self.create_team_button.setVisible(False)  # 创建队伍按钮
+        self.add_team_lineEdit.setVisible(False)  #加入队伍标签
+        self.add_team_button.setVisible(False)
+        self.button_copy_id.setVisible(True)  # 复制ID按钮
         characters = string.ascii_letters + string.digits
         global random_string
         random_string = ''.join(random.choices(characters, k=30))
-        self.uim.random_id_Label.setText(f"队伍ID为:{random_string}")
-        self.uim.random_id_Label.setVisible(True)
+        self.add_team_ID.setText(f"队伍ID为:{random_string}")
+        self.add_team_ID.setVisible(True)
 
-        self.uim.create_team_label_prompt.setVisible(True)  # 队伍已创建
-        self.uim.add_team_ID.setVisible(False)  # ID label
-        self.uim.add_team_lineEdit.setVisible(False)  # 输入栏
-        self.uim.add_team_button.setVisible(False)  # 加入按钮
 
-        send_encry(f'10004 {random_string}')
+        TypedJSONClient('create_team', {'number': random_string})
 
-    def jointeam(self):
-        id = self.uim.add_team_lineEdit.text()
+    def join_team(self):
+        id = self.add_team_lineEdit.text()
         if len(id) != 30:
             self.show_message_box("提示", "队伍id不正确!")
         else:
-            send_encry(f'20001 {id}')
+            TypedJSONClient('join_team', {'number': id})
 
     def team_c(self):
-        captain, member = self.uim.checkRadio()
-        if member == 'handle':
-            send_encry('20011')
-        elif member == 'qq':
-            send_encry('20012')
-        elif member == 'copy':
-            send_encry('20013')
-        elif member == 'renew':
-            send_encry('20014')
-        elif member == 'execute':
-            send_encry('20015')
+        captain = self.user1.combo_options.currentIndex()
+        member = self.user2.combo_options.currentIndex()
+        types = None
+        if member == 0:
+            types = 'handle_send'
+        elif member == 1:
+            types = 'user_send'
+        elif member == 2:
+            types = 'copy_send'
+        elif member == 3:
+            types = 'information_update'
+        elif member == 4:
+            types = 'record_execute'
         else:
-            send_encry('20016')
-        if captain == 'handle':
+            types = 'unknown'
+        if types == 'unknown':
+            self.show_message_box('提示', '未知类型')
+            return
+        TypedJSONClient('team_execute', {'types': types})
+        if captain == 0:
             self.Handle_Send()
-        elif captain == 'qq':
+        elif captain == 1:
             self.Send_QQ()
-        elif captain == 'copy':
+        elif captain == 2:
             self.Send_Copy()
-        elif captain == 'renew':
+        elif captain == 3:
             self.QQ_image_update()
-        elif captain == 'execute':
+        elif captain == 4:
             self.Click_Record_execute()
         else:
-            pyautogui.confirm("ERROR! UNKNOWN")
+            self.show_message_box('提示', '未知类型')
 
-    def copy(self):
+    def deal_team_send(self, types):
+        if types == 'handle_send':
+            self.team_execute_prompt.setText(f"即将发送QQ句柄消息")
+            self.Handle_Send()
+        elif types == 'user_send':
+            self.team_execute_prompt.setText(f"即将发送@QQ消息")
+            self.Handle_Send()
+        elif types == 'copy_send':
+            self.team_execute_prompt.setText(f"即将发送QQ复制消息")
+            self.Handle_Send()
+        elif types == 'information_update':
+            self.team_execute_prompt.setText(f"即将进行QQ信息更新")
+            self.Handle_Send()
+        elif types == 'record_execute':
+            self.team_execute_prompt.setText(f"即将开始执行自动脚本")
+            self.Handle_Send()
+        else:
+            self.team_execute_prompt.setText(f"未知类型 错误!")
+            self.show_message_box('提示', '未知类型')
+
+    def copy_team_number(self):
         global random_string
         clipboard = QApplication.clipboard()
         clipboard.setText(f'{random_string}')
 
-    def mousePressEvent(self, e):
-        if e.y() <= 30:  # 30像素的标题栏高度
-            self.start_point = e.globalPos()
-            self.window_point = self.frameGeometry().topLeft()
+    def showEvent(self, e):
+        if self.first_image == False:
+            if Theme == "Custom":  # 自定义图片背景设置
+                with open('config.json', 'r') as file:
+                    config = json.load(file)
+                Path_Custom_S = config.get("Path")
+                print(Path_Custom_S)
+                self.should_draw = "Custom"
+                im = Image.open(Path_Custom_S)
+                reim = im.resize((self.width(), self.height()))  # 宽*高
+                reim.save('./temp/background_custom.png',
+                          dpi=(400, 400))  ##200.0,200.0分别为想要设定的dpi值
+                # 打开图片
+                image = Image.open('./temp/background_custom.png')
+                # 应用高斯模糊，radius参数控制模糊程度（半径越大越模糊）
+                blurred_image = image.filter(ImageFilter.GaussianBlur(radius=5))
+                # 保存处理后的图片
+                blurred_image.save('./temp/background_custom.png')
 
-    def mouseMoveEvent(self, e):
-        if hasattr(self, 'start_point'):
-            relpos = e.globalPos() - self.start_point
-            self.move(self.window_point + relpos)
+                palette = QPalette()
+                palette.setBrush(QPalette.Background,
+                                 QBrush(QPixmap('./temp/background_custom.png')))
 
-    def mouseReleaseEvent(self, e):
-        if hasattr(self, 'start_point'):
-            delattr(self, 'start_point')
+                self.setPalette(palette)
+                trp = transparent / 100
+                # 设置整体透明度（会影响所有子元素）
+                self.sidebar.setGraphicsEffect(QGraphicsOpacityEffect(opacity=trp))
+                self.stack.setGraphicsEffect(QGraphicsOpacityEffect(opacity=trp - 0.1))
+                print('成功设置背景')
+
+                del Path_Custom_S
+                self.first_image = True
+            elif Theme == 'Trend':
+                self.execute_trend()
+                self.first_image = True
 
     def show_message_box(self, head, message):
         QMessageBox.question(self, head, message,
                              QMessageBox.Yes)
 
+    def handle_message(self, title, content):
+        reply = QMessageBox.information(self, title, content, QMessageBox.Yes)
 
 class LoginWindow(QMainWindow):  # 实例化登录窗口
-    global resign_window, reword_window
     def __init__(self):
         super().__init__()
         self.ui = Login.Ui_MainWindow()
         self.ui.setupUi(self)
+        self.reset_window_status = False
+        self.register_window_status = False
+        self.reset_window = None
+        self.register_window = None
         if remember == True:
             self.ui.checkBox.click()
-        if Log == True:
+        if AutoLogin == True:
             self.ui.checkBox2.click()
-        self.ui.Account_lineEdit.setText('此版本为开源版本 点击登录即可使用')
-        self.ui.Password_lineEdit.setText('此版本为开源版本 点击登录即可使用')
+        self.ui.Account_lineEdit.setText(str(Account))
+        self.ui.Password_lineEdit.setText(str(Password))
         self.setWindowTitle("Fuchen 登录")
-        icon = QIcon("./image/window.ico")
+        icon = QIcon(".image/window.ico")
         self.setWindowIcon(icon)
         self.ui.pushButton_signin.clicked.connect(self.reg)  # 注册按钮
         self.ui.Login_Button.clicked.connect(lambda: self.LOGIN("login"))  # 登录按钮
@@ -2228,17 +3054,17 @@ class LoginWindow(QMainWindow):  # 实例化登录窗口
     def open_file_background(self):
         RESULE = pyautogui.confirm("登录界面背景图片可自定义\n若文件夹中存放多个图片将随机选择一张\n点击确认将打开图片文件夹")
         if RESULE == "OK":
-            folder_path = './image/Background'  # 修改为你要打开的文件夹路径
+            folder_path = 'C:\\Fuchen\\image'  # 修改为你要打开的文件夹路径
             url = QUrl.fromLocalFile(folder_path)
             QDesktopServices.openUrl(url)
 
 
     def closeEvent(self, e):
         self.close()
-        if reword_window == True:
-            window_reword.close()
-        if resign_window == True:
-            window_signin.close()
+        if self.reset_window_status == True:
+            self.reset_window.close()
+        if self.register_window_status == True:
+            self.register_window.close()
         #os._exit(0)
 
     def key(self, types):
@@ -2268,21 +3094,21 @@ class LoginWindow(QMainWindow):  # 实例化登录窗口
             delattr(self, 'start_point')
 
     def LOGIN(self, mode):  # 登录函数
-        global Log,city_name,Account
+        global AutoLogin,city_name,Account
         try:
             if mode == 'login':
                 self.ui.Login_Button.setEnabled(False)
                 time.sleep(0.1)
                 Account = self.ui.Account_lineEdit.text()
                 Password = self.ui.Password_lineEdit.text()
-                '''if (len(Account) != 6) and ('@' not in Account):  #非邮箱非数字
-                    if Log == True:
+                if (len(Account) != 6) and ('@' not in Account):  #非邮箱非数字
+                    if AutoLogin == True:
                         window_login.show()
                     pyautogui.confirm("账号为6位数字或邮箱 请重新输入!")
                     self.ui.Login_Button.setEnabled(True)
                     return 0
                 if not (7 < len(Password) < 16):
-                    if Log == True:
+                    if AutoLogin == True:
                         window_login.show()
                     pyautogui.confirm("密码为8-15位 请重新输入!")
                     self.ui.Login_Button.setEnabled(True)
@@ -2298,37 +3124,47 @@ class LoginWindow(QMainWindow):  # 实例化登录窗口
                     domain_part = domain_part.lower()
                     # 将用户名和处理后的域名拼接起来
                     Account = f"{local_part}@{domain_part}"
-                    del local_part,domain_part'''
-                '''send_encry('login')
+                    del local_part,domain_part
+                TypedJSONClient('login', {'user_input': Account, 'password': Password, 'position':city_name, 'system': system, 'computer_name': computer_name})
                 time.sleep(0.1)
-                send_encry((Account + ' ' + Password + ' ' + city_name + ' ' + system + ' ' + computer_name))
-                log_ST = s.recv(256)
-                log_ST = send_decry(log_ST)  # 密码是否正确状态'''
-                log_ST = 'True'
-                if eval(log_ST) == True:
+                request = recv_json(s)
+                print(request)
+                if request.get('type') == 'login_status':
+                    log_ST = request.get('data')
+                    print(log_ST)
+                    log_ST = log_ST.get("status")
+                    #if log_ST ==
+                if log_ST == "pass":
                     print("密码正确 正在加载中")
                 elif log_ST == "Cooling":
                     pyautogui.confirm("账号密码输入次数过多 账号已被锁定!请于一小时后重新登录")
                 else:
                     print("密码错误 请重试")
             elif mode == 'tourist_login':
+                TypedJSONClient('login_tourist',
+                                {'position': city_name})
                 self.ui.Login_Button.setEnabled(False)
+
                 Account = "游客"
                 Password = "None"
-                send_encry('tourist_login')
+                #send_encry('tourist_login')
                 time.sleep(0.1)
-                send_encry(city_name)
-                log_ST = s.recv(256)
-                log_ST = send_decry(log_ST)  # 密码是否正确状态
+                request = recv_json(s)
+                if request.get('type') == 'login_status':
+                    log_ST = request.get('data')
+                    print(log_ST)
+                    log_ST = log_ST.get("status")
             elif mode == 'offline_login':
                 self.ui.Login_Button.setEnabled(False)
                 Account = "离线"
                 Password = "None"
                 time.sleep(0.1)
-                log_ST = 'True'
+                log_ST = 'pass'
             else:
-                log_ST = 'False'
-            if log_ST == 'True':  # 密码正确
+                log_ST = 'fail'
+            if log_ST == 'pass':  # 密码正确
+
+
                 self.ui.pushButton_signin.setEnabled(False)
                 self.ui.Login_Button.setEnabled(False)
                 self.ui.pushButton_short.setEnabled(False)
@@ -2338,73 +3174,49 @@ class LoginWindow(QMainWindow):  # 实例化登录窗口
                 # 记录开始时间
                 start_time = time.time()
                 if connect_status != None:
-                    pass
-                    '''dat = s.recv(4096)  # 开始处理用户信息
-                    try:
-                        dat = send_decry(dat)
-                    except:
-                        RESULT = pyautogui.confirm("数据处理失败 请尝试重启客户端\n点击确认将自动重启")
-                        if RESULT == 'OK':
-                            try:
-                                subprocess.Popen([Fuchen_fullname])
-                            except:
-                                pass'''
+                    request = recv_json(s)
+                    request_type = request.get('type')
+                    request_data = request.get('data')
+                    if request_type == 'login_successfully':
+                        if "@" in Account:
+                            Account = request_data.get("account")
+                        global Name, Email, exp, avatar_date, avatar_status
+                        Name = request_data.get("name")
+                        Email = request_data.get("email")
+                        avatar_status = request_data.get("avatar_status")
+                        avatar_date = request_data.get("avatar_date")
+                        exp = request_data.get("exp")
                 else:
-                    dat = "游客 None False 2000-1-1 100 000000"
-                #dat = dat.split()
-                dat = ['开源版本', '123456@example.com', '1000', '2025-1-27','123456']
-                print(dat)
-                global Name, Email, exp, HImage_date
-                Name = dat[0]  # 名称
+                    #dat = "游客 None False 2000-1-1 100 000000"
+
+                    Name = '游客'
+                    Email = None
+                    avatar_status = False
+                    avatar_date = '2000-1-1'
+                    exp = 100
+                #global Name, Email, exp, avatar_date
+                '''Name = dat[0]  # 名称
                 Email = dat[1]  # 邮箱
-                HeadImage_status = dat[2]  # 是否有头像
+                avatar_status = dat[2]  # 是否有头像
                 exp = int(dat[4])  # 经验值
                 if "@" in Account:
                     Account = dat[5]
-                '''fixed_key = b'j7_d7DWdCj7AzRdDhY7FJ0djQUa1t6_fJ0itlCubwMM='  # 使用一个固定的密钥
-                # 创建一个Fernet密码学对象
-                cipher_suite = Fernet(fixed_key)
-                # 解密
-                # 先使用Base64解码
-                ciphertext_decoded = base64.b64decode(exp)
-                decrypted_bytes = cipher_suite.decrypt(ciphertext_decoded)
-                # 将解密后的字节串转换回数字
-                exp = int(decrypted_bytes.decode('utf-8'))  # 解密后的经验值
-                global lv
-                if 0 <= exp < 20:
-                    lv = 1
-                elif 20 <= exp <300:
-                    lv = 2
-                elif 300 <= exp < 600:
-                    lv = 3
-                elif 600 <= exp <1000:
-                    lv = 4
-                elif 1000 <=exp:
-                    lv = 5
-                # 将整数转换为字节数组（二进制数据）
-                data_to_encrypt = str(lv).encode('utf-8')
-                # 创建SHA-512哈希对象
-                sha512_hash = hashlib.sha512()
-                # 更新哈希对象以处理数据
-                sha512_hash.update(data_to_encrypt)
-                # 计算SHA-512哈希值
-                new_lv = sha512_hash.hexdigest()  # 经过sha512再 次加密后的经验等级 1-2-3-4-5'''
-                HImage_date = dat[3]  # 用户上一次更新头像的日期
-                year, month, day = map(int, HImage_date.split('-'))
-                HImage_date = date(year, month, day)  # 继续处理
+                avatar_date = dat[3]  # 用户上一次更新头像的日期'''
                 time.sleep(0.1)
-                if HeadImage_status == 'True':
+                if avatar_status == True:
                     try:
                         self.ui.Login_Button.setText("正在加载用户头像")
                         self.ui.Login_Button.repaint()
                         print(f'正在加载用户头像 {Account}.jpg')
                         # 接收图片文件大小
                         file_size = int(s.recv(1024).decode().rstrip('\n'))
-                        with open('./temp/HImage.png', 'wb') as file:
+                        with open('./temp/avatar.png', 'wb') as file:
                             total_received = 0
                             while total_received < file_size:
                                 chunk = s.recv(2048)
-                                time.sleep(0.2)
+                                time.sleep(0.05)
+                                if chunk == '\n':  # 检测到结束标记
+                                    break
                                 if not chunk:
                                     break
                                 file.write(chunk)
@@ -2413,8 +3225,8 @@ class LoginWindow(QMainWindow):  # 实例化登录窗口
                                 self.ui.Login_Button.setText(f"正在加载用户头像 {progress_percentage}%")
                                 self.ui.Login_Button.repaint()
                         print('文件写入完成')
-                        global HImage_load_status
-                        HImage_load_status = True
+                        global avatar_load_status
+                        avatar_load_status = True
                         self.ui.Login_Button.setText("头像加载成功")
                     except Exception as e:
                         print("文件接收类型错误", e)
@@ -2430,7 +3242,7 @@ class LoginWindow(QMainWindow):  # 实例化登录窗口
                     config["Account"] = f"{self.ui.Account_lineEdit.text()}"
                     config["Password"] = f"{self.ui.Password_lineEdit.text()}"
                     config["AutoLogin"] = True
-                    Log = True
+                    AutoLogin = True
                     # 将更新后的数据写入 JSON 文件
                     with open('config.json', 'w') as file:
                         json.dump(config, file, indent=4)
@@ -2451,7 +3263,7 @@ class LoginWindow(QMainWindow):  # 实例化登录窗口
                         config = json.load(file)
                     # 添加新元素到数据结构
                     config["AutoLogin"] = True
-                    Log = True
+                    AutoLogin = True
                     # 将更新后的数据写入 JSON 文件
                     with open('config.json', 'w') as file:
                         json.dump(config, file, indent=4)
@@ -2484,7 +3296,16 @@ class LoginWindow(QMainWindow):  # 实例化登录窗口
                 transparent = config.get("transparent", 30)
                 FPS = config.get("FPS", 16)
                 try:
-                    windows = Ui_Form()
+                    new_mainpage.Name = Name
+                    new_mainpage.Account = Account
+                    new_mainpage.Version = Version
+                    new_mainpage.information = information
+                    new_mainpage.avatar_load_status = avatar_load_status
+                    new_mainpage.position_status = position_status
+                    new_mainpage.textedit_position = textedit_position
+                    new_mainpage.send_position = send_position
+                    new_mainpage.mode = Account
+                    windows = Ui_Form(stdout_stream, stderr_stream)
                     windows.show()
                     print("窗口成功打开")
 
@@ -2496,19 +3317,18 @@ class LoginWindow(QMainWindow):  # 实例化登录窗口
                     execution_time = end_time - start_time
                     execution_time = round(execution_time, 2)
                     global current_time_string
-                    sys_list.append('g' + '[' + time.strftime(
-                        "%H:%M:%S") + ']' + f"窗口打开成功 本次登录耗时:{execution_time}秒")
+                    print(f"窗口打开成功 本次登录耗时:{execution_time}秒")
                     windows.show()
                 except Exception as e:
                     traceback.print_exc()
                     print(e)
 
 
-            elif log_ST == "Cooling":
+            elif log_ST == "cooling":
                 pyautogui.confirm("账号密码输入次数过多 账号已被锁定!请于一小时后重新登录")
             else:
                 self.ui.Login_Button.setEnabled(False)
-                if Log == True:
+                if AutoLogin == True:
                     window_login.show()
                 time.sleep(0.5)
                 pyautogui.confirm("密码错误")
@@ -2518,362 +3338,24 @@ class LoginWindow(QMainWindow):  # 实例化登录窗口
             pyautogui.confirm("未知错误", e)
 
     def reg(self):
-        global resign_window
-        if resign_window is False:
-            resign_window = True
-            window_signin.exec_()
+        if self.register_window_status is False:
+            self.register_window_status = True
+            self.register_window = Register(s)
+            self.register_window.exec_()
+            if self.register_window.result_value!= None:
+                if self.register_window.result_value[0] == '注册成功':
+                    self.ui.Account_lineEdit.setText(self.register_window.result_value[1])
+                    self.ui.Password_lineEdit.setText(self.register_window.result_value[2])
+                    self.ui.checkBox.setChecked(True)
+            self.register_window_status = False
+
     def rew(self):
-        global reword_window
-        if reword_window is False:
-            reword_window = True
-            window_reword.exec_()
+        if self.reset_window_status == False:
+            self.reset_window_status = True
+            self.reset_window = Reset(s)
+            self.reset_window.exec_()
+            self.reset_window_status = False
 
-
-class SigninWindow(QtWidgets.QDialog):  # 实例化注册窗口
-    global Email
-    Email = None
-    def __init__(self):
-        super().__init__()
-        self.ui2 = Signin.MainWindow()
-        self.ui2.setupUi(self)
-        self.ui2.SigninButton.clicked.connect(self.Registration)
-        self.ui2.QuitButton.clicked.connect(self.close)
-        self.pushButton3 = QPushButton(self)
-        self.pushButton3.setGeometry(QtCore.QRect(255, 290, 105, 31))
-        self.pushButton3.setText("获取验证码")
-        self.pushButton3.setObjectName("pushButton")
-        # 创建圆角按钮样式
-        style = "QPushButton#pushButton {border-radius: 5px; background-color: #55c3ff; color: white;}"
-        self.pushButton3.setStyleSheet(style)
-        self.pushButton3.clicked.connect(self.send)
-
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.update_timer)
-        self.remaining_time = 60
-        self.border_width = 8
-        self.setAttribute(Qt.WA_TranslucentBackground)
-        self.setWindowFlags(Qt.FramelessWindowHint | Qt.Window)
-
-    def send(self):
-        global Email
-        Email = self.ui2.EmailEdit.text()
-        if validate_email(Email) == 0:
-            send_encry("**--*Registration*--**")
-            time.sleep(0.3)
-            send_encry(f'Email {self.ui2.EmailEdit.text()}')
-            self.pushButton3.setEnabled(False)
-            style = "QPushButton#pushButton {border-radius: 5px; background-color: #e0e0e0; color: white;}"
-            self.pushButton3.setStyleSheet(style)
-            result = s.recv(256)
-            result = send_decry(result)
-            if result == 'Successfully_send':
-                self.remaining_time = 60
-                self.timer.start(1000)
-                self.update_timer()
-                pyautogui.confirm("验证码发送成功!")
-            else:
-                self.pushButton3.setEnabled(True)
-                pyautogui.confirm("验证码发送失败")
-        else:
-            pyautogui.confirm("请输入正确的邮箱")
-
-    def update_timer(self):  # 验证码更新
-        if self.remaining_time > 0:
-            self.remaining_time -= 1
-            self.pushButton3.setText(f"剩余时间: {self.remaining_time}秒")
-        else:
-            self.timer.stop()
-            self.pushButton3.setText("获取验证码")
-            self.pushButton3.setEnabled(True)
-            style = "QPushButton#pushButton {border-radius: 5px; background-color: #55c3ff; color: white;}"
-            self.pushButton3.setStyleSheet(style)
-
-    def Registration(self):
-        global Email
-        input_name = self.ui2.NameEdit.text()
-        input_password = self.ui2.PasswordEdit.text()
-        input_email = self.ui2.EmailEdit.text()
-        input_check = self.ui2.CheckEdit.text()
-        if not (0 < len(input_name) < 11):
-            self.show_message_box('提示', '名称只能为1-10位')
-            return 0
-        if not (7 < len(input_password) < 16):
-            self.show_message_box('提示', '密码只能为8-15位')
-            return 0
-        if len(input_email) == 0:
-            self.show_message_box('提示', '请输入邮箱')
-            return 0
-        if len(input_check) != 6:
-            self.show_message_box('提示','请输入六位验证码')
-            return 0
-        if validate_email(input_email) == 1:
-            self.show_message_box('提示', '邮箱格式不正确')
-            return 0
-        if Check(input_name) == 1:
-            self.show_message_box('提示', '名称只能包含中文 26个大小写字母以及  .  -  _  =  ')
-            return 0
-        if Check_Password(input_password) == 1:
-            self.show_message_box('提示', '密码只能包含26个大小写字母以及  .  -  _  =  ')
-            return 0
-        if not Email:
-            self.show_message_box('提示','未发送验证码 请发送后再尝试')
-            return 0
-        send_encry("**--*Registration*--**")
-        time.sleep(0.3)
-        try:
-            res = requests.get('http://myip.ipip.net', timeout=5).text
-            # 提取城市信息
-            split_res = res.split('  ')
-            city_info = split_res[-2]  # 倒数第二个元素是城市信息
-            city_info = city_info.split(' ')
-            city_info = city_info[-1]
-            city_name = city_info
-        except:
-            city_name = 'Unknown'
-        info = f"Rigistration {input_check} {input_name} {input_password} {Email} {city_name}"
-        send_encry(str(info))
-        Check_Email = s.recv(512)
-        Check_Email = send_decry(Check_Email)
-        if Check_Email == 'Right_Check':
-            Reg_Staus = s.recv(1024)
-            Reg_Staus = send_decry(Reg_Staus)
-            Reg_Staus = Reg_Staus.split()
-            if Reg_Staus[0] == 'Successfully':
-                self.close()
-                window_login.close()
-                # 获取桌面路径
-                def get_desktop_path():
-                    return os.path.join(os.path.expanduser("~"), "Desktop")
-                desktop_path = get_desktop_path()
-                file_name = 'Fuchen账号.txt'
-                file_path = os.path.join(desktop_path, file_name)
-                # 写入文件
-                with open(file_path, "w", encoding='utf-8') as file:
-                    file.write(
-                        f"您已注册成功 \n系统随机分配的账号ID为:{Reg_Staus[1]}  密码:{self.ui2.PasswordEdit.text()}\n")
-                    file.write(f"请妥善保管账号和密码 请勿泄露给他人！\n感谢您的使用")
-                pyautogui.alert(f"账号注册成功!您的ID为:{Reg_Staus[1]}"
-                                f"账号ID由服务器自动分配 登录时需用ID登录而不是用户名\n\n"
-                                f"为了避免您忘记账号 现已将您的账号ID文件创建到桌面 >>Fuchen账号.txt中\n"
-                                f"请您尽快记住账号并妥当保管文件 以防丢失账号 泄露账号等情况\n\n"
-                                f"在此非常感谢您使用我的软件\n"
-                                f"请关闭此窗口 或点击确认按钮 登录线上模式使用吧!")
-            else:
-                pyautogui.confirm("注册失败")
-                self.close()
-
-        elif Check_Email == 'Error_Email':
-            self.pushButton3.setEnabled(False)
-            MyThread(play_warning_sound)
-            pyautogui.confirm("邮箱已被注册! 请更换邮箱后注册")
-            self.pushButton3.setEnabled(True)
-        else:
-            pyautogui.confirm("验证码不正确")
-
-
-    def paintEvent(self, event):
-        # 阴影
-        path = QPainterPath()
-        path.setFillRule(Qt.WindingFill)
-
-        pat = QPainter(self)
-        pat.setRenderHint(pat.Antialiasing)
-        pat.fillPath(path, QBrush(Qt.white))
-
-        color = QColor(171, 171, 171, 70)
-
-        for i in range(10):
-            i_path = QPainterPath()
-            i_path.setFillRule(Qt.WindingFill)
-            ref = QRectF(10 - i, 10 - i, self.width() - (10 - i) * 2, self.height() - (10 - i) * 2)
-            # i_path.addRect(ref)
-            i_path.addRoundedRect(ref, self.border_width, self.border_width)
-            color.setAlpha(int(150 - i ** 0.5 * 50))
-            pat.setPen(color)
-            pat.drawPath(i_path)
-
-        # 圆角
-        pat2 = QPainter(self)
-        pat2.setRenderHint(pat2.Antialiasing)  # 抗锯齿
-        pat2.setBrush(Qt.white)
-        pat2.setPen(Qt.transparent)
-
-        rect = self.rect()
-        rect.setLeft(9)
-        rect.setTop(9)
-        rect.setWidth(rect.width() - 9)
-        rect.setHeight(rect.height() - 9)
-        pat2.drawRoundedRect(rect, 4, 4)
-
-    def mousePressEvent(self, e):
-        if e.y() <= 35:  # 35像素的标题栏高度
-            self.start_point = e.globalPos()
-            self.window_point = self.frameGeometry().topLeft()
-
-    def mouseMoveEvent(self, e):
-        if hasattr(self, 'start_point'):
-            relpos = e.globalPos() - self.start_point
-            self.move(self.window_point + relpos)
-
-    def mouseReleaseEvent(self, e):
-        if hasattr(self, 'start_point'):
-            delattr(self, 'start_point')
-
-    def show_message_box(self, head, message):
-        QMessageBox.question(self, head, message,
-                             QMessageBox.Yes)
-
-    def closeEvent(self, e):
-        global resign_window
-        if resign_window is True:
-            self.close()
-            resign_window = False
-
-
-class RewordWindow(QtWidgets.QDialog):
-    def __init__(self):
-        super().__init__()
-        # 存储单例窗口实例的类属性
-        self.ui_reword = ReWord.Ui_MainWindow()
-        self.ui_reword.setupUi(self)
-        self.setWindowIcon(QIcon('./image/Component/重置密码.png'))
-        self.setWindowTitle("重置密码")
-        self.ui_reword.pushButton_check.clicked.connect(self.Check_identity)
-        self.ui_reword.pushButton_getcheck.clicked.connect(self.get_check)
-        self.ui_reword.pushButton_a.clicked.connect(self.reword_password)
-        self.layout = [self.ui_reword.label, self.ui_reword.label_2, self.ui_reword.lineEdit, self.ui_reword.lineEdit_2,
-                       self.ui_reword.pushButton_getcheck, self.ui_reword.pushButton_check]
-
-        self.layout_after = [self.ui_reword.label_a, self.ui_reword.label_a2, self.ui_reword.lineEdit_a,
-                             self.ui_reword.lineEdit_a2, self.ui_reword.pushButton_a]
-
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.update_timer)
-        self.remaining_time = 60
-
-    def update_timer(self):  # 验证码更新
-        if self.remaining_time > 0:
-            self.remaining_time -= 1
-            self.ui_reword.pushButton_getcheck.setText(f"剩余时间: {self.remaining_time}秒")
-        else:
-            self.timer.stop()
-            self.ui_reword.pushButton_getcheck.setText("获取验证码")
-            self.ui_reword.pushButton_getcheck.setEnabled(True)
-            style = "QPushButton#pushButton {border-radius: 5px; background-color: #55c3ff; color: white;}"
-            self.ui_reword.pushButton_getcheck.setStyleSheet(style)
-
-    def show_message_box(self, head, message):
-        QMessageBox.question(self, head, message,
-                             QMessageBox.Yes)
-
-    def get_check(self):
-        global Email
-        Email = self.ui_reword.lineEdit.text()
-        if validate_email(Email) == 0:
-            send_encry("**--*Reword*--**")
-            print("开始重置密码")
-            time.sleep(0.3)
-            send_encry(f'Email {Email}')
-            self.ui_reword.pushButton_getcheck.setEnabled(False)
-            style = "QPushButton#pushButton {border-radius: 5px; background-color: #e0e0e0; color: white;}"
-            self.ui_reword.pushButton_getcheck.setStyleSheet(style)
-            result = s.recv(256)
-            result = send_decry(result)
-            print(result)
-            if result == 'Successfully_send':
-                self.remaining_time = 60
-                self.timer.start(1000)
-                self.update_timer()
-                pyautogui.confirm("验证码发送成功!")
-            else:
-                self.ui_reword.pushButton_getcheck.setEnabled(True)
-                pyautogui.confirm("验证码发送失败")
-        else:
-            self.show_message_box("提示", "请输入正确的邮箱")
-
-    def Check_identity(self):
-        global Email
-        Check_word = self.ui_reword.lineEdit_2.text()
-        send_encry("**--*Reword*--**")
-        time.sleep(0.3)
-        send_encry(f"Check {Email} {Check_word}")
-        result = s.recv(1024)
-        result = send_decry(result)
-        if result == "Error_Check":
-            time.sleep(0.5)
-            self.show_message_box("提示", "验证码错误！")
-            return 0
-        elif result == "Error_Email":
-            time.sleep(0.5)
-            self.show_message_box("提示", "账号不存在 无法重置密码")
-            return 0
-        for index in self.layout:
-            if index is not None:
-                start_pos = index.pos()
-                end_pos = QRect(-500, start_pos.y(), index.width(), index.height())
-                animation = QPropertyAnimation(index, b"geometry", self)
-                animation.setDuration(300)
-                animation.setStartValue(QRect(start_pos, index.size()))
-                animation.setEndValue(end_pos)
-                easing_curve = QEasingCurve(QEasingCurve.InQuad)
-                animation.setEasingCurve(easing_curve)
-                animation.start()
-        QTimer.singleShot(100, self.showAfterAnimation)
-
-    def showAfterAnimation(self):
-        self.ui_reword.label.deleteLater()
-        self.ui_reword.label_2.deleteLater()
-        self.ui_reword.lineEdit.deleteLater()
-        self.ui_reword.lineEdit_2.deleteLater()
-        self.ui_reword.pushButton_getcheck.deleteLater()
-        self.ui_reword.pushButton_check.deleteLater()
-        position = [30, 30, 120, 120, 120]
-        num = 0
-        for index in self.layout_after:
-            pox = position[num]
-            num = num + 1
-            if index is not None:
-                start_pos = index.pos()
-                end_pos = QRect(pox, index.y(), index.width(), index.height())
-                animation = QPropertyAnimation(index, b"geometry", self)
-                animation.setDuration(450)
-                animation.setStartValue(QRect(start_pos, index.size()))
-                animation.setEndValue(end_pos)
-                easing_curve = QEasingCurve(QEasingCurve.InQuad)
-                animation.setEasingCurve(easing_curve)
-                animation.start()
-
-    def reword_password(self):
-        Password_First = self.ui_reword.lineEdit_a.text()
-        RePassword = self.ui_reword.lineEdit_a2.text()
-        if Check_Password(Password_First) == True:
-            time.sleep(0.1)
-            self.show_message_box("提示", "密码包含无法识别的字符 密码只能为26个大小写字母 以及数字 和- . ? ~ ")
-            return 0
-        if Password_First != RePassword:
-            time.sleep(0.1)
-            self.show_message_box("提示", "二次输入密码不相同 请确认后再次尝试")
-            return 0
-        if not (7 <= len(Password_First) < 16):
-            time.sleep(0.1)
-            self.show_message_box("提示", "密码只能设置为8-15位")
-            return 0
-        time.sleep(0.2)
-        send_encry("**--*Reword*--**")
-        time.sleep(0.3)
-        send_encry(f"Reword {Password_First}")
-        result = s.recv(1024)
-        result = send_decry(result)
-        if result == 'Successfully_Reword':
-            self.show_message_box("提示", "密码已成功更改！\n请重启客户端后重新登录")
-            self.close()
-            os._exit(0)
-        else:
-            self.show_message_box("提示", "密码更改失败")
-
-    def closeEvent(self, e):
-        global reword_window
-        reword_window = False
 
 
 if __name__ == "__main__":
@@ -2882,8 +3364,8 @@ if __name__ == "__main__":
         QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling)
         # 适应Windows缩放
         QtGui.QGuiApplication.setAttribute(QtCore.Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
-    except:
-        pass
+    except Exception as e:
+        logging.exception(str(time.strftime('%Y-%m-%d  %H:%M:%S', time.localtime())) + "错误:" + str(e))
     app = QApplication(sys.argv)
     translator = QTranslator()
     translator.load('./mod/trans/qt_zh_CN.qm')
@@ -2901,15 +3383,17 @@ if __name__ == "__main__":
             with open("config.json", "w") as json_file:
                 json.dump(config, json_file, indent=4)
     window_login = LoginWindow()  #登录窗口
-    window_signin = SigninWindow()  #注册窗口
-    window_reword = RewordWindow()  #重置密码窗口
-    if Log == True and connect_status != None:
+    #window_signin = RegisterWindow.Register(s)  #注册窗口
+
+    #window_reword = ResetWindow.Reset(s)  #重置密码窗口
+    if AutoLogin == True and connect_status != None:
         time.sleep(0.1)
         window_login.LOGIN("login")
     elif connect_status == None:  #离线模式
         window_login.LOGIN("offline_login")
     else:
         window_login.show()
+
     sys.exit(app.exec_())
 os._exit(0)
 #active_threads = threading.enumerate()

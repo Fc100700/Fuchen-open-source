@@ -1,8 +1,13 @@
+import hashlib
+import logging
+import shutil
 import string
 import subprocess
 import traceback
 import json
 import win32com
+import win32gui
+import win32con
 import pyautogui
 import time
 import random
@@ -12,15 +17,213 @@ import pygetwindow as gw
 import re
 import pyperclip
 from PIL import Image
+from PyQt5.QtCore import QThread, pyqtSignal
 from bs4 import BeautifulSoup
 import pandas as pd
+from colorama import Fore
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 import sys
+def is_running_as_exe():
+    return hasattr(sys, 'frozen') and hasattr(sys, '_MEIPASS')
 
 
+os.environ['NO_PROXY'] = 'https://fcyang.cn'
+os.environ['NO_PROXY'] = 'https://www.lanzoup.com/'
+os.environ['NO_PROXY'] = 'http://myip.ipip.net'
+os.environ['NO_PROXY'] = 'http://api.openweathermap.org/data/2.5/weather'
+os.environ['NO_PROXY'] = 'https://q1.qlogo.cn/'
+os.environ['NO_PROXY'] = 'https://music.163.com'
+os.environ['NO_PROXY'] = 'https://q1.qlogo.cn/'
+os.environ['NO_PROXY'] = 'https://q1.qlogo.cn/'
+
+
+'''if len(sys.argv) > 1:
+    if len(sys.argv) >=3:
+        argument = sys.argv[1]  # 获取第一个参数
+        print(f"Received argument: {argument}")
+        if argument == "update":
+            try:
+                function.run_update_bat()
+            except Exception as e:
+                pyautogui.confirm('上个版本文件清理失败 请手动删除')
+            try:
+                time.sleep(3)
+                shutil.rmtree(sys.argv[2])
+            except:
+                pyautogui.confirm('上个版本文件清理失败 请手动删除')
+        else:
+            print("Unknown operation. Exiting.")
+else:
+    # 无参数时（双击运行），可以执行默认逻辑或者直接退出
+    print("No arguments provided. Exiting.")'''
+def print_fuchen():
+    # 定义每个字母的10行结构（7列宽）
+    letters = {
+        'F': [
+            '███████',
+            '█      ',
+            '█      ',
+            '█      ',
+            '██████ ',
+            '█      ',
+            '█      ',
+            '█      ',
+            '█      ',
+        ],
+        'U': [
+            '█     █',
+            '█     █',
+            '█     █',
+            '█     █',
+            '█     █',
+            '█     █',
+            '█     █',
+            '█     █',
+            ' █████ ',
+        ],
+        'C': [
+            '  █████',
+            ' █     ',
+            '█      ',
+            '█      ',
+            '█      ',
+            '█      ',
+            '█      ',
+            ' █     ',
+            '  █████',
+        ],
+        'H': [
+            '█     █',
+            '█     █',
+            '█     █',
+            '█     █',
+            '███████',
+            '█     █',
+            '█     █',
+            '█     █',
+            '█     █',
+        ],
+        'E': [
+            '███████',
+            '█      ',
+            '█      ',
+            '█      ',
+            '██████ ',
+            '█      ',
+            '█      ',
+            '█      ',
+            '███████',
+        ],
+        'N': [
+            '█     █',
+            '██    █',
+            '█ █   █',
+            '█  █  █',
+            '█   █ █',
+            '█    ██',
+            '█     █',
+            '█     █',
+            '█     █',
+        ],
+        ' ': ['      '] * 9  # 空格分隔
+    }
+
+    # 组合字母 "F U C H E N"（中间加空格）
+    word = ['F', ' ', 'U', ' ', 'C', ' ', 'H', ' ', 'E', ' ', 'N']
+    # 逐行输出
+    for row in range(9):
+        line = []
+        for char in word:
+            line.append(letters[char][row])
+        print(' '.join(line))  # 字母间用空格分隔
+
+
+def parse_version(version_str):
+    """解析版本号字符串，返回前两位数字组成的元组"""
+    # 去除所有非数字和点的字符
+    cleaned = re.sub(r'[^\d.]', '', version_str)
+    parts = cleaned.split('.') if cleaned else []
+
+    version = []
+    for part in parts[:2]:  # 只取前两部分
+        version.append(int(part) if part.isdigit() else 0)
+
+    # 补足两位（主版本.次版本）
+    while len(version) < 2:
+        version.append(0)
+
+    return tuple(version[:2])
+
+def update_console_theme(theme):
+    with open("config.json", "r") as file:
+        U_data = json.load(file)
+    U_data["console_theme"] = theme
+    with open("config.json", "w") as file:
+        json.dump(U_data, file, indent=4)
+# json配置文件内容
+config_dic = {
+            "Remember": False,
+            "AutoLogin": False,
+            "Account": "",
+            "Password": "",
+            "Sound": True,
+            "Initial": False,
+            "Theme": "White",
+            "Path": None,
+            "ClosePrompt": True,
+            "CloseExecute": "Close",
+            "ReStart": False,
+            "FPS": 30,
+            "transparent": 80,
+            "position": [[None, None], [None, None]],
+            "tourist_status": False,
+            'tourist_number':0,
+            "update": False,
+            "console_theme":'dark'
+        }
+
+keycode_dict = {
+
+    # === 鼠标按键 ===
+    "鼠标中键": 4,  "鼠标右键": 2,  "侧键后退":8, "侧键前退":16,
+    # === 字母和数字键 ===
+    "a": 65, "b": 66, "c": 67, "d": 68, "e": 69, "f": 70, "g": 71,
+    "h": 72, "i": 73, "j": 74, "k": 75, "l": 76, "m": 77, "n": 78,
+    "o": 79, "p": 80, "q": 81, "r": 82, "s": 83, "t": 84, "u": 85,
+    "v": 86, "w": 87, "x": 88, "y": 89, "z": 90,
+    "0": 48, "1": 49, "2": 50, "3": 51, "4": 52,
+    "5": 53, "6": 54, "7": 55, "8": 56, "9": 57,
+
+    # === 数字小键盘 ===
+    "numpad0": 96, "numpad1": 97, "numpad2": 98, "numpad3": 99,
+    "numpad4": 100, "numpad5": 101, "numpad6": 102, "numpad7": 103,
+    "numpad8": 104, "numpad9": 105,
+    "numpad*": 106, "numpad+": 107, "numpadenter": 108,
+    "numpad-": 109, "numpad.": 110, "numpad/": 111,
+
+    # === 功能键 ===
+    "f1": 112, "f2": 113, "f3": 114, "f4": 115, "f5": 116,
+    "f6": 117, "f7": 118, "f8": 119, "f9": 120, "f10": 121,
+    "f11": 122, "f12": 123,
+
+    # === 控制键 ===
+    "backspace": 8, "tab": 9, "clear": 12, "enter": 13,
+    "shift": 16, "control": 17, "alt": 18, "capslock": 20,
+    "esc": 27, "spacebar": 32, "pageup": 33, "pagedown": 34,
+    "end": 35, "home": 36, "leftarrow": 37, "uparrow": 38,
+    "rightarrow": 39, "downarrow": 40, "insert": 45, "delete": 46,
+    "numlock": 144,
+    ";": 186, "=": 187, ",": 188, "-": 189, ".": 190, "/": 191,
+    "`": 192, "[": 219, "\\": 220, "]": 221, "'": 222,
+
+    # === 多媒体键 ===
+    "volumeup": 175, "volumedown": 174, "volumemute": 173,
+    "mediastop": 179, "browserback": 172, "mail": 180,
+    "search": 170, "favorites": 171
+}
 def get_exefile_name():
     process_name = sys.argv[0]
     file_name = os.path.basename(process_name)
@@ -68,6 +271,7 @@ def get_update_data(local_version):
             if version_div and "data-version" in version_div.attrs:
                 version = version_div["data-version"]
 
+
             version_div = soup.find(id="update_link")
             if version_div and "link" in version_div.attrs:
                 link = version_div["link"]
@@ -106,25 +310,23 @@ def initialization():  # 初始化
     try:  # 读取JSON文件 若未检测到则初始化
         if not os.path.exists('config.json'):
             raise Exception("未找到配置文件 即将开始初始化")
-    except:  # 初始化
-        config = {
-            "Remember": False,
-            "AutoLogin": False,
-            "Account": "",
-            "Password": "",
-            "Sound": True,
-            "Initial": False,
-            "Theme": "White",
-            "Path": None,
-            "ClosePrompt": True,
-            "CloseExecute": "Close",
-            "ReStart": False,
-            "FPS": 30,
-            "transparent": 30,
-            "position": [[None, None], [None, None]]
-        }
-        with open("config.json", "w") as json_file:
-            json.dump(config, json_file, indent=4)
+        if os.path.exists('config.json'):
+            with open('config.json', 'r') as f:
+                config = json.load(f)
+            if config['update'] == True:
+                raise Exception("更新初始化")
+    except Exception as e:  # 初始化
+        if str(e) == "未找到配置文件 即将开始初始化":
+            with open("config.json", "w") as json_file:
+                json.dump(config_dic, json_file, indent=4)
+        else:
+            # 读取 JSON 文件
+            with open('config.json', 'r') as f:
+                config = json.load(f)
+            config['update'] = False
+            # 重新写入文件（覆盖原文件）
+            with open('config.json', 'w') as f:
+                json.dump(config, f, indent=4)  # indent 保持美观格式
         # 创建快捷方式
         desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")
         Fuchen_name = get_exefile_name()[0]
@@ -156,6 +358,31 @@ def initialization():  # 初始化
             file.write("此文件夹为Fuchen文件夹\n主要记录了Fuchen的初始化路径 以用来安装扩展包等\n如删除文件夹 可能会导致扩展包安装不成功\n此文件夹占用内存较小 不建议删除\n更多软件信息请登录官网:https://fcyang.cn/查看")
 
 
+def copy_config_file(file_path):
+
+    # 读取 JSON 文件
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            json_data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        json_data = {}
+
+    # 更新 JSON 数据
+    # 1. 添加缺少的键值
+    for key, default_value in config_dic.items():
+        if key not in json_data:
+            json_data[key] = default_value
+
+    # 2. 删除多余的键值
+    extra_keys = [key for key in json_data if key not in config_dic]
+    for key in extra_keys:
+        del json_data[key]
+
+    # 重新写入 JSON 文件
+    with open('config.json', "w", encoding="utf-8") as f:
+        json.dump(json_data, f, indent=4, ensure_ascii=False)
+
+
 def QQ_Information_Update(rest):
     try:
         # 读取文本文件内容
@@ -177,25 +404,39 @@ def QQ_Information_Update(rest):
             # 从文件名中提取数字部分
             file_name = os.path.basename(file_path)
             number = re.search(r'\d+', file_name).group()
-            # 发送GET请求
-            url = f"https://api.oioweb.cn/api/qq/info?qq={number}"  # 替换为实际的API端点
-            try:
-                response = requests.get(url)
-                # 通过API调用来获取图片所对应用户的名称
-                if response.status_code == 200:  # 调用成功
-                    # 将JSON字符串解析为Python字典
-                    data = response.json()
-                    if data["code"] == 200:  # 调用成功
-                        nickname = data["result"]["nickname"]
-                    else:  # 调用失败
-                        nickname = random_line
-                else:  # 调用失败
-                    nickname = random_line
-            except:
-                nickname = random_line
 
-            print(nickname)
+            def fetch_nickname(url):
+                try:
+                    response = requests.get(url, timeout=5)
+                    if response.status_code == 200:
+                        data = response.json()
+                        print(data)
+                        if data.get('code') == 200:
+                            if data.get('code') == 200:
+                                # 尝试第一种数据结构（name在根级）
+                                if 'name' in data:
+                                    return data.get('name')
+                                # 尝试第二种数据结构（name在data对象内）
+                                elif 'data' in data and isinstance(data['data'], dict):
+                                    return data['data'].get('name')
+                except:
+                    pass
+                return None
 
+            # 要尝试的API列表（替换为实际API地址）
+            api_urls = [
+                f"https://api.ilingku.com/int/v1/qqname?qq={number}",
+                f"http://api.mmp.cc/api/qqname?qq={number}"
+            ]
+
+            # 遍历所有API地址尝试获取
+            for url in api_urls:
+                nickname = fetch_nickname(url)
+                if nickname:  # 获取成功立即终止循环
+                    break
+            else:
+                # 全部请求都失败时保持原值（这里用pass示意，实际需替换为你的原值变量）
+                pass
         # 获取窗口对象 修改头像
         QQwindow = gw.getWindowsWithTitle("QQ")[0]
         window_position = (QQwindow.left + 50, QQwindow.top + 80)
@@ -266,7 +507,25 @@ def QQ_Information_Update(rest):
         pyautogui.click(window_position)
         return 0
     except Exception as e:
+        traceback.print_exc()
+        print(e)
         return e
+
+
+def hash_string(input_str, algorithm='sha256'):
+    # 创建哈希对象
+    if algorithm == 'sha256':
+        hasher = hashlib.sha256()
+    elif algorithm == 'sha512':
+        hasher = hashlib.sha512()
+    else:
+        raise ValueError("不支持的算法，请输入 sha256 或 sha512")
+
+    # 更新哈希对象（仅处理原始字符串）
+    hasher.update(input_str.encode('utf-8'))
+
+    # 返回十六进制摘要
+    return hasher.hexdigest()
 
 
 def Convert_File(put, output, put_file, output_folder, file_name, self):
@@ -286,6 +545,8 @@ def Convert_File(put, output, put_file, output_folder, file_name, self):
             image.save(output_path, format="JPEG", quality=100)  # 设置高质量参数
         elif output_format == "GIF":
             image.save(output_path, format="GIF")
+        elif output_format == "PDF":
+            image.save(output_path, 'PDF', resolution=100.0)
         else:
             raise Exception("文件格式错误")
 
@@ -527,4 +788,607 @@ def run_update_bat(bat_path):
         print("批处理文件已启动，Python脚本继续执行...")
     except Exception as e:
         print(f"启动失败: {str(e)}")
-#write_update_bat()
+
+def new_update(new_path,old_path,sp):
+    # 获取旧版本文件夹路径（假设EXEA在旧文件夹内）
+    OLD_DIR = old_path
+    try:
+        print(OLD_DIR)
+        print(new_path)
+    except:
+        traceback.print_exc()
+    if is_running_as_exe():
+        # 定义新版本路径（根据实际下载位置调整）
+        NEW_EXE_PATH = new_path  # 示例路径
+
+        # 生成批处理脚本内容
+        bat_content = f"""
+        @echo off
+        echo 等待1秒...
+        timeout /t 1 /nobreak >nul
+        echo 继续执行
+        
+        REM 终止所有旧进程
+        taskkill /F /IM "Fuchen.exe" >nul
+        
+        echo 等待1秒...
+        timeout /t 1 /nobreak >nul
+        echo 继续执行
+        
+        REM 启动新版本
+        start "" "{sp}"
+    
+    
+        REM 强制删除旧文件夹（包括自身）
+        rd /s /q "{OLD_DIR}"
+    
+        REM 删除批处理自身（最后一步）
+        del "%~f0"
+        """
+
+        # 将脚本写入临时目录（避免路径占用）
+        bat_path = os.path.join('C:\\Fuchen', "cleanup_script.bat")
+        with open(bat_path, "w") as f:
+            f.write(bat_content)
+
+        # 以隐藏窗口方式启动清理脚本
+        subprocess.Popen(
+            ["cmd.exe", "/C", bat_path],
+            shell=True
+        )
+        logging.exception(str(time.strftime('%Y-%m-%d  %H:%M:%S', time.localtime())) + f"旧版程序路径：{old_path}")
+        logging.exception(str(time.strftime('%Y-%m-%d  %H:%M:%S', time.localtime())) + f"新版程序路径：{new_path}")
+        logging.exception(str(time.strftime('%Y-%m-%d  %H:%M:%S', time.localtime())) + "旧版程序已退出")
+        # 立即退出旧进程（释放文件占用）
+        sys.exit(0)
+
+class WindowController:
+    def __init__(self):
+        self.current_hwnd = None
+        self.window_rect_cache = {}
+        self.default_pause = 0.25
+        self.variables = {}  # 新增变量存储字典
+
+    def load_config(self, config_path):
+        with open(config_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+            content = re.sub(r'//.*?$|/\*.*?\*/', '', content, flags=re.MULTILINE | re.DOTALL)
+            config = json.loads(content)
+            # 转换结构键名为英文
+            config = self.translate_config_keys(config)
+            # 读取全局设置
+            self.default_pause = config.get('settings', {}).get('global_interval', 0.5)
+            # 存储变量（保留变量名的原始语言）
+            self.variables = {k: v for k, v in config.get('settings', {}).items() if k != 'global_interval'}
+            return config
+
+    def translate_config_keys(self, config):
+        key_mapping = {
+            # 结构键名映射
+            '设置': 'settings',
+            '场景': 'scenarios',
+            '窗口': 'window',
+            '标题': 'title',
+            '步骤': 'steps',
+            '操作': 'action',
+            '全局间隔': 'global_interval',
+            '次数': 'times',
+            '等待': 'wait',
+            '相对': 'relative',
+            '持续时间': 'duration',
+            '文本': 'text',
+            '按键': 'keys',
+            '关闭': 'close',
+            '热键': 'hotkey',
+            '输入': 'typewrite',
+            '点击': 'click',
+            '拖拽': 'drag',
+            '坐标X': 'x',
+            '坐标Y': 'y',
+            '间隔': 'interval',
+            '按钮': 'button'
+        }
+        return self._translate_keys_recursive(config, key_mapping)
+
+    def _translate_keys_recursive(self, obj, mapping):
+        if isinstance(obj, dict):
+            translated = {}
+            for k, v in obj.items():
+                # 转换当前层级的键名
+                new_key = mapping.get(k, k)
+                # 递归处理子对象
+                translated[new_key] = self._translate_keys_recursive(v, mapping)
+            return translated
+        elif isinstance(obj, list):
+            return [self._translate_keys_recursive(item, mapping) for item in obj]
+        else:
+            return obj
+
+    def resolve_parameter(self, value):
+        """增强版变量解析，支持$前缀和数组索引"""
+        if isinstance(value, list):
+            return [self.resolve_parameter(item) for item in value]
+        elif isinstance(value, str) and value.startswith("$"):
+            # 移除$前缀并处理数组索引
+            var_expression = value[1:]
+
+            # 处理数组索引格式（如 "var_name[0]"）
+            if '[' in var_expression and ']' in var_expression:
+                var_part = var_expression.split('[', 1)[0]
+                index = int(var_expression.split('[', 1)[1].split(']', 1)[0])
+                var_value = self.variables.get(var_part)
+
+                if isinstance(var_value, (list, tuple)) and index < len(var_value):
+                    return var_value[index]
+                raise ValueError(f"无效的变量索引: {value}")
+
+            # 处理普通变量
+            if var_expression in self.variables:
+                return self.variables[var_expression]
+            raise ValueError(f"未定义的变量: {value}")
+
+        # 非变量值直接返回
+        return value
+
+    def find_window(self, title):
+        if title == '微信':
+            hwnd = win32gui.FindWindow("WeChatMainWndForPC", "微信")
+            if hwnd == 0:
+                raise WindowNotFoundError(f"Window not found: {title}")
+            return hwnd
+        elif title == 'QQ':
+            hwnd = win32gui.FindWindow('TXGuiFoundation', title)  #旧版QQ
+            if hwnd == 0:
+                hwnd = win32gui.FindWindow('Chrome_RenderWidgetHostHWND', 'Chrome Legacy Window')  #新版QQ
+                if hwnd == 0:
+                    raise WindowNotFoundError(f"Window not found: Chrome Legacy Window #新版QQ")
+                return hwnd
+            return hwnd
+        hwnd = win32gui.FindWindow(None, title)
+        if hwnd == 0:
+            raise WindowNotFoundError(f"Window not found: {title}")
+        return hwnd
+
+    def activate_window(self, hwnd, wait_time=1.0):
+        if hwnd != self.current_hwnd:
+            win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+            win32gui.SetForegroundWindow(hwnd)
+            self.current_hwnd = hwnd
+            time.sleep(wait_time)
+            self.window_rect_cache[hwnd] = win32gui.GetWindowRect(hwnd)
+
+    def get_window_origin(self, hwnd):
+        if hwnd not in self.window_rect_cache:
+            self.window_rect_cache[hwnd] = win32gui.GetWindowRect(hwnd)
+        rect = self.window_rect_cache[hwnd]
+        return (rect[0], rect[1])
+
+    def execute_scenario(self, scenario):
+        try:
+            window_cfg = scenario["window"]
+            # 解析带变量的窗口标题
+            raw_title = window_cfg["title"]
+            resolved_title = self.resolve_parameter(raw_title) if isinstance(raw_title, str) else raw_title
+
+            hwnd = self.find_window(resolved_title)
+            self.activate_window(hwnd, window_cfg.get("wait", 0.1))
+            self.execute_steps(scenario["steps"], hwnd)
+
+
+        except WindowNotFoundError as e:
+            print(f"⚠️ 跳过场景: {str(e)}")
+        except Exception as e:
+            print(f"❌ 场景执行失败: {str(e)}")
+
+    def execute_steps(self, steps, hwnd):
+        origin_x, origin_y = self.get_window_origin(hwnd)
+
+        for step in steps:
+            try:
+                self.execute_single_step(step, hwnd, origin_x, origin_y)
+                time.sleep(step.get("pause", 0.5))
+            except Exception as e:
+                print(f"⏭️ 步骤跳过: {str(e)}")
+                continue
+
+
+    def execute_single_step(self, step, hwnd, origin_x, origin_y):
+        # 解析所有参数中的变量
+        resolved_step = {k: self.resolve_parameter(v) for k, v in step.items()}
+        action = resolved_step["action"]
+
+        if action == "click":
+            x = resolved_step.get("x", 0)
+            y = resolved_step.get("y", 0)
+            if resolved_step.get("relative", True):
+                x += origin_x
+                y += origin_y
+
+            pyautogui.click(
+                x=x,
+                y=y,
+                clicks=resolved_step.get("clicks", 1),
+                interval=resolved_step.get("interval", 0.1),
+                button=resolved_step.get("button", "left")
+            )
+        elif action == "typewrite":
+            pyautogui.typewrite(
+                resolved_step["text"],
+                interval=resolved_step.get("interval", 0.1)
+            )
+        elif action == "hotkey":
+            pyautogui.hotkey(*resolved_step["keys"])
+        elif action == "close":
+            win32gui.SendMessage(hwnd, win32con.WM_CLOSE, 0, 0)
+        else:
+            raise ValueError(f"未知操作类型: {action}")
+
+    def handle_click(self, step, origin_x, origin_y):
+        x, y = step["x"], step["y"]
+        if step.get("relative", True):
+            x += origin_x
+            y += origin_y
+
+        pyautogui.click(
+            x=x,
+            y=y,
+            clicks=step.get("clicks", 1),
+            interval=step.get("interval", 0.1),
+            button=step.get("button", "left")
+        )
+
+    def handle_drag(self, step, origin_x, origin_y):
+        start_x = step["start_x"] + (origin_x if step.get("relative", True) else 0)
+        start_y = step["start_y"] + (origin_y if step.get("relative", True) else 0)
+        end_x = step["end_x"] + (origin_x if step.get("relative", True) else 0)
+        end_y = step["end_y"] + (origin_y if step.get("relative", True) else 0)
+
+        pyautogui.dragTo(
+            x=end_x, y=end_y,
+            duration=step.get("duration", 0.5),
+            button=step.get("button", "left")
+        )
+
+
+class WindowNotFoundError(Exception):
+    pass
+
+class ClickRecordThread(QThread):
+    finished_signal = pyqtSignal()
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.parent = parent
+
+    def run(self):
+        '''self.parent.Click_Record()
+        self.parent.handle_restore()
+        self.finished_signal.emit()'''
+        if self.parent.uim.button_file.text() in ('选择配置文件', '暂无配置文件 需要创建'):
+            pyautogui.confirm("需要先选择或创建配置文件")
+            return
+        self.parent.handle_minimize()
+
+        wait_time = self.parent.uim.wait_doubleSpinBox.value()
+        play_prompt_sound("C:\\Windows\\Media\\Windows Notify Messaging.wav")
+        time.sleep(wait_time)
+        current_position = pyautogui.position()
+        print("开始记录自动脚本")
+        global last_time, records, last_key, last_event_type
+
+        records = []
+        last_time = time.time()
+        if self.parent.uim.end_key_button.text() == "ESC":
+            ed_bu = Key.esc
+        elif self.parent.uim.end_key_button.text() == "F8":
+            ed_bu = Key.f8
+        elif self.parent.uim.end_key_button.text() == "F9":
+            ed_bu = Key.f9
+        elif self.parent.uim.end_key_button.text() == "F10":
+            ed_bu = Key.f10
+        elif self.parent.uim.end_key_button.text() == "END":
+            ed_bu = Key.end
+        else:
+            ed_bu = Key.esc
+
+        def on_move(x, y):
+            global last_time
+            current_time = time.time()
+            interval = int((current_time - last_time) * 1000)
+            if interval != 0:
+                records.append([interval, 'M', 'mouse move', [x, y]])
+                last_time = current_time
+
+        def on_click(x, y, button, pressed):
+            global last_time
+            current_time = time.time()
+            interval = int((current_time - last_time) * 1000)  # 转换为毫秒
+            action = ''
+            if button == mouse.Button.left:
+                action = 'mouse left down' if pressed else 'mouse left up'
+            elif button == mouse.Button.right:
+                action = 'mouse right down' if pressed else 'mouse right up'
+            elif button == mouse.Button.middle:
+                action = 'mouse middle down' if pressed else 'mouse middle up'
+            if action:
+                records.append([interval, 'M', action, [x, y]])
+                last_time = current_time
+
+        def on_scroll(x, y, dx, dy):
+            global last_time
+            current_time = time.time()
+            interval = int((current_time - last_time) * 1000)
+            action = 'mouse scroll'
+            records.append([interval, 'M', action, [0, dy]])
+            last_time = current_time
+
+        # 设置防抖时间间隔（毫秒）
+        debounce_interval = 200
+        last_key = None
+        last_event_type = None  # 'down' 或 'up'
+
+        def on_press(key):
+            global last_time, last_key, last_event_type
+            current_time = time.time()
+            interval = int((current_time - last_time) * 1000)
+
+            if key == ed_bu:
+                return False
+
+            if key == last_key and last_event_type == 'down' and interval < debounce_interval:
+                return
+
+            if hasattr(key, 'char') and key.char:
+                key_char = key.char.lower() if ord(key.char) >= 32 else chr(ord(key.char) + 64)
+                key_desc = [key.vk, key_char]
+            elif isinstance(key, Key):
+                key_desc = [key.value.vk, key.name.upper()]
+            elif isinstance(key, KeyCode):
+                key_desc = [key.vk, key.char.upper() if key.char else 'NUMPAD']
+
+            records.append([interval, 'K', 'key down', key_desc])
+            last_time = current_time
+            last_key = key
+            last_event_type = 'down'
+
+        def on_release(key):
+            global last_time, last_key, last_event_type
+            current_time = time.time()
+            interval = int((current_time - last_time) * 1000)
+
+            if key == last_key and last_event_type == 'up' and interval < debounce_interval:
+                return
+
+            if hasattr(key, 'char') and key.char:
+                key_char = key.char.lower() if ord(key.char) >= 32 else chr(ord(key.char) + 64)
+                key_desc = [key.vk, key_char]
+            elif isinstance(key, Key):
+                key_desc = [key.value.vk, key.name.upper()]
+            elif isinstance(key, KeyCode):
+                key_desc = [key.vk, key.char.upper() if key.char else 'NUMPAD']
+
+            records.append([interval, 'K', 'key up', key_desc])
+            last_time = current_time
+            last_key = key
+            last_event_type = 'up'
+
+        mouse_listener = mouse.Listener(on_click=on_click, on_move=on_move, on_scroll=on_scroll)
+        keyboard_listener = keyboard.Listener(on_press=on_press, on_release=on_release)
+
+        mouse_listener.start()
+
+        keyboard_listener.start()
+
+        keyboard_listener.join()
+
+        # 打开文件进行写入
+        with open('./scripts/' + self.parent.uim.button_file.text(), 'w') as f:
+            for record in records:
+                if record[0] != 0:
+                    if isinstance(record[3][1], str) and len(record[3][1]) == 1 and record[3][
+                        1].isupper():
+                        record[3] = (record[3][0], record[3][1].lower())
+                    f.write(str(record) + '\n')
+
+
+        mouse_listener.stop()
+        keyboard_listener.stop()
+        play_prompt_sound("C:\\Windows\\Media\\Windows Notify Messaging.wav")
+
+        pyautogui.moveTo(current_position.x, current_position.y)
+        self.finished_signal.emit()
+        print("记录完毕")
+
+class ClickExecuteRecordThread(QThread):
+    finished_signal = pyqtSignal()
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.parent = parent
+
+    def run(self):
+        if self.parent.uim.button_file.text() in ('选择配置文件', '暂无配置文件 需要创建'):
+            pyautogui.confirm("需要先选择或创建配置文件")
+            return
+        stop_script = False  # 局部变量，用于控制脚本停止
+        listener = None  # 全局引用监听器
+
+        def key_listener():
+            """监听键盘按键，检测终止按键"""
+            nonlocal stop_script  # 使用非局部变量
+
+            def on_press(key):
+                try:
+                    # 检测到按键时停止脚本
+                    if self.parent.uim.end_key_button.text() == "ESC":
+                        ed_bu = Key.esc
+                    elif self.parent.uim.end_key_button.text() == "F8":
+                        ed_bu = Key.f8
+                    elif self.parent.uim.end_key_button.text() == "F9":
+                        ed_bu = Key.f9
+                    elif self.parent.uim.end_key_button.text() == "F10":
+                        ed_bu = Key.f10
+                    elif self.parent.uim.end_key_button.text() == "END":
+                        ed_bu = Key.end
+                    else:
+                        ed_bu = Key.esc
+                    if key == ed_bu:
+                        nonlocal stop_script
+                        stop_script = True
+                        print(f"检测到 {self.parent.uim.end_key_button.text()}，脚本终止中...")
+                except Exception as e:
+                    logging.exception(str(time.strftime('%Y-%m-%d  %H:%M:%S', time.localtime())) + "错误:" + str(e))
+                    print(f"按键监听异常: {e}")
+
+            listener = keyboard.Listener(on_press=on_press)
+            listener.start()
+            listener.join()
+
+        # 启动键盘监听器线程
+        listener_thread = threading.Thread(target=key_listener, daemon=True)
+        listener_thread.start()
+
+
+        play_prompt_sound("C:\\Windows\\Media\\Windows Notify Messaging.wav")
+        wait_time = self.parent.uim.wait_doubleSpinBox.value()
+        current_position = pyautogui.position()
+        count = self.parent.uim._3spinBox_3.value()
+        time.sleep(wait_time)
+        self.parent.handle_minimize()
+
+        mouse_controller = MouseController()
+        keyboard_controller = KeyboardController()
+
+        def get_key(key_code, key_char):
+            # 将字符串形式的特殊键转换为pynput的Key对象
+            special_keys = {
+                'ALT': Key.alt,
+                'ALT_GR': Key.alt_gr,
+                'ALT_L': Key.alt_l,
+                'ALT_R': Key.alt_r,
+                'BACKSPACE': Key.backspace,
+                'CAPS_LOCK': Key.caps_lock,
+                'CMD': Key.cmd,
+                'CTRL_L': Key.ctrl_l,
+                'CTRL_R': Key.ctrl_r,
+                'DELETE': Key.delete,
+                'DOWN': Key.down,
+                'END': Key.end,
+                'ENTER': Key.enter,
+                'ESC': Key.esc,
+                'F1': Key.f1,
+                'F2': Key.f2,
+                'F3': Key.f3,
+                'F4': Key.f4,
+                'F5': Key.f5,
+                'F6': Key.f6,
+                'F7': Key.f7,
+                'F8': Key.f8,
+                'F9': Key.f9,
+                'F10': Key.f10,
+                'F11': Key.f11,
+                'F12': Key.f12,
+                'HOME': Key.home,
+                'INSERT': Key.insert,
+                'LEFT': Key.left,
+                'NUM_LOCK': Key.num_lock,
+                'PAGE_DOWN': Key.page_down,
+                'PAGE_UP': Key.page_up,
+                'RIGHT': Key.right,
+                'SCROLL_LOCK': Key.scroll_lock,
+                'SHIFT': Key.shift,
+                'SHIFT_R': Key.shift_r,
+                'SPACE': Key.space,
+                'TAB': Key.tab,
+                'UP': Key.up,
+                'PRINT_SCREEN': Key.print_screen,
+                'MENU': Key.menu,
+            }
+            if key_char.upper() in special_keys:
+                return special_keys[key_char.upper()]
+            elif 'NUMPAD' in key_char.upper() or key_code in range(96, 106) or key_code == 110:
+                numpad_keys = {
+                    96: KeyCode(vk=96),  # Numpad 0
+                    97: KeyCode(vk=97),  # Numpad 1
+                    98: KeyCode(vk=98),  # Numpad 2
+                    99: KeyCode(vk=99),  # Numpad 3
+                    100: KeyCode(vk=100),  # Numpad 4
+                    101: KeyCode(vk=101),  # Numpad 5
+                    102: KeyCode(vk=102),  # Numpad 6
+                    103: KeyCode(vk=103),  # Numpad 7
+                    104: KeyCode(vk=104),  # Numpad 8
+                    105: KeyCode(vk=105),  # Numpad 9
+                    110: KeyCode(vk=110)  # Numpad .
+                }
+                return numpad_keys.get(key_code, KeyCode(char=chr(key_code)))
+            else:
+                return KeyCode(char=key_char)
+
+        def precise_sleep(milliseconds):
+            start = time.perf_counter()
+            end = start + milliseconds / 1000.0
+            while time.perf_counter() < end:
+                pass
+
+        records = []
+        record_time = 0
+        speed = self.parent.uim.spinbox_play_speed.value()/100
+        print('speed:', speed)
+        with open('./scripts/' + self.parent.uim.button_file.text(), 'r') as f:
+            for line in f:
+                if line[0] != '#':
+                    record = eval(line.strip())
+                    record_time += record[0]
+                    records.append(record)
+        print(f"记录执行时间:{record_time / 1000}秒")
+        deal_time = 0
+        for x in records:
+            x[0] = int(x[0]/speed)
+            deal_time += x[0]
+        print(f"处理执行时间:{deal_time / 1000}秒")
+        star = time.time()
+        for i in range(count):  # 开始执行自动脚本
+            for record in records:
+                if stop_script:  # 检测是否需要终止
+                    print("脚本执行已终止。")
+                    listener.stop()  # 停止按键监听器
+                    break
+                #time.sleep((record[0] - 1) / 1000)  # 等待时间````
+                #precise_sleep(record[0]-1)
+                precise_sleep(record[0])
+                if record[1] == 'M':  # 鼠标事件
+                    x, y = record[3] if record[2] != 'mouse scroll' else (None, None)
+                    if 'mouse move' in record[2]:
+                        mouse_controller.position = (x, y)
+                    elif 'mouse left down' in record[2]:
+                        mouse_controller.press(Button.left)
+                    elif 'mouse left up' in record[2]:
+                        mouse_controller.release(Button.left)
+                    elif 'mouse right down' in record[2]:
+                        mouse_controller.press(Button.right)
+                    elif 'mouse right up' in record[2]:
+                        mouse_controller.release(Button.right)
+                    elif 'mouse middle down' in record[2]:
+                        mouse_controller.press(Button.middle)
+                    elif 'mouse middle up' in record[2]:
+                        mouse_controller.release(Button.middle)
+                    elif 'mouse scroll' in record[2]:
+                        dx, dy = record[3]
+                        mouse_controller.scroll(dx, dy)
+
+                elif record[1] == 'K':  # 键盘事件
+                    key_code, key_char = record[3]
+                    key = get_key(key_code, key_char)
+                    if 'down' in record[2]:
+                        keyboard_controller.press(key)
+                    elif 'up' in record[2]:
+                        keyboard_controller.release(key)
+        # 停止监听器
+        if listener is not None:
+            listener.stop()
+        end_ti = time.time()
+        print(f"实际执行时间:{(end_ti - star):.2f}秒")
+        #self.showNormal()
+        #self.parent.handle_restore()
+        pyautogui.moveTo(current_position.x, current_position.y)
+        self.finished_signal.emit()

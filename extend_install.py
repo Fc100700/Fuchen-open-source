@@ -1,3 +1,5 @@
+import json
+import random
 import shutil
 import time
 import webbrowser
@@ -12,6 +14,9 @@ from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QApplication, QVBoxLayout, QDialog, QLabel, QPushButton, QProgressBar, QHBoxLayout
 from lxml import etree
 import urllib.parse
+
+import function
+
 '''此文件为自动安装扩展包脚本'''
 
 
@@ -84,36 +89,45 @@ def get_ajax_data(lanzouyun_url, transfer_url):
     urllib.parse.quote(signs), sign, websignkey)
     return ajax_data
 
+def rand_ip():
+    """生成随机IP地址"""
+    first_part = ["218", "218", "66", "66", "218", "218", "60", "60", "202", "204", "66", "66", "66", "59", "61", "60",
+                  "222", "221", "66", "59", "60", "60", "66", "218", "218", "62", "63", "64", "66", "66", "122", "211"]
+    return f"{random.choice(first_part)}.{random.randint(0, 255)}.{random.randint(0, 255)}.{random.randint(0, 255)}"
 
-## 请求ajax_url，获取download_url
-def get_download_url(host_url, transfer_url, ajax_data):
-    ajax_url = host_url + '/' + 'ajaxm.php'
-    ajax_headers = {
-        'accept': 'application/json, text/javascript, */*',
-        'accept-encoding': 'gzip, deflate, br',
-        'accept-language': 'zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6',
-        'content-length': '152',
-        'content-type': 'application/x-www-form-urlencoded',
-        'cookie': 'codelen=1; pc_ad1=1',
-        'origin': host_url,
-        'referer': transfer_url,
-        'sec-ch-ua': '" Not A;Brand";v="99", "Chromium";v="100", "Microsoft Edge";v="100"',
-        'sec-ch-ua-mobile': '?0',
-        'sec-ch-ua-platform': '"Windows"',
-        'sec-fetch-dest': 'empty',
-        'sec-fetch-mode': 'cors',
-        'sec-fetch-site': 'same-origin',
-        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36 Edg/100.0.1185.44',
-        'x-requested-with': 'XMLHttpRequest'
 
-    }
+def get_lanzou_direct_url(url_update):
+    try:
+        # 使用示例
+        update_str = "Fuchen Get Url"
+        update_key = function.hash_string(update_str, 'sha256')
+        print(update_key)
+        url = f"https://fcyang.cn/get_url.php?url={url_update}&key={update_key}"
 
-    ajax_response = requests.post(url=ajax_url, data=ajax_data, headers=ajax_headers)
-    ajax_response_json = ajax_response.json()
+        try:
+            # 发送 GET 请求
+            response = requests.get(url)
 
-    download_url = str(ajax_response_json["dom"] + '/' + 'file' + '/' + ajax_response_json["url"]).replace(r'\/', '/')
-    return download_url
+            # 检查请求是否成功
+            if response.status_code == 200:
+                # 解析 JSON 响应
+                data = response.json()
+                print(data)
 
+                # 提取 downUrl
+                down_url = data.get("downUrl")
+
+                print("提取的下载链接:", down_url)
+                return down_url
+            else:
+                print("请求失败，状态码:", response.status_code)
+
+        except requests.exceptions.RequestException as e:
+            print("请求发生错误:", e)
+        except ValueError as e:
+            print("JSON 解析错误:", e)
+    except:
+        raise Exception(f"网络请求失败: {str(e)}")
 
 ## 下载文件
 def download_file(download_url, file_name):
@@ -161,7 +175,7 @@ class UnzipWorker(QObject):
                 extracted_size = 0
 
                 for file in zip_ref.infolist():
-                    zip_ref.extract(file, '.')
+                    zip_ref.extract(file, "./_internal")
                     extracted_size += file.file_size
                     progress = int((extracted_size / total_size) * 100)
                     self.progress_updated.emit(progress)
@@ -254,17 +268,10 @@ class DownloadDialog(QDialog):
 
         lanzouyun_url = cv2_zip_file
         print("正在解析链接 请稍后")
-        ## 获取host_url
-        host_url = 'https://' + lanzouyun_url.split('/')[2]
-        ## 请求lanzouyun_url，获取transfer_url
-        transfer_data = get_transfer_url(host_url, lanzouyun_url)
-        file_name = transfer_data[0]
-        transfer_url = transfer_data[1]
+        file_name = 'cv2.zip'
         self.label.setText("链接解析完毕正在下载\n过程中可能出现未响应 请耐心等待")
-        ## 请求transfer_url，获取ajax_data
-        ajax_data = get_ajax_data(lanzouyun_url, transfer_url)
         ## 获取download_url
-        download_url = get_download_url(host_url, transfer_url, ajax_data)
+        download_url = get_lanzou_direct_url(lanzouyun_url)
 
         self.progress_bar = QProgressBar()
         self.progress_bar.setValue(0)
@@ -309,13 +316,13 @@ class DownloadDialog(QDialog):
                     shutil.rmtree(folder_path, ignore_errors=True)
                     print("文件已删除")
 
-            folder_to_delete = "cv2"
+            folder_to_delete = "./_internal/cv2"
             delete_folder(folder_to_delete)
         except:
             pass
         # 创建线程和工作对象
         self.thread = QThread()
-        self.worker = UnzipWorker(file_name, "")
+        self.worker = UnzipWorker(file_name, "./_internal/cv2")
 
         # 将工作对象移动到线程
         self.worker.moveToThread(self.thread)
