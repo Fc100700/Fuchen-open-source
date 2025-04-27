@@ -33,10 +33,11 @@ class AgreementWindow(QWidget):
 
         # 设置滚动条样式
         self.textBrowser.setStyleSheet(ui.style.style_agreement_TextBrowser)
-        # 获取 main.py 所在的文件夹路径
+        '''# 获取 main.py 所在的文件夹路径
         main_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         # 构建图片的相对路径
-        text_path = os.path.join(main_dir, './mod/term/', 'about.txt')
+        text_path = os.path.join(main_dir, './mod/term/', 'about.txt')'''
+        text_path = './mod/term/about.txt'
 
         # 在QTextBrowser中添加长文本
         # 从文本文件中读取长文本内容
