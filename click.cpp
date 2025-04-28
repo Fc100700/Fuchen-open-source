@@ -3,17 +3,17 @@
 #include <string>
 #include <thread>
 #include <chrono>
-#include <random> // Ìí¼ÓÍ·ÎÄ¼ş
+#include <random> // æ·»åŠ å¤´æ–‡ä»¶
 #pragma pack(push, 1)
 struct SharedParams {
-    int version;        // °æ±¾ºÅĞ£Ñé
+    int version;        // ç‰ˆæœ¬å·æ ¡éªŒ
     int hotkey;
     double interval;
     int clickType;
 };
 #pragma pack(pop)
-// ¿ØÖÆ±êÊ¶
-const int APP_VERSION = 0x2023ABCD;  // Î¨Ò»°æ±¾±êÊ¶
+// æ§åˆ¶æ ‡è¯†
+const int APP_VERSION = 0x2023ABCD;  // å”¯ä¸€ç‰ˆæœ¬æ ‡è¯†
 const int MIN_HOTKEY = 1;
 const int MAX_HOTKEY = 254;
 
@@ -23,19 +23,19 @@ void clickMouse(int clickType) {
     ZeroMemory(inputs, sizeof(inputs));
 
     switch (clickType) {
-    case 0: // ×ó¼ü
+    case 0: // å·¦é”®
         inputs[0].type = INPUT_MOUSE;
         inputs[0].mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
         inputs[1].type = INPUT_MOUSE;
         inputs[1].mi.dwFlags = MOUSEEVENTF_LEFTUP;
         break;
-    case 1: // ÖĞ¼ü
+    case 1: // ä¸­é”®
         inputs[0].type = INPUT_MOUSE;
         inputs[0].mi.dwFlags = MOUSEEVENTF_MIDDLEDOWN;
         inputs[1].type = INPUT_MOUSE;
         inputs[1].mi.dwFlags = MOUSEEVENTF_MIDDLEUP;
         break;
-    case 2: // ÓÒ¼ü
+    case 2: // å³é”®
         inputs[0].type = INPUT_MOUSE;
         inputs[0].mi.dwFlags = MOUSEEVENTF_RIGHTDOWN;
         inputs[1].type = INPUT_MOUSE;
@@ -57,37 +57,37 @@ bool validate_parameters(const SharedParams& params) {
 }
 
 int main(int argc, char* argv[]) {
-    // ÑéÖ¤Æô¶¯·½Ê½
+    // éªŒè¯å¯åŠ¨æ–¹å¼
     if (argc != 2 || std::stoi(argv[1]) != APP_VERSION) {
-        MessageBoxW(nullptr, L"ÇëÍ¨¹ıÖ÷³ÌĞòÆô¶¯±¾¹¤¾ß", L"Æô¶¯·½Ê½´íÎó", MB_ICONERROR | MB_OK);
+        MessageBoxW(nullptr, L"è¯·é€šè¿‡ä¸»ç¨‹åºå¯åŠ¨æœ¬å·¥å…·", L"å¯åŠ¨æ–¹å¼é”™è¯¯", MB_ICONERROR | MB_OK);
         return 1;
     }
-    // ¹²ÏíÄÚ´æ·ÃÎÊ
+    // å…±äº«å†…å­˜è®¿é—®
     const wchar_t* shmName = L"Local\\ClickParamsSharedMemory";
     HANDLE hMapFile = OpenFileMappingW(FILE_MAP_READ, FALSE, shmName);
     if (!hMapFile) {
-        MessageBoxW(NULL, L"Î´»ñÈ¡µ½ÓĞĞ§²ÎÊı\nÇëÖØĞÂÆô¶¯¹¦ÄÜ", L"²ÎÊı´íÎó", MB_ICONERROR | MB_OK);
+        MessageBoxW(NULL, L"æœªè·å–åˆ°æœ‰æ•ˆå‚æ•°\nè¯·é‡æ–°å¯åŠ¨åŠŸèƒ½", L"å‚æ•°é”™è¯¯", MB_ICONERROR | MB_OK);
         return 2;
     }
     SharedParams* pParams = (SharedParams*)MapViewOfFile(hMapFile, FILE_MAP_READ, 0, 0, sizeof(SharedParams));
     if (!pParams || !validate_parameters(*pParams)) {
-        MessageBoxW(NULL, L"²ÎÊıĞ£ÑéÊ§°Ü\nÇë¼ì²éÖ÷³ÌĞò×´Ì¬", L"²ÎÊı´íÎó", MB_ICONERROR | MB_OK);
+        MessageBoxW(NULL, L"å‚æ•°æ ¡éªŒå¤±è´¥\nè¯·æ£€æŸ¥ä¸»ç¨‹åºçŠ¶æ€", L"å‚æ•°é”™è¯¯", MB_ICONERROR | MB_OK);
         if (hMapFile) CloseHandle(hMapFile);
         return 3;
     }
 
 
-    // ¶ÁÈ¡²ÎÊı
+    // è¯»å–å‚æ•°
     int hotkey = pParams->hotkey;
     double interval = pParams->interval;
     int clickType = pParams->clickType;
 
-    // ³õÊ¼»¯Ëæ»úÊıÉú³ÉÆ÷
+    // åˆå§‹åŒ–éšæœºæ•°ç”Ÿæˆå™¨
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_real_distribution<> dis(0.9, 1.1);
 
-    // Òş²Ø¿ØÖÆÌ¨´°¿Ú
+    // éšè—æ§åˆ¶å°çª—å£
     HWND consoleWindow = GetConsoleWindow();
     ShowWindow(consoleWindow, SW_HIDE);
 
@@ -96,19 +96,19 @@ int main(int argc, char* argv[]) {
     auto next_click_time = std::chrono::steady_clock::now();
 
     while (true) {
-        // Ã¿´ÎÑ­»·¶¼ÖØĞÂ¶ÁÈ¡ÄÚ´æÊı¾İ
+        // æ¯æ¬¡å¾ªç¯éƒ½é‡æ–°è¯»å–å†…å­˜æ•°æ®
         SharedParams currentParams;
         memcpy(&currentParams, pParams, sizeof(SharedParams));
 
-        // Ê¹ÓÃĞÂ²ÎÊı
+        // ä½¿ç”¨æ–°å‚æ•°
         int hotkey = currentParams.hotkey;
         double interval = currentParams.interval;
         int clickType = currentParams.clickType;
         SHORT keyState = GetAsyncKeyState(hotkey);
         bool isKeyPressed = (keyState & 0x8000) != 0;
-        // ²ÎÊıÓĞĞ§ĞÔ¼ì²é
+        // å‚æ•°æœ‰æ•ˆæ€§æ£€æŸ¥
         if (!validate_parameters(currentParams)) {
-            MessageBoxW(NULL, L"ÔËĞĞÊ±²ÎÊıÊ§Ğ§\n¼´½«ÍË³ö", L"²ÎÊı´íÎó", MB_ICONERROR | MB_OK);
+            MessageBoxW(NULL, L"è¿è¡Œæ—¶å‚æ•°å¤±æ•ˆ\nå³å°†é€€å‡º", L"å‚æ•°é”™è¯¯", MB_ICONERROR | MB_OK);
             break;
         }
 
@@ -125,7 +125,7 @@ int main(int argc, char* argv[]) {
                 std::thread clickThread(clickMouse, clickType);
                 clickThread.detach();
                 //next_click_time = now + std::chrono::milliseconds(static_cast<int>(interval * 1000));
-                // Éú³ÉËæ»ú¼ä¸ô
+                // ç”Ÿæˆéšæœºé—´éš”
                 double random_factor = dis(gen);
                 double current_interval = interval * random_factor;
                 next_click_time = now + std::chrono::milliseconds(
@@ -137,7 +137,7 @@ int main(int argc, char* argv[]) {
         Sleep(1);
     }
 
-    // ÇåÀí£¨ÀíÂÛÉÏ²»»áÖ´ĞĞµ½ÕâÀï£©
+    // æ¸…ç†ï¼ˆç†è®ºä¸Šä¸ä¼šæ‰§è¡Œåˆ°è¿™é‡Œï¼‰
     UnmapViewOfFile(pParams);
     CloseHandle(hMapFile);
     return 0;
