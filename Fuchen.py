@@ -219,7 +219,7 @@ Random_list = [1, 2, 3]
 handle_position = [30, -60]
 Click_Pause = 0.01
 res = False
-Version = 'V1.72'
+Version = 'V1.73'
 
 
 try:
