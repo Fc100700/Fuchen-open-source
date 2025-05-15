@@ -80,8 +80,10 @@ class QTextEditWithLineNums(QTextEdit):
 
 ps = [1920,1080]
 class FileEdit(QWidget):
-    def __init__(self, file, winx, winy):
+    def __init__(self, file, windows):
         super().__init__()
+        winx = windows.x()
+        winy = windows.y()
         x = winx + 500 - 350
         y = winy + 300 - 200
         self.setGeometry(x, y, 700, 400)

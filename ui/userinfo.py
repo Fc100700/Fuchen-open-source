@@ -1,5 +1,6 @@
 
 import json
+import os
 import re
 import struct
 import sys
@@ -76,15 +77,62 @@ def recv_json(sock):
 
 
 class CustomGraphicsView(QGraphicsView):
+    def __init__(self, scene, parent=None):
+        super().__init__(scene, parent)
+        self.setBackgroundBrush(Qt.white)
+        self.image_item = None  # 新增图片项引用
+
     def wheelEvent(self, event):
-        # 阻止默认的滚轮事件处理
-        event.ignore()
+        if self.image_item is not None:
+            delta = event.angleDelta().y()
+            if delta == 0:
+                return
+            factor = 1.1 if delta > 0 else 0.9
+
+            # 当前缩放
+            current_scale = self.image_item.scale()
+            new_scale = current_scale * factor
+
+            # 计算图像缩放后大小
+            pixmap = self.image_item.pixmap()
+            scaled_width = pixmap.width() * new_scale
+            scaled_height = pixmap.height() * new_scale
+
+            # 计算最小缩放：确保不小于视图尺寸
+            min_scale_x = self.viewport().width() / pixmap.width()
+            min_scale_y = self.viewport().height() / pixmap.height()
+            min_scale = max(min_scale_x, min_scale_y)
+
+            # 限制缩放不能小于最小比例
+            if new_scale < min_scale:
+                new_scale = min_scale
+
+            # 重新计算缩放因子（因为可能修改了 new_scale）
+            factor = new_scale / current_scale
+
+            # 获取鼠标位置并转换坐标
+            pos = event.pos()
+            scene_pos = self.mapToScene(pos)
+            item_pos = self.image_item.mapFromScene(scene_pos)
+
+            # 应用缩放
+            self.image_item.setScale(new_scale)
+
+            # 调整位置以保持鼠标点不变
+            new_item_pos = item_pos * factor
+            new_scene_pos = self.image_item.mapToScene(new_item_pos)
+            delta_pos = scene_pos - new_scene_pos
+
+            self.image_item.setPos(self.image_item.pos() + delta_pos)
+        else:
+            super().wheelEvent(event)
 
 
 class CustomPixmapItem(QGraphicsPixmapItem):
-    def __init__(self, pixmap,canvas_size):
+    def __init__(self, pixmap, canvas_width, canvas_height):
         super().__init__(pixmap)
-        self.canvas_size = canvas_size
+        self.canvas_width = canvas_width
+        self.canvas_height = canvas_height
         self.scaled_width = pixmap.width()
         self.scaled_height = pixmap.height()
         self.setFlag(QGraphicsItem.ItemIsMovable, True)
@@ -98,12 +146,20 @@ class CustomPixmapItem(QGraphicsPixmapItem):
     def itemChange(self, change, value):
         if change == QGraphicsItem.ItemPositionChange:
             new_pos = value
-
-            # 限制移动范围在画布边界内（不让图片跑出正方形）
-            min_x = self.canvas_size - self.scaled_width
-            max_x = 0
-            min_y = self.canvas_size - self.scaled_height
-            max_y = 0
+            # 计算水平限制
+            if self.scaled_width > self.canvas_width:
+                min_x = self.canvas_width - self.scaled_width
+                max_x = 0
+            else:
+                min_x = 0
+                max_x = self.canvas_width - self.scaled_width
+            # 计算垂直限制
+            if self.scaled_height > self.canvas_height:
+                min_y = self.canvas_height - self.scaled_height
+                max_y = 0
+            else:
+                min_y = 0
+                max_y = self.canvas_height - self.scaled_height
 
             clamped_x = max(min(new_pos.x(), max_x), min_x)
             clamped_y = max(min(new_pos.y(), max_y), min_y)
@@ -115,78 +171,101 @@ class CustomPixmapItem(QGraphicsPixmapItem):
 class FixPicture(QDialog):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("头像裁切工具")
-        self.setFixedSize(400, 400)
-
-        # 场景尺寸参数
-        self.canvas_size = 256
-        self.circle_diameter = int(self.canvas_size * 0.9)
-        self.margin = (self.canvas_size - self.circle_diameter) // 2
+        self.setWindowTitle("图片裁切工具")
+        self.setFixedSize(600, 400)  # 主窗口固定大小
         self.result_value = None
 
+        # 动态视图参数（初始设为16:9）
+        self.view_width = 400
+        self.view_height = 225
+        self.max_view_size = 500  # 视图最大尺寸
+
         # 创建场景和视图
-        self.scene = QGraphicsScene(0, 0, self.canvas_size, self.canvas_size)
-        self.view = CustomGraphicsView(self.scene)  # 使用自定义视图
-        self.view.setFixedSize(self.canvas_size, self.canvas_size)
+        self.scene = QGraphicsScene(0, 0, self.view_width, self.view_height)
+        self.scene.setBackgroundBrush(QBrush(Qt.white))
+
+        self.view = CustomGraphicsView(self.scene)
+        self.view.setFixedSize(self.view_width, self.view_height)
         self.view.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.view.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.view.setRenderHint(QPainter.Antialiasing, True)  # 在视图初始化时添加
 
-        # 添加环形遮罩层（关键优化）
-        self.create_mask_layer()
+        # 初始化遮罩层和图片项
+        self.mask_item = None
+        self.image_item = None
+        self.button_proxy = None
+        self.resizable_button = None
 
-        # 添加圆形参考线
-        self.circle = QGraphicsPathItem()
-        circle_path = QPainterPath()
-        circle_path.addEllipse(self.margin, self.margin,
-                               self.circle_diameter, self.circle_diameter)
-        self.circle.setPath(circle_path)
-        self.circle.setPen(QPen(Qt.white, 2))
-        self.circle.setBrush(QBrush(Qt.NoBrush))
-        self.circle.setZValue(2)  # 最顶层
-        self.scene.addItem(self.circle)
+        # 创建默认遮罩
+        self.create_mask_layer(0, 0, self.view_width, self.view_height)
 
-        # 创建按钮
+        # 控件创建
         open_btn = QPushButton("选择图片")
-        save_btn = QPushButton("保存头像")
+        save_btn = QPushButton("保存裁切")
 
-        # 布局设置
-        central_widget = QWidget()
+        # 布局管理
         layout = QVBoxLayout()
+        layout.setContentsMargins(20, 20, 20, 20)  # 添加边距
         btn_layout = QHBoxLayout()
-
+        btn_layout.addStretch()
         btn_layout.addWidget(open_btn)
         btn_layout.addWidget(save_btn)
-        layout.addWidget(self.view)
+        btn_layout.addStretch()
+
+        # 视图容器保证居中
+        view_container = QWidget()
+        view_layout = QHBoxLayout(view_container)
+        view_layout.addStretch()
+        view_layout.addWidget(self.view)
+        view_layout.addStretch()
+
+        layout.addWidget(view_container)
         layout.addLayout(btn_layout)
-        central_widget.setLayout(layout)
-        self.setLayout(layout)  # 直接将布局设置给QDialog
+        self.setLayout(layout)
 
-        # 初始化变量
-        self.image_item = None
-        self.scene.setBackgroundBrush(Qt.gray)  # 底层背景
-
-        # 连接信号
+        # 信号连接
         open_btn.clicked.connect(self.open_image)
         save_btn.clicked.connect(self.save_image)
 
-    def create_mask_layer(self):
-        """创建环形遮罩层"""
-        mask = QGraphicsPathItem()
+    def create_mask_layer(self, x, y, width, height):
+        """创建自适应遮罩层"""
+        if self.mask_item:
+            self.scene.removeItem(self.mask_item)
+
+        self.mask_item = QGraphicsPathItem()
         path = QPainterPath()
+        path.addRect(x, y, width, height)
+        self.mask_item.setPath(path)
+        self.mask_item.setBrush(QBrush(QColor(128, 128, 128, 50)))
+        self.mask_item.setZValue(1)
+        self.scene.addItem(self.mask_item)
 
-        # 添加整个画布矩形
-        path.addRect(0, 0, self.canvas_size, self.canvas_size)
+    def reset_view_size(self, img_ratio):
+        """
+        根据图片比例重置视图尺寸
+        :param img_ratio: 图片宽高比（width/height）
+        """
+        # 计算最大可用尺寸
+        max_width = min(self.max_view_size, self.width() - 40)  # 40是布局边距
+        max_height = min(self.max_view_size, self.height() - 120)  # 120是按钮区域
 
-        # 减去中心圆形区域
-        circle_path = QPainterPath()
-        circle_path.addEllipse(self.margin, self.margin,
-                               self.circle_diameter, self.circle_diameter)
-        path = path.subtracted(circle_path)
+        # 根据比例计算视图尺寸
+        if img_ratio > 1:  # 宽图
+            self.view_width = max_width
+            self.view_height = self.view_width / img_ratio
+            if self.view_height > max_height:
+                self.view_height = max_height
+                self.view_width = self.view_height * img_ratio
+        else:  # 高图或方形
+            self.view_height = max_height
+            self.view_width = self.view_height * img_ratio
+            if self.view_width > max_width:
+                self.view_width = max_width
+                self.view_height = self.view_width / img_ratio
 
-        mask.setPath(path)
-        mask.setBrush(QBrush(QColor(128, 128, 128, 100)))  # 半透明灰色
-        mask.setZValue(1)  # 介于背景和图片之间
-        self.scene.addItem(mask)
+        # 更新视图和场景
+        self.view.setFixedSize(int(self.view_width), int(self.view_height))
+        self.scene.setSceneRect(0, 0, self.view_width, self.view_height)
 
     def open_image(self):
         path, _ = QFileDialog.getOpenFileName(
@@ -196,111 +275,200 @@ class FixPicture(QDialog):
 
         pixmap = QPixmap(path)
         if pixmap.isNull():
+            self.reset_view_size(16 / 9)
+            self.create_mask_layer(0, 0, self.view_width, self.view_height)
             return
+
+        img_width = pixmap.width()
+        img_height = pixmap.height()
+        img_ratio = img_width / img_height
+
+        self.reset_view_size(img_ratio)
 
         if self.image_item:
             self.scene.removeItem(self.image_item)
+        if self.button_proxy:
+            self.scene.removeItem(self.button_proxy)
 
-        # 使用自定义图形项
-        self.image_item = CustomPixmapItem(
-            pixmap,
-            self.canvas_size
-        )
-
+        self.image_item = CustomPixmapItem(pixmap, self.view_width, self.view_height)
+        self.view.image_item = self.image_item  # 新增引用赋值
+        self.image_item.setTransformationMode(Qt.SmoothTransformation)
         self.scene.addItem(self.image_item)
-        self.image_item.setZValue(0)
-        self.center_and_scale_image(pixmap)
 
-    def center_and_scale_image(self, pixmap):
-        img_width = pixmap.width()
-        img_height = pixmap.height()
-
-        # 计算覆盖整个画布的缩放比例
-        target_size = self.canvas_size
-        scale = max(target_size / img_width, target_size / img_height)
+        scale = max(
+            self.view_width / img_width,
+            self.view_height / img_height
+        )
         self.image_item.setScale(scale)
 
-        # 计算初始居中位置
         scaled_width = img_width * scale
         scaled_height = img_height * scale
-        x = (self.canvas_size - scaled_width) / 2
-        y = (self.canvas_size - scaled_height) / 2
-        self.image_item.setPos(x, y)
+
+        self.view.setFixedSize(int(scaled_width), int(scaled_height))
+        self.scene.setSceneRect(0, 0, scaled_width, scaled_height)
+        self.image_item.setPos(0, 0)
+
+        self.create_mask_layer(0, 0, scaled_width, scaled_height)
+
+        # 获取视图的当前尺寸
+        view_width = self.view.width()
+        view_height = self.view.height()
+
+        # 确定初始裁切框的大小和max_size
+        if view_width == view_height:
+            initial_size = view_width
+            max_size = view_width
+        else:
+            initial_size = min(view_width, view_height)
+            max_size = initial_size
+
+        # 创建可调整按钮并设置初始大小和max_size
+        scene_rect = self.scene.sceneRect().toRect()
+        self.resizable_button = ResizableButton(max_size=max_size, view_rect=scene_rect)
+        self.resizable_button.resize(initial_size, initial_size)
+
+        # 计算居中位置
+        pos_x = (view_width - initial_size) // 2
+        pos_y = (view_height - initial_size) // 2
+
+        self.button_proxy = self.scene.addWidget(self.resizable_button)
+        self.button_proxy.setFlag(QGraphicsItem.ItemIsMovable, True)  # 允许代理项移动
+        self.button_proxy.setPos(pos_x, pos_y)
+        self.button_proxy.setZValue(2)
 
     def save_image(self):
-        if not self.image_item:
+        if not self.image_item or not self.resizable_button:
             return
 
-        # 创建输出图像（完整正方形）
-        image = QImage(self.canvas_size, self.canvas_size, QImage.Format_RGB32)
-        image.fill(Qt.transparent)
+        # 获取按钮在场景中的位置和尺寸
+        btn_size = self.resizable_button.width()
+        btn_pos = self.button_proxy.pos()
 
-        painter = QPainter(image)
-        painter.setRenderHint(QPainter.Antialiasing)
-        painter.setRenderHint(QPainter.SmoothPixmapTransform)
+        # 计算裁切区域（基于视图坐标系）
+        crop_rect = QRectF(
+            btn_pos.x(),
+            btn_pos.y(),
+            btn_size,
+            btn_size
+        )
 
-        # 隐藏遮罩和参考线
-        for item in self.scene.items():
-            if isinstance(item, QGraphicsPathItem):
-                item.hide()
+        # 转换到原始图片坐标系
+        img_scale = self.image_item.scale()
+        original_rect = QRectF(
+            (crop_rect.x() - self.image_item.x()) / img_scale,
+            (crop_rect.y() - self.image_item.y()) / img_scale,
+            crop_rect.width() / img_scale,
+            crop_rect.height() / img_scale
+        )
 
-        # 渲染场景内容
-        self.scene.render(painter,
-                          QRectF(0, 0, self.canvas_size, self.canvas_size),
-                          QRectF(0, 0, self.canvas_size, self.canvas_size))
-
-        # 恢复显示
-        for item in self.scene.items():
-            if isinstance(item, QGraphicsPathItem):
-                item.show()
-
-        painter.end()
-
-        # 默认保存路径（当前目录下 avatar.png）
-        default_path = "./temp/avatar.png"
-        image.save(default_path, "JPEG")
+        # 执行裁切
+        cropped = self.image_item.pixmap().copy(
+            int(original_rect.x()),
+            int(original_rect.y()),
+            int(original_rect.width()),
+            int(original_rect.height())
+        )
+        # 新增：缩放至256x256并保存为JPG
+        cropped = cropped.scaled(256, 256, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+        output_path = "./temp/avatar.png"
+        if not os.path.exists(os.path.dirname(output_path)):
+            os.makedirs(os.path.dirname(output_path))  # 确保目录存在[3](@ref)
+        if not cropped.save(output_path, "JPEG", quality=80):
+            QMessageBox.warning(self, "错误", "保存失败，请检查路径和权限")  # 错误处理[1](@ref)
+            return
         self.result_value = '修改成功'
         self.accept()
+class ResizableButton(QPushButton):
+    def __init__(self, max_size, view_rect, parent=None):
+        super().__init__(parent)
+        self.max_size = max_size
+        self.view_rect = view_rect  # 新增视图边界参数 QRect(0,0,width,height)
+        self.setWindowFlags(Qt.FramelessWindowHint)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setStyleSheet("""
+            QPushButton {
+                border: 2px solid rgba(0, 166, 255, 200);
+                background-color: rgba(0, 0, 0, 30);
+            }
+        """)
+        self.resize(self.max_size, self.max_size)
+        self.edge_margin = 8
+        self.drag_mode = None
+        self.mouse_press_offset = QPointF()
+        self.setMouseTracking(True)
 
-        # # 可选：弹出文件保存对话框
-        # path, _ = QFileDialog.getSaveFileName(
-        #     self, "保存头像", "", "PNG图片 (*.png)")
-        # if path:
-        #     image.save(path, "PNG")
+    def get_edge_zone(self, pos):
+        """判断鼠标位置所在的区域"""
+        rect = self.rect()
+        edge = self.edge_margin
 
-    def wheelEvent(self, event):
-        if self.image_item and (event.modifiers() & Qt.ControlModifier):
-            delta = event.angleDelta().y()
-            scale_factor = 1.001 **delta
-            self.image_item.setScale(self.image_item.scale() * scale_factor)
-            event.accept()
+        in_left = pos.x() < edge
+        in_right = pos.x() > rect.width() - edge
+        in_top = pos.y() < edge
+        in_bottom = pos.y() > rect.height() - edge
+
+        if in_left or in_right or in_top or in_bottom:
+            return "edge"
+        return "center"
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            zone = self.get_edge_zone(event.pos())
+            self.drag_mode = "resize" if zone == "edge" else "move"
+            self.mouse_press_offset = event.pos()
+            self.original_geometry = self.geometry()
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        # 更新光标形状
+        if self.drag_mode is None:
+            zone = self.get_edge_zone(event.pos())
+            self.setCursor(Qt.SizeAllCursor if zone == "center" else Qt.SizeFDiagCursor)
         else:
-            # 阻止默认的滚轮事件传播
-            event.ignore()
+            # 执行拖动操作
+            if self.drag_mode == "resize":
+                delta = event.pos() - self.mouse_press_offset
+                new_size = max(
+                    self.original_geometry.width() + delta.x(),
+                    self.original_geometry.height() + delta.y(),
+                    20
+                )
+                new_size = min(new_size, self.max_size)
+                self.resize(new_size, new_size)
+                self.setCursor(Qt.SizeFDiagCursor)
+                # 添加缩放时的平滑过渡
+                animation = QVariantAnimation()
+                animation.setDuration(100)
+                animation.setStartValue(self.size())
+                animation.setEndValue(QSize(new_size, new_size))
+                animation.valueChanged.connect(lambda value: self.resize(value))
+                animation.start()
+            elif self.drag_mode == "move":
+                delta = event.pos() - self.mouse_press_offset
+                new_pos = self.mapToParent(event.pos() - self.mouse_press_offset)
 
-def get_rounded_pixmap(pixmap: QPixmap, size: int, border_width: int = 2) -> QPixmap:
-    total_size = size + 2 * border_width
-    rounded = QPixmap(total_size, total_size)
+                # 限制移动范围
+                parent_rect = self.view_rect  # 使用 sceneRect 作为限制范围
+
+                new_x = max(0, min(new_pos.x(), parent_rect.width() - self.width()))
+                new_y = max(0, min(new_pos.y(), parent_rect.height() - self.height()))
+
+                self.move(int(new_x), int(new_y))
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        self.drag_mode = None
+        super().mouseReleaseEvent(event)
+def get_rounded_pixmap(pixmap: QPixmap, size: int) -> QPixmap:
+    rounded = QPixmap(size, size)
     rounded.fill(Qt.transparent)
 
     painter = QPainter(rounded)
     painter.setRenderHint(QPainter.Antialiasing)
-
-    # 白色边框
     path = QPainterPath()
-    path.addEllipse(0, 0, total_size, total_size)
-    painter.setBrush(QBrush(Qt.white))
-    painter.setPen(Qt.NoPen)
-    painter.drawPath(path)
-
-    clip_path = QPainterPath()
-    clip_path.addEllipse(border_width, border_width, size, size)
-    painter.setClipPath(clip_path)
-    painter.drawPixmap(
-        border_width, border_width,
-        pixmap.scaled(size, size, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
-    )
-
+    path.addEllipse(0, 0, size, size)
+    painter.setClipPath(path)
+    painter.drawPixmap(0, 0, size, size, pixmap)
     painter.end()
     return rounded
 

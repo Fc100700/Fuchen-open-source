@@ -5,7 +5,7 @@ import socket
 import struct
 import threading
 import traceback
-from PyQt5.QtCore import QThread, pyqtSignal, QSize, Qt
+from PyQt5.QtCore import QThread, pyqtSignal, QSize, Qt, QTimer
 import time
 from PyQt5.QtGui import QIcon, QColor, QPixmap
 from PyQt5.QtWidgets import QMessageBox
@@ -121,7 +121,8 @@ class DataThread(QThread):
         s = lis[1]
         # 启动心跳线程
         self.heartbeat_thread = HeartbeatThread(s)
-        self.heartbeat_thread.start()
+        QTimer.singleShot(5000, self.heartbeat_thread.start)  # 5000 毫秒 = 5 秒
+        #self.heartbeat_thread.start()
 
     def run(self):
         time.sleep(0.5)

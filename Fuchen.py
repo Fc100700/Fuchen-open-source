@@ -42,13 +42,11 @@ from datetime import datetime,date
 from pynput import mouse,keyboard
 from pynput.keyboard import Key, Controller as KeyboardController, KeyCode
 from pynput.mouse import Button, Controller as MouseController
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from PyQt5.QtCore import Qt, QTimer, QUrl, QTranslator, pyqtSignal, QObject
+from PyQt5.QtCore import Qt, QTimer, QUrl, QTranslator, pyqtSignal, QObject, QThread
 from PyQt5.QtGui import QColor, QIcon, QPixmap, QKeySequence, QFont, \
     QDesktopServices, QPalette, QBrush, QImage
 from PyQt5.QtWidgets import QApplication, QMessageBox, QFileDialog, QLabel, QShortcut, \
-    QMainWindow, QMenu, QAction, QSystemTrayIcon, QDialog, QGraphicsOpacityEffect
+    QMainWindow, QMenu, QAction, QSystemTrayIcon, QDialog, QGraphicsOpacityEffect, QInputDialog
 from PyQt5 import QtCore, QtGui
 
 logging.basicConfig(filename='INFOR.log', level=logging.ERROR)
@@ -219,7 +217,7 @@ Random_list = [1, 2, 3]
 handle_position = [30, -60]
 Click_Pause = 0.01
 res = False
-Version = 'V1.73'
+Version = 'V1.74'
 
 
 try:
@@ -375,11 +373,13 @@ try:
     split_res = res.split('  ')
     city_info = split_res[-2]  # 倒数第二个元素是城市信息
     city_info = city_info.split(' ')
-    city_info = city_info[-2]+city_info[-1]+(split_res[-1].replace('\n',''))
-    city_name = city_info
-    del city_info
+    city_name = city_info[-1]
+    #city_name = city_info[-2]+city_info[-1]+(split_res[-1].replace('\n',''))
+    #city_name = city_info
+    #del city_info
 except Exception as e:
     city_name = 'Unknown'
+    city_info = ['中国','Unknown','Unknown']
     logging.exception(str(time.strftime('%Y-%m-%d  %H:%M:%S', time.localtime())) + "错误:" + str(e))
 
 system = platform.system()  # 系统类型
@@ -418,6 +418,8 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
         self.c_thread_object = None
         self.first_image = False
         self._is_maximized = False  # 跟踪最大化状态
+        self.record_status = False
+        self.execute_status = False
         if Theme == "White":
             self.should_draw = "White"
         elif Theme == "Custom":
@@ -428,12 +430,21 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
             self.should_draw = "White"
         self.window_icon = False  # 右下角图标存在或不存在 布尔值 存在为True不存在为False
         self.setupUi(self)
+        #self.record_hotkey = keys.add_hotkey(self.record_hotkey_btn.text(), self.Click_Record)
+        # 提取按键名称
+        hotkey = self._3pushButton.text().split(':')[-1].strip()
+        self.record_hotkey = keys.add_hotkey(hotkey, self.Click_Record)
+
+        hotkey = self._3pushButton_2.text().split(':')[-1].strip()
+        self.execute_hotkey = keys.add_hotkey(hotkey, self.Click_Record_execute)
         self.title_bar.Button_SetTop.clicked.connect(self.upwindow)
         self.title_bar.Button_Close.clicked.connect(self.clo)  # 退出按钮
 
         self.open_window_hotkey = QShortcut(QKeySequence("Ctrl+o"), self)
         self.open_window_hotkey.activated.connect(self.open_console_window)
 
+        self.open_window_hotkey = QShortcut(QKeySequence("F12"), self)
+        self.open_window_hotkey.activated.connect(self.open_console_window)
 
         #self.title_bar.action_option1.triggered.connect(self.open_set_window)  # 设置按钮
         self.title_bar.action_option2.triggered.connect(self.about)
@@ -458,9 +469,11 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
         self._3pushButton_7.clicked.connect(lambda: MyThread(self.break_click))
 
         self._3pushButton_4.setMenu(self.createMenu())
+        self.weather_label.setCursor(Qt.PointingHandCursor)  # 鼠标变手型
+        self.weather_label.mousePressEvent = self.change_city_name  # 绑定点击事件
 
-        self._3pushButton.clicked.connect(self.Click_Record)  # 记录自动脚本
-        self._3pushButton_2.clicked.connect(self.Click_Record_execute)
+        #self._3pushButton.clicked.connect(self.Click_Record)  # 记录自动脚本
+        #self._3pushButton_2.clicked.connect(self.Click_Record_execute)
 
         #----消息发送控件----#
         self.old_QQ.toggled.connect(lambda checked: self.QQ_change("old"))
@@ -502,9 +515,6 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
         self.update_status_button.clicked.connect(self.get_connect_status)
 
         '''
-        self.uim.end_key_button.setMenu(self.create_key_Menu('record'))
-        self.uim.end_execute_button.setMenu(self.create_key_Menu('execute'))
-
         self.uim.Start_Click_Radio.clicked.connect(lambda: self.record_change('click'))
         self.uim.Start_Hotkey_Radio.clicked.connect(lambda: self.record_change('hotkey'))
         self.uim.Hotkey_record_button.clicked.connect(self.record_hotkey_setting)
@@ -515,10 +525,8 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
 
         self.uim._3pushButton_5.clicked.connect(self.mouseinfo)
         
-        self.uim.button_create.clicked.connect(self.create_file)
         self.uim.impor_button.clicked.connect(self.open_fileedit_window)
         self.uim.reflash.clicked.connect(lambda: self.uim.populateMenu('scripts'))
-        self.uim.delete_button.clicked.connect(self.delete_file)
 
         
         self.uim.talk_lineEdit.returnPressed.connect(self.send_talk)
@@ -915,11 +923,8 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
                                                   current_time) + "]"  # 格式化时间为字符串
 
     def restart_app(self):
-        #global thread_for_exe, C_thread
         subprocess.Popen([Fuchen_fullname])
         self.close()
-        '''if thread_for_exe != True:
-            C_thread.kill()'''
         os._exit(0)
 
     def get_update(self):
@@ -1009,17 +1014,7 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
         currentTime = QtCore.QTime.currentTime()
         elapsedTime = self.startTime.secsTo(currentTime)
 
-    def upwindow(self):  # 置顶窗口
-        if self.is_topmost == False:  # 置顶
-            self.windowHandle().setFlags(
-                self.windowFlags() | QtCore.Qt.WindowStaysOnTopHint)
-            self.is_topmost = True
-            self.title_bar.Button_SetTop.setIcon(QIcon("./image/Component/Top2.png"))
-        else:  #取消置顶
-            self.windowHandle().setFlags(
-                self.windowFlags() & ~QtCore.Qt.WindowStaysOnTopHint)
-            self.is_topmost = False
-            self.title_bar.Button_SetTop.setIcon(QIcon("./image/Component/Top.png"))
+
 
     def QQ_change(self, checked):  # 句柄发送位置切换
         global handle_position
@@ -1047,6 +1042,7 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
         # 通过全局变量字典获取
         param = globals()[value]
         return param
+
     def clear_temp(self):
         #global Theme
         total_size = 0
@@ -1183,7 +1179,7 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
             pyautogui.confirm("需要先选择或创建配置文件")
             return 0
         pyautogui.confirm("此功能还处于开发中 功能不全面可能有BUG")
-        self.fileedit_window = ui.fileEdit.FileEdit(self.uim.button_file.text(), self.x(), self.y())
+        self.fileedit_window = ui.fileEdit.FileEdit(self.button_file.text(), self)
         self.fileedit_window.show()
 
     def clo(self):
@@ -1246,116 +1242,165 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
         print(result)
         return result
 
-    def keyPressEvent(self, event):
-        if event.key() == Qt.Key_F12:
-            self.open_console_window()
+    # 新增城市修改方法
+    def change_city_name(self, event):
+        global city_name
 
+        # 创建输入对话框
+        dialog = QInputDialog(self)
+        dialog.setInputMode(QInputDialog.TextInput)
+        dialog.setWindowTitle('修改城市')
+        dialog.setLabelText('请输入城市名称:')
+        dialog.setTextValue(str(city_name))
+
+        # 设置对话框整体样式
+        dialog.setStyleSheet("""
+            QDialog {
+                background: rgba(121, 188, 237, 0.9);
+                border-radius: 8px;
+                border: 1px solid rgba(255,255,255,0.25);
+            }
+            QLabel {
+                color: white;
+                font: 500 13px 'Microsoft YaHei';
+                background: transparent;
+            }
+            QLineEdit {
+                background: rgba(255,255,255,0.15);
+                color: white;
+                font: 500 13px 'Microsoft YaHei';
+                border-radius: 8px;
+                border: 1px solid rgba(255,255,255,0.25);
+                padding: 5px;
+            }
+            QPushButton {
+                background: rgba(255,255,255,0.1);
+                color: white;
+                font: 500 12px 'Microsoft YaHei';
+                border-radius: 6px;
+                padding: 6px;
+                min-width: 60px;
+            }
+            QPushButton:hover {
+                background: rgba(255,255,255,0.2);
+            }
+        """)
+
+        # 调整对话框尺寸
+        dialog.resize(300, 150)
+
+        if dialog.exec_() == QDialog.Accepted:
+            new_city = dialog.textValue().strip()
+            if new_city:
+                city_name = new_city
+                self.Update_weather()
     def Update_weather(self):  # 获取天气
-        try:
-            api_key = "dce92b382ffb9409ca31ae4c1b240d4f"
-            # 发送请求获取IP地址信息
-            res = requests.get('http://myip.ipip.net', timeout=5).text
-            # 提取城市信息
-            split_res = res.split('  ')
-            city_info = split_res[-2]  # 倒数第二个元素是位置信息
-            city_info = city_info.split(' ')
-            country = city_info[-3]
-            city_info = city_info[-1]
-            global city_name, weather_status, temperature, humidity, weather_info
-            if country[-2:] == '中国':
-                city_name = city_info
-                pinyin_list = pinyin(city_info, style=Style.NORMAL)
-                # 从拼音列表中提取拼音并连接成字符串
-                pinyin_str = ''.join([item[0] for item in pinyin_list])
-                # 设置API请求的URL
-                base_url = "http://api.openweathermap.org/data/2.5/weather"
-                url = f"{base_url}?q={pinyin_str}&appid={api_key}"
-                # 发送API请求并获取响应
-                response = requests.get(url, timeout=15)
-                data = response.json()
-                # 提取天气信息
-                if data["cod"] == 200:
-                    temperature = data["main"]["temp"] - 273.15  # 摄氏度
-                    temp = round(temperature)
-                    humidity = data["main"]["humidity"]  # 湿度
-                    weather_main = data["weather"][0]["main"]
-                    weather_id = data["weather"][0]["id"]
+        def get_response():
+            try:
+                print("开始更新天气 请稍后")
+                api_key = "dce92b382ffb9409ca31ae4c1b240d4f"
+                # 发送请求获取IP地址信息
+                '''res = requests.get('http://myip.ipip.net', timeout=5).text
+                # 提取城市信息
+                split_res = res.split('  ')
+                city_info = split_res[-2]  # 倒数第二个元素是位置信息
+                city_info = city_info.split(' ')
+                country = city_info[-3]
+                city_info = city_info[-1]'''
+                #global city_name, weather_status, temperature, humidity, weather_info
+                self.weather_label.setText("正在获取天气...")
+                global city_name, city_info
+                country = city_info[-3]
+                if country[-2:] == '中国':
+                    #city_name = city_info
+                    pinyin_list = pinyin(city_name, style=Style.NORMAL)
+                    # 从拼音列表中提取拼音并连接成字符串
+                    pinyin_str = ''.join([item[0] for item in pinyin_list])
+                    # 设置API请求的URL
+                    base_url = "http://api.openweathermap.org/data/2.5/weather"
+                    url = f"{base_url}?q={pinyin_str}&appid={api_key}"
+                    # 发送API请求并获取响应
+                    response = requests.get(url, timeout=15)
+                    data = response.json()
+                    # 提取天气信息
+                    if data["cod"] == 200:
+                        temperature = data["main"]["temp"] - 273.15  # 摄氏度
+                        temp = round(temperature)
+                        humidity = data["main"]["humidity"]  # 湿度
+                        weather_main = data["weather"][0]["main"]
+                        weather_id = data["weather"][0]["id"]
 
-                    # 根据天气类型设置emoji和描述
-                    emoji, weather_desc = '🌡️', '未知天气'
-                    if weather_main == 'Clear':
-                        emoji, weather_desc = '☀️', '晴天'
-                    elif weather_main == 'Clouds':
-                        if 801 <= weather_id <= 802:
-                            emoji, weather_desc = '⛅', '晴间多云'
-                        elif 803 <= weather_id <= 804:
-                            emoji, weather_desc = '☁️', '多云'
-                    elif weather_main == 'Rain':
-                        emoji, weather_desc = '🌧️', '下雨'
-                    elif weather_main == 'Drizzle':
-                        emoji, weather_desc = '🌧️', '小雨'
-                    elif weather_main == 'Thunderstorm':
-                        emoji, weather_desc = '⛈️', '雷雨'
-                    elif weather_main == 'Snow':
-                        emoji, weather_desc = '🌨️', '下雪'
-                    elif weather_main in ('Mist', 'Fog'):
-                        emoji, weather_desc = '🌫️', '雾'
-                    elif weather_main == 'Haze':
-                        emoji, weather_desc = '🌫️', '霾'
-                    elif weather_main == 'Squall':
-                        emoji, weather_desc = '💨', '大风'
-                    elif weather_main == 'Tornado':
-                        emoji, weather_desc = '🌪️', '龙卷风'
+                        # 根据天气类型设置emoji和描述
+                        emoji, weather_desc = '🌡️', '未知天气'
+                        if weather_main == 'Clear':
+                            emoji, weather_desc = '☀️', '晴天'
+                        elif weather_main == 'Clouds':
+                            if 801 <= weather_id <= 802:
+                                emoji, weather_desc = '⛅', '晴间多云'
+                            elif 803 <= weather_id <= 804:
+                                emoji, weather_desc = '☁️', '多云'
+                        elif weather_main == 'Rain':
+                            emoji, weather_desc = '🌧️', '下雨'
+                        elif weather_main == 'Drizzle':
+                            emoji, weather_desc = '🌧️', '小雨'
+                        elif weather_main == 'Thunderstorm':
+                            emoji, weather_desc = '⛈️', '雷雨'
+                        elif weather_main == 'Snow':
+                            emoji, weather_desc = '🌨️', '下雪'
+                        elif weather_main in ('Mist', 'Fog'):
+                            emoji, weather_desc = '🌫️', '雾'
+                        elif weather_main == 'Haze':
+                            emoji, weather_desc = '🌫️', '霾'
+                        elif weather_main == 'Squall':
+                            emoji, weather_desc = '💨', '大风'
+                        elif weather_main == 'Tornado':
+                            emoji, weather_desc = '🌪️', '龙卷风'
 
-                    # 更新天气标签
-                    # 生成完整显示文本
-                    full_text = f"{emoji} {temp}°C {weather_desc} | {city_name}"
+                        # 更新天气标签
+                        # 生成完整显示文本
+                        full_text = f"{emoji} {temp}°C {weather_desc} | {city_name}"
 
-                    # 获取字体度量
-                    font_metrics = self.weather_label.fontMetrics()
-                    available_width = self.weather_label.width() - 10  # 保留边距
+                        # 获取字体度量
+                        font_metrics = self.weather_label.fontMetrics()
+                        available_width = self.weather_label.width() - 10  # 保留边距
 
-                    # 自动缩短文本算法
-                    def shorten_text(text, max_width):
-                        if font_metrics.horizontalAdvance(text) <= max_width:
-                            return text
-                        # 逐步移除城市名的最后一个字符
-                        parts = text.split(" | ")
-                        base = parts[0] + " | "
-                        city = parts[1]
-                        for i in range(len(city) - 1, 0, -1):
-                            shortened = base + city[:i] + "…"
-                            if font_metrics.horizontalAdvance(shortened) <= max_width:
-                                return shortened
-                        return text[:3] + "…"  # 保底方案
+                        # 自动缩短文本算法
+                        def shorten_text(text, max_width):
+                            if font_metrics.horizontalAdvance(text) <= max_width:
+                                return text
+                            # 逐步移除城市名的最后一个字符
+                            parts = text.split(" | ")
+                            base = parts[0] + " | "
+                            city = parts[1]
+                            for i in range(len(city) - 1, 0, -1):
+                                shortened = base + city[:i] + "…"
+                                if font_metrics.horizontalAdvance(shortened) <= max_width:
+                                    return shortened
+                            return text[:3] + "…"  # 保底方案
 
-                    # 应用自适应缩短
-                    display_text = shorten_text(full_text, available_width)
+                        # 应用自适应缩短
+                        display_text = shorten_text(full_text, available_width)
 
-                    # 设置显示文本和悬浮提示
-                    self.weather_label.setText(display_text)
-                    self.weather_label.setToolTip(full_text)  # 悬浮显示完整信息
-                    weather_status = True
-                    print(f"天气获取成功 城市:{city_name} 温度:{temp}°C 湿度:{humidity}%")
+                        # 设置显示文本和悬浮提示
+                        self.weather_label.setText(display_text)
+                        self.weather_label.setToolTip(full_text)  # 悬浮显示完整信息
+                        weather_status = True
+                        print(f"天气获取成功 城市:{city_name} 温度:{temp}°C 湿度:{humidity}%")
+                    else:
+                        self.weather_label.setText("天气获取失败")
+                        weather_status = False
+                        print('天气获取失败')
                 else:
-                    self.weather_label.setText("天气获取失败")
-                    weather_status = False
-                    print('天气获取失败')
-            else:
-                self.weather_label.setText("暂不支持非中国天气解析")
-                print("暂不支持非中国天气解析")
-        except requests.exceptions.Timeout:
-            self.weather_label.setText("获取天请求超时")
-            print(f'获取天气请求超时')
-        except Exception as e:
-            self.weather_label.setText("天气获取失败")
-            print(f'天气获取失败: {str(e)}')
-
-    def empyt_log(self):  # 清空日志
-        log_file_path = "INFOR.log"
-        with open(log_file_path, "w") as log_file:
-            pass  # 使用 pass 语句表示什么都不做，从而实现清空文件内容
-        self.show_message_box("提示", "日志清空成功!")
+                    self.weather_label.setText("当前位置暂不支持天气解析")
+                    print("当前位置暂不支持天气解析")
+            except requests.exceptions.Timeout:
+                self.weather_label.setText("获取天请求超时")
+                print(f'获取天气请求超时')
+            except Exception as e:
+                traceback.print_exc()
+                self.weather_label.setText("天气获取失败")
+                print(f'天气获取失败: {str(e)}')
+        MyThread(get_response)
 
     def open_folder(self, page):  # 浏览QQ头像下载文件夹
         if page == 'picture':
@@ -1373,17 +1418,6 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
             url = QUrl.fromLocalFile(folder_path)
             QDesktopServices.openUrl(url)
 
-    def open_music_folder(self):  # 浏览QQ头像下载文件夹
-        folder_path = '.mod/music'
-        url = QUrl.fromLocalFile(folder_path)
-        QDesktopServices.openUrl(url)
-
-    def LogRecord(self):  # 打开日志
-        subprocess.Popen(["notepad.exe", "INFOR.log"])
-
-
-    # 在类中新增共享内存相关方法K0KNFmrcBB4V9MKkfxyoTwXoQEjevR
-    # 在类外部或类初始化时定义Windows API（推荐放在类初始化中）
     def init_shared_memory(self):
         # 确保kernel32的API正确定义
         kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
@@ -1575,7 +1609,6 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
             pyautogui.confirm(e)
 
     def _convert_hotkey_to_code(self):
-
         # 返回对应的键值或默认值
         return function.keycode_dict.get(self.sort.lower(), 8888)
 
@@ -1816,11 +1849,11 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
                     os.remove(f"./mod/picture/{random_number}.jpg")
                 else:
                     success = success + 1
-                    #self.uim.QQ_label_t6.setText(f"有效次数:{success}次")
-            #self.uim.QQ_label_t3.setText(f"总下载次数:{total}次")
+                    self.successfully_download_times.setText(f"有效次数: {success} 次")
+            self.total_download_times.setText(f"总下载次数: {total} 次")
         if success == 0:
             pass
-            #self.uim.QQ_label_t6.setText("有效次数:0次")
+            self.successfully_download_times.setText("有效次数: 0 次")
         self.btn_download_qq.setEnabled(True)
         MyThread(play_warning_sound)
         pyautogui.confirm(f"图片下载成功!\n本次已成功下载{success}张图片(已删除默认头像)")
@@ -2123,14 +2156,6 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
         if self.uim.execute_hotkey != '未设置':
             self.hotkey_execute_status = keys.add_hotkey(self.uim.execute_hotkey, self.start_executing)
 
-    '''def start_recording(self):
-        if (self.record_thread is None or not self.record_thread.isRunning()) and (self.execute_thread is None or not self.execute_thread.isRunning()):  #检测录制/执行是否同时开启
-            self.record_thread = ClickRecordThread(self)
-            self.record_thread.finished_signal.connect(self.on_record_finished)
-            self.record_thread.start()
-        else:
-            print('记录已经开始 请等待结束后再进行操作')'''
-
     def on_record_finished(self):
         self.handle_restore()
         print("录制结束")
@@ -2159,22 +2184,24 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
         if self.uim.record_hotkey != '未设置':
             self.hotkey_record_status = keys.add_hotkey(self.uim.record_hotkey, self.start_recording)
 
-    '''def start_executing(self):
-        if (self.execute_thread is None or not self.execute_thread.isRunning()) and (self.record_thread is None or not self.record_thread.isRunning()):  #检测录制/执行是否同时开启
-            self.execute_thread = ClickExecuteRecordThread(self)
-            self.execute_thread.finished_signal.connect(self.on_execute_finished)
-            self.execute_thread.start()
-        else:
-            print("执行已经开始 请等待结束后再进行操作")'''
-
     def on_execute_finished(self):
         self.handle_restore()
         print("执行结束")
         self.execute_thread = None
 
     def Click_Record(self):  # 记录自动脚本
+
+        # 确保在主线程执行
+        if QThread.currentThread() != self.thread():
+            QTimer.singleShot(0, self.Click_Record)
+            return
+        if self.record_status == False:  #防止重复执行
+            self.record_status = True
+        else:
+            return
         if self.file_lineEdit.text() == '':
             QMessageBox.information(self, "提示", f"配置文件为空 请先选则文件")
+            self.record_status = False
             return 0
         self.handle_minimize()
         #self.showMinimized()
@@ -2293,13 +2320,86 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
 
 
         # 打开文件进行写入
-        with open(self.file_lineEdit.text(), 'w') as f:
+        '''with open(self.file_lineEdit.text(), 'w') as f:
             for record in records:
                 if record[0] != 0:
                     if isinstance(record[3][1], str) and len(record[3][1]) == 1 and record[3][
                         1].isupper():
                         record[3] = (record[3][0], record[3][1].lower())
-                    f.write(str(record) + '\n')
+                    f.write(str(record) + '\n')'''
+        json_records = []
+        for record in records:
+            interval, event_type, action, data = record
+            json_record = {
+                "interval": interval,
+                "type": "keyboard" if event_type == 'K' else "mouse",
+                "action": None,
+                "details": {}
+            }
+
+            if event_type == 'K':
+                json_record["action"] = action.split()[-1]
+                json_record["details"] = {
+                    "code": data[0],
+                    "name": data[1].upper() if data[1].isalpha() else data[1]
+                }
+            else:
+                if 'move' in action:
+                    json_record["action"] = "move"
+                    json_record["details"] = {"x": data[0], "y": data[1]}
+                elif 'scroll' in action:
+                    json_record["action"] = "scroll"
+                    json_record["details"] = {"dx": data[0], "dy": data[1]}
+                else:
+                    button = action.split()[1]
+                    json_record["action"] = action.split()[-1]
+                    json_record["details"] = {
+                        "button": button,
+                        "x": data[0],
+                        "y": data[1]
+                    }
+            json_records.append(json_record)
+
+        # 最后写入整个 JSON 数组
+        with open(self.file_lineEdit.text(), 'w') as f:
+            json.dump(json_records, f, indent=2)
+
+        '''with open(self.file_lineEdit.text(), 'w') as f:
+            for record in records:
+                interval, event_type, action, data = record
+                json_record = {
+                    "interval": interval,
+                    "type": "keyboard" if event_type == 'K' else "mouse",
+                    "action": None,
+                    "details": {}
+                }
+
+                if event_type == 'K':
+                    # 键盘事件
+                    json_record["action"] = action.split()[-1]  # 'up' 或 'down'
+                    json_record["details"] = {
+                        "code": data[0],
+                        "name": data[1].upper() if data[1].isalpha() else data[1]
+                    }
+                else:
+                    # 鼠标事件
+                    if 'move' in action:
+                        json_record["action"] = "move"
+                        json_record["details"] = {"x": data[0], "y": data[1]}
+                    elif 'scroll' in action:
+                        json_record["action"] = "scroll"
+                        json_record["details"] = {"dx": data[0], "dy": data[1]}
+                    else:
+                        # 点击事件
+                        button = action.split()[1]  # left/right/middle
+                        json_record["action"] = action.split()[-1]  # down/up
+                        json_record["details"] = {
+                            "button": button,
+                            "x": data[0],
+                            "y": data[1]
+                        }
+
+                f.write(json.dumps(json_record) + '\n')'''
 
 
         mouse_listener.stop()
@@ -2310,10 +2410,20 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
 
         pyautogui.moveTo(current_position.x, current_position.y)
         print("记录完毕")
+        self.record_status = False
 
     def Click_Record_execute(self):  # 执行自动脚本
+        # 确保在主线程执行
+        if QThread.currentThread() != self.thread():
+            QTimer.singleShot(0, self.Click_Record_execute)
+            return
+        if self.execute_status == False:  #防止重复执行
+            self.execute_status = True
+        else:
+            return
         if self.file_lineEdit.text() == '':
             QMessageBox.information(self, "提示", f"配置文件为空 请先选则文件")
+            self.execute_status = False
             return 0
         stop_script = False  # 局部变量，用于控制脚本停止
         listener = None  # 全局引用监听器
@@ -2448,18 +2558,90 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
         # 获取屏幕分辨率
         screen_width = screen.size().width()
         screen_height = screen.size().height()
-        with open(self.file_lineEdit.text(), 'r') as f:
+        '''with open(self.file_lineEdit.text(), 'r') as f:
             for line in f:
                 if line[0] != '#':
                     record = eval(line.strip())
                     record_time += record[0]
-                    records.append(record)
+                    records.append(record)'''
+        '''records = []
+        with open(self.file_lineEdit.text(), 'r') as f:
+            for line in f:
+                json_record = json.loads(line.strip())
+
+                # 转换回原始格式兼容旧执行逻辑
+                if json_record["type"] == "keyboard":
+                    record = [
+                        json_record["interval"],
+                        'K',
+                        f'key {json_record["action"]}',
+                        [json_record["details"]["code"], json_record["details"]["name"].lower()]
+                    ]
+                else:
+                    if json_record["action"] == "move":
+                        record = [
+                            json_record["interval"],
+                            'M',
+                            'mouse move',
+                            [json_record["details"]["x"], json_record["details"]["y"]]
+                        ]
+                    elif json_record["action"] == "scroll":
+                        record = [
+                            json_record["interval"],
+                            'M',
+                            'mouse scroll',
+                            [json_record["details"]["dx"], json_record["details"]["dy"]]
+                        ]
+                    else:
+                        record = [
+                            json_record["interval"],
+                            'M',
+                            f'mouse {json_record["details"]["button"]} {json_record["action"]}',
+                            [json_record["details"]["x"], json_record["details"]["y"]]
+                        ]
+
+                records.append(record)'''
+        with open(self.file_lineEdit.text(), 'r') as f:
+            json_records = json.load(f)
+
+        records = []
+        for json_record in json_records:
+            if json_record["type"] == "keyboard":
+                record = [
+                    json_record["interval"],
+                    'K',
+                    f'key {json_record["action"]}',
+                    [json_record["details"]["code"], json_record["details"]["name"].lower()]
+                ]
+            else:
+                if json_record["action"] == "move":
+                    record = [
+                        json_record["interval"],
+                        'M',
+                        'mouse move',
+                        [json_record["details"]["x"], json_record["details"]["y"]]
+                    ]
+                elif json_record["action"] == "scroll":
+                    record = [
+                        json_record["interval"],
+                        'M',
+                        'mouse scroll',
+                        [json_record["details"]["dx"], json_record["details"]["dy"]]
+                    ]
+                else:
+                    record = [
+                        json_record["interval"],
+                        'M',
+                        f'mouse {json_record["details"]["button"]} {json_record["action"]}',
+                        [json_record["details"]["x"], json_record["details"]["y"]]
+                    ]
+            records.append(record)
+
         print(f"记录执行时间:{record_time / 1000}秒")
         deal_time = 0
         for x in records:
             x[0] = int(x[0]/speed)
             deal_time += x[0]
-        print(f"处理执行时间:{deal_time / 1000}秒")
         star = time.time()
         for i in range(count):  # 开始执行自动脚本
             for record in records:
@@ -2527,20 +2709,9 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
         end_ti = time.time()
         print(f"实际执行时间:{(end_ti - star):.2f}秒")
         #self.showNormal()
+        self.execute_status = False
         self.handle_restore()
         pyautogui.moveTo(current_position.x, current_position.y)
-
-    def about(self):
-        pyautogui.confirm(
-            f"版本:{Version}\nGui图形库:Pyqt5\n制作者:浮沉 QQ:3046447554 软件完全免费 纯净无广告\n软件免费 若发现收费购买 请联系我进行反馈\nUI设计本人没有灵感 略微草率还请谅解 如有建议请反馈",
-            "Fuchen")
-
-    def open_website(self):
-        webbrowser.open("https://fcyang.cn/")
-
-    def open_website_help(self):
-        webbrowser.open("https://fcyang.cn/others/help.html")
-
 
 
     def createMenu(self):  #连点器开启按键
@@ -2597,55 +2768,6 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
 
         return menu
 
-    def create_key_Menu(self, types):  # 自动脚本录制结束按钮菜单
-        if types == 'record':
-            key_menu = QMenu(self)
-
-            action1 = QAction("ESC", self)
-            action1.triggered.connect(lambda: self.key_menu_com('record','ESC'))
-
-            action2 = QAction("F8", self)
-            action2.triggered.connect(lambda: self.key_menu_com('record',"F8"))
-
-            action3 = QAction("F9", self)
-            action3.triggered.connect(lambda: self.key_menu_com('record',"F9"))
-
-            action4 = QAction("F10", self)
-            action4.triggered.connect(lambda: self.key_menu_com("record", 'F10'))
-
-            action5 = QAction("END", self)
-            action5.triggered.connect(lambda: self.key_menu_com("record", 'END'))
-
-            key_menu.addAction(action1)
-            key_menu.addAction(action2)
-            key_menu.addAction(action3)
-            key_menu.addAction(action4)
-            key_menu.addAction(action5)
-            return key_menu
-        elif types == 'execute':
-            key_menu = QMenu(self)
-
-            action1 = QAction("ESC", self)
-            action1.triggered.connect(lambda: self.key_menu_com("execute", 'ESC'))
-
-            action2 = QAction("F8", self)
-            action2.triggered.connect(lambda: self.key_menu_com("execute", 'F8'))
-
-            action3 = QAction("F9", self)
-            action3.triggered.connect(lambda: self.key_menu_com("execute", 'F9'))
-
-            action4 = QAction("F10", self)
-            action4.triggered.connect(lambda: self.key_menu_com("execute", 'F10'))
-
-            action5 = QAction("END", self)
-            action5.triggered.connect(lambda: self.key_menu_com("execute", 'END'))
-
-            key_menu.addAction(action1)
-            key_menu.addAction(action2)
-            key_menu.addAction(action3)
-            key_menu.addAction(action4)
-            key_menu.addAction(action5)
-            return key_menu
 
     def action_Clicked(self, key):
         if key == '自定义':
@@ -2672,65 +2794,6 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
         elif types == 'execute':
             self.end_execute_key = key
             self.end_execute_button.setText(f"{key}")
-
-    def delete_file(self):
-        if (self.uim.button_file.text() not in ('选择配置文件', '暂无配置文件 需要创建')):
-            result = pyautogui.confirm("你确定要删除配置文件吗？")
-            if result == "OK":
-                os.remove('./scripts/' + self.uim.button_file.text())
-                self.uim.populateMenu('scripts')
-                # 列出文件夹中的所有文件和文件夹
-                files_in_folder = os.listdir("scripts")
-                # 检查文件夹中是否有文件
-                if len(files_in_folder) == 0:
-                    txt = "暂无配置文件 需要创建"
-                else:
-                    txt = '选择配置文件'
-                self.uim.button_file.setText(txt)
-
-    def create_file(self):
-        files_in_folder = os.listdir("scripts")
-        if len(files_in_folder) == 0:
-            txt = "选择配置文件"
-            self.uim.button_file.setText(txt)
-        file_name = self.uim.file_lineEdit.text()
-        directory = './scripts/'
-        full_path = os.path.join(directory, file_name)
-        with open(full_path, 'w') as file:
-            pass
-        self.update_filename()
-        self.uim.populateMenu('scripts')
-
-    def update_filename(self):
-        current_name = self.uim.file_lineEdit.text()
-        parts = current_name.split('-')
-        if len(parts) == 4:
-            number = int(parts[3].replace('.txt', ''))
-            new_number = number + 1
-            new_name = f"{parts[0]}-{parts[1]}-{parts[2]}-{new_number:02d}.txt"
-            self.uim.file_lineEdit.setText(new_name)
-
-    def generate_initial_filename(self):
-        date_str = datetime.now().strftime("%Y-%m-%d")
-        directory = './scripts/'
-        if not os.path.exists(directory):
-            os.makedirs(directory)
-        files = [f for f in os.listdir(directory) if
-                 f.startswith(date_str) and f.endswith('.txt')]
-        max_number = 0
-        for file in files:
-            parts = file.replace('.txt', '').split('-')
-            if len(parts) == 4:
-                try:
-                    number = int(parts[3])
-                    if number > max_number:
-                        max_number = number
-                except ValueError:
-                    continue
-        next_number = max_number + 1
-        return f"{date_str}-{next_number:02d}.txt"
-
-
 
     def mixPicture(self):  # 图片格式转换
         # 检查选择的格式
@@ -2834,7 +2897,6 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
         with concurrent.futures.ThreadPoolExecutor() as executor:
             executor.map(save_frame, frame_list)
         print(f"Frames saved successfully. Total frames: {frame_count}")
-
 
     def quit_team_H(self):  #队员退出队伍
 
@@ -3194,14 +3256,6 @@ class LoginWindow(QMainWindow):  # 实例化登录窗口
                     avatar_status = False
                     avatar_date = '2000-1-1'
                     exp = 100
-                #global Name, Email, exp, avatar_date
-                '''Name = dat[0]  # 名称
-                Email = dat[1]  # 邮箱
-                avatar_status = dat[2]  # 是否有头像
-                exp = int(dat[4])  # 经验值
-                if "@" in Account:
-                    Account = dat[5]
-                avatar_date = dat[3]  # 用户上一次更新头像的日期'''
                 time.sleep(0.1)
                 if avatar_status == True:
                     try:
@@ -3305,6 +3359,7 @@ class LoginWindow(QMainWindow):  # 实例化登录窗口
                     new_mainpage.textedit_position = textedit_position
                     new_mainpage.send_position = send_position
                     new_mainpage.mode = Account
+                    new_mainpage.s = s
                     windows = Ui_Form(stdout_stream, stderr_stream)
                     windows.show()
                     print("窗口成功打开")

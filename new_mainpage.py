@@ -1,11 +1,15 @@
+import ctypes
+import json
 import os
 import sys
+import webbrowser
+from ctypes import wintypes
 from datetime import datetime
 import shutil
 import threading
 import psutil
 import requests
-from PyQt5 import QtCore, QtGui
+from PyQt5 import QtCore, QtGui, sip
 from PyQt5.QtCore import Qt, QPoint, QSize, QLine, QObject, pyqtSignal, QTimer, QRect, QUrl
 from PyQt5.QtGui import QFont, QColor, QPixmap, QMouseEvent, QIcon, QPainterPath, QRegion, QKeySequence, QCursor, \
     QPainter, QRadialGradient, QDesktopServices
@@ -18,6 +22,12 @@ import ast
 import extend_install
 import ui.buttons
 import ui.style
+import ui.console_window
+import keyboard
+import pyautogui
+import subprocess
+import random
+
 
 style_font_Yahei = ui.style.style_font_Yahei
 style_Radio_Small = ui.style.style_Radio_Small
@@ -33,6 +43,7 @@ style_font_9 = ui.style.style_font_9
 style_font_11 = ui.style.style_font_11
 style_font_12 = ui.style.style_font_12
 style_font_black_10 = ui.style.style_font_black_10
+s = None
 avatar_load_status = False
 position_status = None
 Name = None
@@ -391,6 +402,12 @@ class CustomTitleBar(QWidget):
         self.action_option10 = self.menu.addAction("使用帮助")
         self.action_option10.setFont(style_font_black_10)
 
+        self.separate_label = QLabel("|")
+        font = QFont()
+        font.setPointSize(13)
+        font.setWeight(QFont.Thin)  # 或 QFont.Light
+        self.separate_label.setFont(font)
+
         self.Button_More.setMenu(self.menu)
         self.Button_More.setPopupMode(QToolButton.InstantPopup)
 
@@ -417,13 +434,16 @@ class CustomTitleBar(QWidget):
         layout.addWidget(self.icon)
         layout.addWidget(self.title)
         layout.addStretch()
-        layout.addWidget(self.Button_More)
         layout.addSpacing(5)
+        #layout.addWidget(self.separate_label)
+        layout.addSpacing(5)
+        layout.addWidget(self.Button_More)
+        layout.addSpacing(8)
 
         layout.addWidget(self.Button_SetTop)
-        layout.addSpacing(5)
+        layout.addSpacing(8)
         layout.addWidget(self.Button_Minisize)
-        layout.addSpacing(5)
+        layout.addSpacing(8)
         layout.addWidget(self.Button_Close)
 
         # 将水平布局添加到主布局
@@ -705,6 +725,7 @@ class MainWindow(QMainWindow):
         #self.setGeometry(100, 100, 1000, 600)
         self.setFixedSize(1000,640)
 
+
         screen = QDesktopWidget().screenGeometry()
         window = self.geometry()
 
@@ -714,11 +735,15 @@ class MainWindow(QMainWindow):
         # 设置窗口位置
         self.move(x, y)
 
-        self.record_hotkey = '未设置'
-        self.execute_hotkey = '未设置'
-        self.sort = "F9"
+        self.record_hotkey = None
+        self.execute_hotkey = None
+        self.sort = "F8"
         self.end_key = "ESC"
         self.end_execute_key = "ESC"
+        self.pressed_keys = set()
+        self.recorded_keys = set()
+        self.record_key_status = False
+        self.execute_key_status = False
 
         # 创建遮罩层
         self.mask = QWidget()
@@ -960,6 +985,8 @@ class MainWindow(QMainWindow):
 
         self.content_layout.addWidget(self.sidebar)
 
+    def connect_handle(self):
+        pass
     # 在类中添加处理方法
     def open_notice_link(self, link):
         current_html = self.notice_browser.toHtml()
@@ -1271,8 +1298,12 @@ class MainWindow(QMainWindow):
 
         # 控制按钮
         action_btns = QHBoxLayout()
-        self._3pushButton = QPushButton("⏺ 开始录制")
-        self._3pushButton_2 = QPushButton("▶️ 执行脚本")
+
+
+        self._3pushButton = QPushButton("开始录制: F9")
+        self._3pushButton.clicked.connect(lambda: self.start_recording("record"))
+        self._3pushButton_2 = QPushButton("开始执行: F10")
+        self._3pushButton_2.clicked.connect(lambda: self.start_recording("execute"))
         for btn in [self._3pushButton, self._3pushButton_2]:
             btn.setStyleSheet("""
                 QPushButton {
@@ -1285,22 +1316,127 @@ class MainWindow(QMainWindow):
                     min-width: 140px;
                     margin: 0 10px;
                 }
-                QPushButton:hover { background: #059669; }
-                QPushButton:pressed { background: #047857; }
+                QPushButton:hover { 
+                    background: #059669; 
+                }
+                QPushButton:pressed { 
+                    background: #047857; 
+                }
+                QPushButton:disabled {
+                    background: #E5E7EB;  /* 浅灰色背景 */
+                    color: #6B7280;       /* 深灰色文字 */
+                    /* 其他属性保持与默认状态一致 */
+                }
             """)
         action_btns.addStretch()
+        #action_btns.addWidget(self.record_hotkey_btn)
         action_btns.addWidget(self._3pushButton)
         action_btns.addWidget(self._3pushButton_2)
         action_btns.addStretch()
         script_layout.addLayout(action_btns)
 
         # 添加到主布局
-        main_layout.addWidget(clicker_panel, stretch=3)
-        main_layout.addWidget(script_panel, stretch=7)
+        main_layout.addWidget(clicker_panel, stretch=4)
+        main_layout.addWidget(script_panel, stretch=6)
 
         return page
 
+    def start_recording(self, types):
 
+        """开始记录按键"""
+        if types == 'record':
+            if self.record_hotkey != None:
+                # 需要解绑时
+                keyboard.remove_hotkey(self.record_hotkey)
+            self._3pushButton.setText('开始录制: ')
+            self._3pushButton.setEnabled(False)
+            self.record_key_status = True
+        else:
+            if self.execute_hotkey != None:
+                # 需要解绑时
+                keyboard.remove_hotkey(self.execute_hotkey)
+            self._3pushButton_2.setText('开始执行: ')
+            self._3pushButton_2.setEnabled(False)
+            self.execute_key_status = True
+        self.pressed_keys.clear()
+        self.recorded_keys.clear()
+        self.setFocus()
+    def keyPressEvent(self, event):
+        """处理按键按下事件"""
+        if self.record_key_status:
+            key = event.key()
+            if key not in self.pressed_keys:
+                self.pressed_keys.add(key)
+                if len(self.recorded_keys) < 2:
+                    self.recorded_keys.add(key)
+                    self.update_button_text('record')
+        elif self.execute_key_status:
+            key = event.key()
+            if key not in self.pressed_keys:
+                self.pressed_keys.add(key)
+                if len(self.recorded_keys) < 2:
+                    self.recorded_keys.add(key)
+                    self.update_button_text('execute')
+        event.accept()
+
+    def keyReleaseEvent(self, event):
+        """处理按键释放事件"""
+        if self.record_key_status:
+            key = event.key()
+            if key in self.pressed_keys:
+                self.pressed_keys.remove(key)
+                if not self.pressed_keys:
+                    self.record_key_status = False
+                    self._3pushButton.setEnabled(True)
+                    # 提取按键名称
+                    hotkey = self._3pushButton.text().split(':')[-1].strip()
+                    # 设置热键
+                    self.record_hotkey = keyboard.add_hotkey(hotkey, self.Click_Record)
+                    #self.record_hotkey = keyboard.add_hotkey(self.record_hotkey_btn.text(), self.Click_Record)
+        elif self.execute_key_status:
+            key = event.key()
+            if key in self.pressed_keys:
+                self.pressed_keys.remove(key)
+                if not self.pressed_keys:
+                    self.execute_key_status = False
+                    self._3pushButton_2.setEnabled(True)
+                    # 提取按键名称
+                    hotkey = self._3pushButton_2.text().split(':')[-1].strip()
+                    # 设置热键
+                    self.execute_hotkey = keyboard.add_hotkey(hotkey, self.Click_Record_execute)
+        event.accept()
+    def update_button_text(self, types):
+        """更新按钮显示的文本"""
+        key_names = []
+        for key in self.recorded_keys:
+            # 转换特殊按键
+            special_keys = {
+                Qt.Key_Control: "Ctrl",
+                Qt.Key_Shift: "Shift",
+                Qt.Key_Alt: "Alt",
+                Qt.Key_Meta: "Meta",
+                Qt.Key_Space: "Space"
+            }
+            if key in special_keys:
+                key_names.append(special_keys[key])
+                continue
+
+            # 处理功能键
+            if Qt.Key_F1 <= key <= Qt.Key_F35:
+                key_names.append(f"F{key - Qt.Key_F1 + 1}")
+                continue
+
+            # 获取可读名称
+            seq = QKeySequence(key)
+            name = seq.toString()
+            if not name:
+                key_name = Qt.Key(key).name[4:] if Qt.Key(key).name.startswith('Key_') else Qt.Key(key).name
+                name = key_name.capitalize()
+            key_names.append(name)
+        if types == 'record':
+            self._3pushButton.setText("开始录制: "+'+'.join(key_names))
+        else:
+            self._3pushButton_2.setText("开始录制: " + '+'.join(key_names))
     def resiZED(self, event):
         print(f"连点器高度: {self.clicker_group.height()}")
         print(f"脚本高度: {self.script_group.height()}")
@@ -1987,7 +2123,6 @@ class MainWindow(QMainWindow):
                     }
                     file.write(str(config)+'\n')
 
-
     def create_team_page(self):
         page = QWidget()
         self.team_layout = QVBoxLayout(page)
@@ -2211,7 +2346,6 @@ class MainWindow(QMainWindow):
                 """)
         self.choose_music.setFont(style_font_9)
 
-        # self.view_music = QtWidgets.QToolButton(self.page_4)
         self.view_music = QPushButton()
         self.view_music.setObjectName("view_music")
         self.view_music.setText("浏览")
@@ -2461,6 +2595,10 @@ class MainWindow(QMainWindow):
         qq_folder_layout.addWidget(btn_browse_qq)
         qq_folder_layout.addWidget(btn_clear_qq)
         qq_folder_layout.addStretch()
+        self.total_download_times = QLabel('总下载次数: 0 次')
+        self.successfully_download_times  = QLabel('有效次数: 0 次')
+        layout_qq.addWidget(self.total_download_times)
+        layout_qq.addWidget(self.successfully_download_times)
         layout_qq.addWidget(qq_folder_widget)
         layout_qq.addWidget(self.btn_download_qq)
 
@@ -2922,6 +3060,54 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(self.save_setting_btn, 0, Qt.AlignRight)
 
         return page
+
+    def upwindow(self):  # 置顶窗口
+        if self.is_topmost == False:  # 置顶
+            self.windowHandle().setFlags(
+                self.windowFlags() | QtCore.Qt.WindowStaysOnTopHint)
+            self.is_topmost = True
+            self.title_bar.Button_SetTop.setIcon(QIcon("./image/Component/Top2.png"))
+        else:  #取消置顶
+            self.windowHandle().setFlags(
+                self.windowFlags() & ~QtCore.Qt.WindowStaysOnTopHint)
+            self.is_topmost = False
+            self.title_bar.Button_SetTop.setIcon(QIcon("./image/Component/Top.png"))
+
+    def delete_file(self):
+        if (self.uim.button_file.text() not in ('选择配置文件', '暂无配置文件 需要创建')):
+            result = QMessageBox.question(self, '确认', "你确定要删除配置文件吗？", QMessageBox.Yes | QMessageBox.No)
+            if result == QMessageBox.Yes:
+                os.remove('./scripts/' + self.uim.button_file.text())
+                #self.uim.populateMenu('scripts')
+                # 列出文件夹中的所有文件和文件夹
+                files_in_folder = os.listdir("scripts")
+                # 检查文件夹中是否有文件
+                if len(files_in_folder) == 0:
+                    txt = "暂无配置文件 需要创建"
+                else:
+                    txt = '选择配置文件'
+                #self.uim.button_file.setText(txt)
+
+    def LogRecord(self):  # 打开日志
+        subprocess.Popen(["notepad.exe", "INFOR.log"])
+
+
+    def empyt_log(self):  # 清空日志
+        log_file_path = "INFOR.log"
+        with open(log_file_path, "w") as log_file:
+            pass  # 使用 pass 语句表示什么都不做，从而实现清空文件内容
+        self.show_message_box("提示", "日志清空成功!")
+
+    def about(self):
+        pyautogui.confirm(
+            f"版本:{Version}\nGui图形库:Pyqt5\n制作者:浮沉 QQ:3046447554 软件完全免费 纯净无广告\n软件免费 若发现收费购买 请联系我进行反馈\nUI设计本人没有灵感 略微草率还请谅解 如有建议请反馈",
+            "Fuchen")
+
+    def open_website(self):
+        webbrowser.open("https://fcyang.cn/")
+
+    def open_website_help(self):
+        webbrowser.open("https://fcyang.cn/others/help.html")
 
     def get_process_usage(self):
         process = psutil.Process()

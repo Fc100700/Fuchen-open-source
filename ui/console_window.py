@@ -462,25 +462,56 @@ class ConsoleWindow(QMainWindow):
             dialog = ui.color_change.ColorPicker()
             if dialog.exec_() == QDialog.Accepted:
                 colors = dialog.get_colors()
-                print (
-                    colors["start"],
-                    colors["end"],
-                    colors["solid"]
-                )
-                windows.sidebar.setStyleSheet(f"""
-                            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                                stop:0 {colors["start"]}, stop:1 {colors["end"]});
+
+                # 设置 sidebar（左边区域）
+                if colors["left_mode"] == "gradient":
+                    if colors["left_direction"] == "horizontal":
+                        direction = "x1:0, y1:0, x2:1, y2:0"
+                    else:
+                        direction = "x1:0, y1:0, x2:0, y2:1"
+
+                    sidebar_style = f"""
+                            background: qlineargradient({direction},
+                                stop:0 {colors['left_start']}, stop:1 {colors['left_end']});
                             border-radius: 10px;
                             margin: 10px 5px 10px 10px;
-                        """)
-                windows.stack.setStyleSheet(f"""
-                                    QStackedWidget {{
-                                        background-color: {colors["solid"]};
-                                        border-radius: 15px;
-                                        margin: 10px 10px 10px 0;
-                                        box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-                                    }}
-                                """)
+                        """
+                else:  # solid
+                    sidebar_style = f"""
+                            background-color: {colors['left_start']};
+                            border-radius: 10px;
+                            margin: 10px 5px 10px 10px;
+                        """
+
+                windows.sidebar.setStyleSheet(sidebar_style)
+
+                # 设置 stack（右边区域）
+                if colors["right_mode"] == "gradient":
+                    if colors["right_direction"] == "horizontal":
+                        direction = "x1:0, y1:0, x2:1, y2:0"
+                    else:
+                        direction = "x1:0, y1:0, x2:0, y2:1"
+
+                    stack_style = f"""
+                            QStackedWidget {{
+                                background: qlineargradient({direction},
+                                    stop:0 {colors['right_start']}, stop:1 {colors['right_end']});
+                                border-radius: 15px;
+                                margin: 10px 10px 10px 0;
+                                box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+                            }}
+                        """
+                else:  # solid
+                    stack_style = f"""
+                            QStackedWidget {{
+                                background-color: {colors['right_start']};
+                                border-radius: 15px;
+                                margin: 10px 10px 10px 0;
+                                box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+                            }}
+                        """
+
+                windows.stack.setStyleSheet(stack_style)
 
         elif content == 'runtime':
             currentTime = QtCore.QTime.currentTime()
