@@ -155,6 +155,7 @@ class Register(QDialog):
         main_layout.addStretch(1)
 
         self.setLayout(main_layout)
+
     def random_name(self):
         try:
             with open('./mod/dic/name.txt', 'r', encoding='utf-8') as file:
@@ -166,7 +167,6 @@ class Register(QDialog):
             print("The file 'name.txt' was not found.")
         except Exception as e:
             print(f"An error occurred: {e}")
-
 
     def create_input(self, label, placeholder, is_password=False):
         container = QWidget()
@@ -285,7 +285,6 @@ class Register(QDialog):
             style = "QPushButton{border-radius: 5px; background-color: #e0e0e0; color: black;}"
             self.btn_get_code.setStyleSheet(style)
             result = recv_json(s)
-            print(result,result.get("type"))
             if result.get("type") == 'registration_response':
                 if result.get("data") == 'Successfully_send':
                     print('发送成功')
@@ -309,6 +308,7 @@ class Register(QDialog):
             self.btn_get_code.setEnabled(True)
             style = "QPushButton{border-radius: 5px; background-color: #55c3ff; color: white;}"
             self.btn_get_code.setStyleSheet(style)
+
     def start_register(self):
         try:
             #global Email
@@ -454,9 +454,14 @@ class Register(QDialog):
         )
         self.code_input.clear()
 
-    def on_register(self):
-        # 这里添加注册逻辑
-        print("注册按钮被点击")
+    def save_state(self):
+        """保存各控件状态到字典"""
+        self.saved_state = {
+            'account': self.ui.account_lineEdit.text(),
+            'password': self.ui.password_lineEdit.text(),
+            'email': self.ui.email_lineEdit.text(),
+            'submit_enabled': self.ui.pushButton_submit.isEnabled()
+        }
 
 
 if __name__ == '__main__':

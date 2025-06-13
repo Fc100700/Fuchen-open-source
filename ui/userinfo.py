@@ -3,21 +3,17 @@ import json
 import os
 import re
 import struct
-import sys
 from datetime import date,datetime
 from ctypes import cdll
 from ctypes.wintypes import HWND
-from PyQt5.QtWidgets import (
-    QApplication, QWidget, QLabel, QPushButton, QVBoxLayout,
-    QHBoxLayout, QFileDialog, QInputDialog, QMessageBox, QLineEdit, QStackedLayout, QSizePolicy, QDialog
-)
-from PyQt5.QtGui import QPixmap, QMouseEvent, QRegion, QPainter, QPainterPath, QBrush, QIcon, QColor, QCursor
-from PyQt5.QtCore import Qt, QSize, QEvent, QRectF, QVariantAnimation
+from PyQt5.QtWidgets import QLabel, QInputDialog, QMessageBox, QLineEdit, QDialog
+from PyQt5.QtGui import QMouseEvent, QIcon, QCursor
+from PyQt5.QtCore import QSize, QEvent, QVariantAnimation
 import sys
-from PyQt5.QtWidgets import (QApplication, QMainWindow, QGraphicsScene, QGraphicsView,
+from PyQt5.QtWidgets import (QApplication, QGraphicsScene, QGraphicsView,
                              QFileDialog, QPushButton, QVBoxLayout, QHBoxLayout, QWidget,
                              QGraphicsPathItem, QGraphicsPixmapItem, QGraphicsItem)
-from PyQt5.QtGui import (QPixmap, QPainter, QImage, QPen, QBrush, QPainterPath, QColor)
+from PyQt5.QtGui import (QPixmap, QPainter, QBrush, QPainterPath, QColor)
 from PyQt5.QtCore import Qt, QRectF, QPointF
 
 
@@ -639,6 +635,7 @@ class InfoPopup(QWidget):
                     font-size: 14px;
                     color: {self.level_color};
                     font-weight: bold;
+                    font-family: Segoe UI;
                 """)
 
         # 修改经验显示
@@ -648,6 +645,7 @@ class InfoPopup(QWidget):
         self.exp_label.setStyleSheet("""
                 font-size: 12px;
                 color: #999999;
+                font-family: Segoe UI;
             """)
 
         level_layout.addWidget(self.level_label)
@@ -691,7 +689,7 @@ class InfoPopup(QWidget):
                 color: white;
                 border-radius: 18px;
                 font-size: 14px;
-                font-family: 'Segoe UI';
+                font-family: Segoe UI;
             }
             QPushButton:hover {
                 background-color: #407ec9;

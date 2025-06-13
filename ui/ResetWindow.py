@@ -266,7 +266,6 @@ class Reset(QDialog):
                         {'step': 'request_code', 'email': email})
 
         response = recv_json(s)
-        print(response)
         if response.get('type') == 'password_reset_response':
             if response.get('data').get("status") == 'code_sent':
                 # 启动倒计时

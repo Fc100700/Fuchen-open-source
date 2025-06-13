@@ -5,7 +5,6 @@ from PyQt5.QtCore import Qt, QSize, QRect
 from PyQt5.QtGui import QPainter, QColor, QIcon, QFont, QTextCursor, QTextCharFormat
 import ui.style
 import ast
-from pyautogui import confirm
 
 
 
@@ -146,7 +145,7 @@ class FileEdit(QWidget):
                 try:
                     lines = ast.literal_eval(line)
                 except Exception as e:
-                    confirm(f"错误! 请检查配置文件内容是否正确\n{e}")
+                    QMessageBox.information(self, "提示", f"错误! 请检查配置文件内容是否正确\n{e}")
                     break
                 self.list.append(lines)
                 self.edit_text.append(f"等待  {lines[0] / 1000}  秒")
@@ -329,10 +328,10 @@ class FileEdit(QWidget):
                     file.write(str(line) + '\n')  # 写入内容并换行
             self.edit_text.clear()
             self.LoadFile()
-            confirm("保存成功！")
+            QMessageBox.information(self, "提示","保存成功！")
         except Exception as e:
             print(e)
-            confirm(e)
+            QMessageBox.information(self, "提示",e)
 
     def keyPressed(self, key):
         self.key_codes = {

@@ -2,34 +2,24 @@ import random
 import struct
 import traceback
 from datetime import datetime
-import pyautogui
-from PyQt5.QtCore import Qt, QSize, QRect, QTimer, QUrl, QPropertyAnimation, \
-    QRectF, QTranslator, QEasingCurve, pyqtSignal, QThread, QObject
-from PyQt5.QtGui import QCursor, QPainter, QColor, QIcon, QPixmap, QKeySequence, QFont, \
-    QDesktopServices, QPalette, QBrush, QPainterPath, QImage, QLinearGradient
-from PyQt5.QtWidgets import QApplication, QPushButton, QMessageBox, QFileDialog, QWidget, QLabel, QShortcut, \
-    QButtonGroup, QMainWindow, QMenu, QAction, QSystemTrayIcon, QToolButton, QDialog, QTextBrowser, QDesktopWidget, \
-    QLineEdit
+from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtWidgets import  QMainWindow, QTextBrowser, QDesktopWidget
 from pyexpat import ErrorString
 import SundryUI
 import ui.color_change
 import ui.style
-import subprocess
-import sys
 import function
 import turtle
-from PyQt5.QtCore import Qt, QRectF, QRect, QPropertyAnimation, QTimer, QSize, QParallelAnimationGroup
-from PyQt5.QtGui import QPainter, QColor, QIcon, QPixmap, QBrush, QPainterPath, QFont, QCursor, QLinearGradient, QPen
-from PyQt5.QtWidgets import QFileDialog, QWidget, QApplication, QLabel, QLineEdit, QTextEdit, QToolButton, \
-    QMessageBox, QPushButton, QSystemTrayIcon, QAction, QMenu, QDialog, QVBoxLayout, QHBoxLayout
+from PyQt5.QtCore import Qt, QSize
+from PyQt5.QtGui import QPainter, QColor, QIcon
+from PyQt5.QtWidgets import QFileDialog, QWidget, QLabel, \
+    QPushButton, QAction, QMenu, QDialog
 from PyQt5 import QtGui, QtWidgets, QtCore
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 import ui.style
 import ui.buttons
-from datetime import date
 import pyautogui
-from PIL import Image
 import time
 import json
 import tkinter as tk
@@ -193,7 +183,6 @@ class ConsoleWindow(QMainWindow):
         # 标题栏样式调整
         self.title_bar.setMouseTracking(True)
 
-
         # 标题文字
         self.title_label = QLabel("控制台 Console", self.title_bar)
         self.title_label.setGeometry(10, 5, 200, 20)
@@ -355,7 +344,6 @@ class ConsoleWindow(QMainWindow):
         horizontal_scrollbar = self.browser.horizontalScrollBar()
         horizontal_scrollbar.setValue(0)
 
-
     # 添加窗口拖动功能
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -421,6 +409,9 @@ class ConsoleWindow(QMainWindow):
         # 重置索引和临时存储
         self.history_index = len(self.input_history)
         self.temporary_input = ''
+        self.browser.verticalScrollBar().setValue(
+            self.browser.verticalScrollBar().maximum()
+        )
         if content == '帮助' or content == 'help':
             for index, (key_dic, value) in enumerate(self.list_function.items(), start=1):
                 print(f"{index}. {key_dic} {value}")

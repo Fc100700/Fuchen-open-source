@@ -564,52 +564,52 @@ style_white_blue_toolbutton = """
                     """
 
 new_style_lineEdit = """
-QLineEdit {
-    border: 1px solid #D0D5DD;
-    border-radius: 6px;
-    padding: 3px;
-    font: 13px '等线';
-    background: white;
-}
-QLineEdit:hover {
-    border: 1px solid #00BFFF;
-}
-QLineEdit:disabled {
-    border: 1px solid #E4E7EC;
-    background: #F9FAFB;
-    color: #98A2B3;
-}"""
+                        QLineEdit {
+                            border: 1px solid #D0D5DD;
+                            border-radius: 6px;
+                            padding: 3px;
+                            font: 13px '等线';
+                            background: white;
+                        }
+                        QLineEdit:hover {
+                            border: 1px solid #00BFFF;
+                        }
+                        QLineEdit:disabled {
+                            border: 1px solid #E4E7EC;
+                            background: #F9FAFB;
+                            color: #98A2B3;
+                        }"""
 
 # 统一SpinBox样式
 new_spinbox_style = """
-QSpinBox, QDoubleSpinBox {
-    border: 1px solid #D0D5DD;
-    border-radius: 6px;
-    padding: 5px 30px 5px 10px;
-    font: 13px '等线';
-    background: white;
-}
-QSpinBox:hover, QDoubleSpinBox:hover {
-    border: 1px solid #00BFFF;
-}
-QSpinBox::up-button, QDoubleSpinBox::up-button {
-                            subcontrol-origin: border;
-                            subcontrol-position: top right; 
-                            width: 12px;    /* 按钮宽度 */
-                            height: 12px;   /* 增加高度定义 */
-                            right: 5px;     /* 添加右侧偏移 */
-                            margin: 1px;    /* 防止紧贴边框 */
-                            border-image: url('./image/Component/new_up.png');  /* 设置上调按钮的图像 */
-                            }
-                QSpinBox::down-button, QDoubleSpinBox::down-button  {
-                            subcontrol-origin: border;
-                            subcontrol-position: bottom right; 
-                            width: 12px;    /* 按钮宽度 */
-                            height: 12px;   /* 增加高度定义 */
-                            right: 5px;     /* 添加右侧偏移 */
-                            margin: 1px;    /* 防止紧贴边框 */
-                            border-image: url('./image/Component/new_down.png');  /* 设置下调按钮的图像 */
-                            }"""
+                QSpinBox, QDoubleSpinBox {
+                    border: 1px solid #D0D5DD;
+                    border-radius: 6px;
+                    padding: 5px 30px 5px 10px;
+                    font: 13px '等线';
+                    background: white;
+                }
+                QSpinBox:hover, QDoubleSpinBox:hover {
+                    border: 1px solid #00BFFF;
+                }
+                QSpinBox::up-button, QDoubleSpinBox::up-button {
+                                            subcontrol-origin: border;
+                                            subcontrol-position: top right; 
+                                            width: 12px;    /* 按钮宽度 */
+                                            height: 12px;   /* 增加高度定义 */
+                                            right: 5px;     /* 添加右侧偏移 */
+                                            margin: 1px;    /* 防止紧贴边框 */
+                                            border-image: url('./image/Component/new_up.png');  /* 设置上调按钮的图像 */
+                                            }
+                                QSpinBox::down-button, QDoubleSpinBox::down-button  {
+                                            subcontrol-origin: border;
+                                            subcontrol-position: bottom right; 
+                                            width: 12px;    /* 按钮宽度 */
+                                            height: 12px;   /* 增加高度定义 */
+                                            right: 5px;     /* 添加右侧偏移 */
+                                            margin: 1px;    /* 防止紧贴边框 */
+                                            border-image: url('./image/Component/new_down.png');  /* 设置下调按钮的图像 */
+                                            }"""
 
 
 # 统一风格CheckBox
@@ -696,20 +696,20 @@ new_style_comboBox = """
                     }"""
 
 new_style_pushbutton = """
-    QPushButton {
-        background-color: #4DA3FF;  /* 浅蓝色 */
-        color: white;
-        border: none;
-        border-radius: 5px;
-        padding: 5px 10px;
-        font-weight: 500;
-    }
-    QPushButton:hover {
-        background-color: #3D8FD3;  /* 稍深的水蓝色 */
-    }
-    QPushButton:pressed {
-        background-color: #2C7ABF;  /* 柔和的深蓝色 */
-    }"""
+                QPushButton {
+                    background-color: #4DA3FF;  /* 浅蓝色 */
+                    color: white;
+                    border: none;
+                    border-radius: 5px;
+                    padding: 5px 10px;
+                    font-weight: 500;
+                }
+                QPushButton:hover {
+                    background-color: #3D8FD3;  /* 稍深的水蓝色 */
+                }
+                QPushButton:pressed {
+                    background-color: #2C7ABF;  /* 柔和的深蓝色 */
+                }"""
 style_font_Yahei = QtGui.QFont()
 style_font_Yahei.setFamily("微软雅黑")
 

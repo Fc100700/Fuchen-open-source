@@ -10,9 +10,9 @@ class HotkeyDialog(QDialog):
         super().__init__(parent)
         self.hotkey = ""
         self.last_hotkey = ""
-        self.modifier_keys = []  # 记录修饰键（只存储键码）
+        self.modifier_keys = []
 
-        # 记录普通键时存储 (key, is_keypad) 元组
+
         self.normal_keys = []
         self.init_ui()
 

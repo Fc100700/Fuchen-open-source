@@ -523,7 +523,7 @@ class floating_window(QWidget):  # 悬浮窗
         action3.triggered.connect(windows.Handle_Send)
         action4.triggered.connect(windows.Click_Record)
         action5.triggered.connect(windows.Click_Record_execute)
-        action6.triggered.connect(windows.clo)
+        action6.triggered.connect(windows.close)
 
         # 添加QAction到菜单
         self.menu.addAction(action1)
