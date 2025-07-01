@@ -1,447 +1,522 @@
-#此文件为配置文件编辑窗口
-from PyQt5.QtWidgets import QMessageBox, QWidget, QMenu, QAction, QTextEdit
-from PyQt5 import QtCore, QtGui, QtWidgets
-from PyQt5.QtCore import Qt, QSize, QRect
-from PyQt5.QtGui import QPainter, QColor, QIcon, QFont, QTextCursor, QTextCharFormat
-import ui.style
-import ast
+import sys
+import json
+import re
+from PyQt5.QtWidgets import QApplication, QMainWindow, QTextEdit, QPushButton, QFileDialog, QVBoxLayout, QWidget, \
+    QMessageBox, QHBoxLayout
+from PyQt5.QtWidgets import QTextEdit, QWidget, QPlainTextEdit
+from PyQt5.QtGui import QColor, QPainter, QTextFormat, QFont, QIcon
+from PyQt5.QtCore import Qt, QRect, QSize
 
-
-
-class LineNumPaint(QWidget):
-    def __init__(self, q_edit):
-        super().__init__(q_edit)
-        self.q_edit_line_num = q_edit
+class LineNumberArea(QWidget):
+    def __init__(self, editor):
+        super().__init__(editor)
+        self.editor = editor
 
     def sizeHint(self):
-        return QSize(self.q_edit_line_num.lineNumberAreaWidth(), 0)
+        return QSize(self.editor.line_number_area_width(), 0)
 
     def paintEvent(self, event):
-        self.q_edit_line_num.lineNumberAreaPaintEvent(event)
+        painter = QPainter(self)
+        painter.fillRect(event.rect(), Qt.lightGray)
 
+        block = self.editor.firstVisibleBlock()
+        block_number = block.blockNumber()
+        top = int(self.editor.blockBoundingGeometry(block).translated(self.editor.contentOffset()).top())
+        bottom = top + int(self.editor.blockBoundingRect(block).height())
 
-class QTextEditWithLineNums(QTextEdit):
+        # 设置行号字体
+        font = QFont("等线", 10)  # 设置字体为“等线”，大小为10
+        font.setWeight(QFont.Normal)  # 可选：设置字体粗细
+        painter.setFont(font)
+
+        while block.isValid() and top <= event.rect().bottom():
+            if block.isVisible() and bottom >= event.rect().top():
+                number = str(block_number + 1)
+                painter.setPen(Qt.black)
+                painter.drawText(0, top, self.width(), self.editor.fontMetrics().height(),
+                                 Qt.AlignRight, number)
+            block = block.next()
+            top = bottom
+            bottom = top + int(self.editor.blockBoundingRect(block).height())
+            block_number += 1
+
+class LineNumberTextEdit(QPlainTextEdit):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setLineWrapMode(QTextEdit.NoWrap)
-        self.lineNumberArea = LineNumPaint(self)
-        self.document().blockCountChanged.connect(self.update_line_num_width)
-        self.verticalScrollBar().valueChanged.connect(self.lineNumberArea.update)
-        self.textChanged.connect(self.lineNumberArea.update)
-        self.cursorPositionChanged.connect(self.lineNumberArea.update)
-        self.update_line_num_width()
+        self.lineNumberArea = LineNumberArea(self)
+        self.blockCountChanged.connect(self.update_line_number_area_width)
+        self.updateRequest.connect(self.update_line_number_area)
+        self.cursorPositionChanged.connect(self.highlight_current_line)
+        self.original_lines = []
+        self.update_line_number_area_width(0)
+        self.highlight_current_line()
 
-    def lineNumberAreaWidth(self):
-        block_count = self.document().blockCount()
-        max_value = max(1, block_count)
-        d_count = len(str(max_value))
-        _width = self.fontMetrics().width('9') * d_count + 10  # 确保有足够的空间
-        return _width
 
-    def update_line_num_width(self):
-        # 动态更新视口边距以适应行号宽度
-        new_width = self.lineNumberAreaWidth()
-        self.setViewportMargins(new_width + 20, 0, 0, 0)
+    def line_number_area_width(self):
+        digits = len(str(self.blockCount()))
+        return 10 + self.fontMetrics().width('9') * digits
+
+    def update_line_number_area_width(self, _):
+        self.setViewportMargins(self.line_number_area_width(), 0, 0, 0)
+
+    def update_line_number_area(self, rect, dy):
+        if dy:
+            self.lineNumberArea.scroll(0, dy)
+        else:
+            self.lineNumberArea.update(0, rect.y(), self.lineNumberArea.width(), rect.height())
+
+        if rect.contains(self.viewport().rect()):
+            self.update_line_number_area_width(0)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
         cr = self.contentsRect()
-        self.lineNumberArea.setGeometry(
-            QRect(cr.left(), cr.top(), self.lineNumberAreaWidth(), cr.height()))
+        self.lineNumberArea.setGeometry(QRect(cr.left(), cr.top(), self.line_number_area_width(), cr.height()))
 
-    def lineNumberAreaPaintEvent(self, event):
+    def line_number_area_paint_event(self, event):
         painter = QPainter(self.lineNumberArea)
-        painter.fillRect(event.rect(), QColor(231, 231, 231))
-        font = QFont("等线", 10)
-        painter.setFont(font)
+        painter.fillRect(event.rect(), Qt.lightGray)
 
-        text_cursor = QTextCursor(self.document())
-        current_block = self.document().begin()
+        block = self.firstVisibleBlock()
+        block_number = block.blockNumber()
+        top = int(self.blockBoundingGeometry(block).translated(self.contentOffset()).top())
+        bottom = top + int(self.blockBoundingRect(block).height())
 
-        while current_block.isValid():
-            block_number = current_block.blockNumber()
-            text_cursor.setPosition(current_block.position())
-            block_rect = self.cursorRect(text_cursor)
-
-            if block_rect.top() > event.rect().bottom():
-                break
-
-            if block_rect.bottom() >= event.rect().top():
+        while block.isValid() and top <= event.rect().bottom():
+            if block.isVisible() and bottom >= event.rect().top():
                 number = str(block_number + 1)
                 painter.setPen(Qt.black)
-                painter.drawText(0, block_rect.top(), self.lineNumberArea.width() - 5,
-                                 block_rect.height(),
+                painter.drawText(0, top, self.lineNumberArea.width(), self.fontMetrics().height(),
                                  Qt.AlignRight, number)
+            block = block.next()
+            top = bottom
+            bottom = top + int(self.blockBoundingRect(block).height())
+            block_number += 1
 
-            current_block = current_block.next()
+    def set_original_text(self, text):
+        self.original_lines = text.strip().split('\n')
+        self.highlight_changed_lines()
 
-        painter.end()
+    def highlight_changed_lines(self):
+        self.setExtraSelections([])
+        current_lines = self.toPlainText().strip().split('\n')
+        selections = []
+        for i, line in enumerate(current_lines):
+            if i >= len(self.original_lines) or line.strip() != self.original_lines[i].strip():
+                selection = QTextEdit.ExtraSelection()
+                selection.format.setBackground(QColor('#d0e7ff'))  # 浅蓝色
+                selection.format.setProperty(QTextFormat.FullWidthSelection, True)
+                cursor = self.textCursor()
+                cursor.movePosition(cursor.Start)
+                cursor.movePosition(cursor.Down, cursor.MoveAnchor, i)
+                selection.cursor = cursor
+                selections.append(selection)
+        self.setExtraSelections(selections)
 
-ps = [1920,1080]
-class FileEdit(QWidget):
+    def highlight_current_line(self):
+        self.highlight_changed_lines()
+
+
+class EditorWindow(QMainWindow):
     def __init__(self, file, windows):
         super().__init__()
-        winx = windows.x()
-        winy = windows.y()
-        x = winx + 500 - 350
-        y = winy + 300 - 200
-        self.setGeometry(x, y, 700, 400)
+        self.original_data = None  # 存储原始 JSON 数据
+        self.file_path = None  # 存储当前文件路径
+        self.file = file
+        self.initUI()
+
+    def initUI(self):
+        if self.file == '':
+            # 设置窗口标题和大小
+            self.setWindowTitle('脚本编辑器')
+        else:
+            self.setWindowTitle(self.file)
+        self.resize(900, 600)  # 更现代化的宽高比
         icon = QIcon("./image/Component/提示.png")
         self.setWindowIcon(icon)
-        self.setWindowTitle(file)
-        self.setFixedSize(700, 400)
-        self.file = file
-        self.lists = []
+        self.setMinimumSize(700, 400)
 
-        self.edit_text = QTextEditWithLineNums(self)
-        self.edit_text.setGeometry(QtCore.QRect(10, 10, 680, 350))
-        self.edit_text.setObjectName("edit_text")
-        self.edit_text.setStyleSheet(
-            'background: transparent; border: 2px solid #ccc;color: black;background-color: rgba(255, 255, 255, 150);font-family: "等线"; font-size: 15pt;')
-        self.edit_text.verticalScrollBar().setStyleSheet(ui.style.style_verticalScrollBar)
-        self.list = []
-        self.LoadFile()
+        # 创建主部件和布局
+        self.central_widget = QWidget()
+        self.setCentralWidget(self.central_widget)
+        self.layout = QVBoxLayout(self.central_widget)
 
-        self.reload = QtWidgets.QPushButton(self)
-        self.reload.setGeometry(QtCore.QRect(10, 370, 170, 25))
-        font = QtGui.QFont()
-        font.setFamily("等线")
-        font.setPointSize(10)
-        self.reload.setFont(font)
-        self.reload.setObjectName("reload")
-        self.reload.setText("重新导入")
-        self.reload.setStyleSheet(ui.style.style_white_blue_button)
-        self.reload.clicked.connect(self.ReLoad)
+        # 创建文本编辑框
+        self.text_edit = LineNumberTextEdit()
+        self.text_edit.setReadOnly(False)  # 允许编辑
+        self.text_edit.setStyleSheet(
+            """
+            QPlainTextEdit {
+                background: transparent;
+                border: 2px solid #ccc;
+                color: black;
+                background-color: rgba(255, 255, 255, 150);
+                font-family: "等线";
+                font-size: 13pt;
+            }
 
-        self.mouse_event = QtWidgets.QPushButton(self)
-        self.mouse_event.setGeometry(QtCore.QRect(190, 370, 170, 25))
-        self.mouse_event.setFont(font)
-        self.mouse_event.setObjectName("mouse_event")
-        self.mouse_event.setText("添加鼠标事件")
-        self.mouse_event.setStyleSheet(ui.style.style_white_blue_button)
-        self.mouse_event.setMenu(self.create_mouse_Menu())
+            QScrollBar:vertical {
+                border: none;
+                background: #F5F5F5;
+                width: 10px;
+                /* 滚动条宽度 */
+                border-radius: 5px;
+                /* 设置滚动条的圆角 */
+                margin: 0px 0 0px 0;
+                /* 取消上下按钮时可能需要调整margin来防止空白 */
+            }
 
-        self.key_event = QtWidgets.QPushButton(self)
-        self.key_event.setGeometry(QtCore.QRect(370, 370, 170, 25))
-        self.key_event.setFont(font)
-        self.key_event.setObjectName("key_event")
-        self.key_event.setText("添加键盘事件")
-        self.key_event.setStyleSheet(ui.style.style_white_blue_button)
-        self.key_event.setMenu(self.create_key_Menu())
+            QScrollBar::handle:vertical {
+                background: #E2E2E2;
+                min-height: 20px;
+                border-radius: 5px;
+                /* 设置滑块的圆角 */
+            }
 
-        self.save_event = QtWidgets.QPushButton(self)
-        self.save_event.setGeometry(QtCore.QRect(550, 370, 140, 25))
-        self.save_event.setFont(font)
-        self.save_event.setObjectName("save_event")
-        self.save_event.setText("保存修改")
-        self.save_event.setStyleSheet(ui.style.style_white_blue_button)
-        self.save_event.clicked.connect(self.save_file)
+            QScrollBar::add-line:vertical,
+            QScrollBar::sub-line:vertical {
+                height: 0px;
+                /* 隐藏上下按钮 */
+                border: none;
+                /* 取消边框 */
+                background: none;
+                /* 取消背景 */
+            }
 
-    def LoadFile(self):
-        self.list = []
-        input_path = './scripts/' + self.file
-        with open(input_path, 'r') as file:
-            for line in file:
-                try:
-                    lines = ast.literal_eval(line)
-                except Exception as e:
-                    QMessageBox.information(self, "提示", f"错误! 请检查配置文件内容是否正确\n{e}")
-                    break
-                self.list.append(lines)
-                self.edit_text.append(f"等待  {lines[0] / 1000}  秒")
-                if lines[1] == "M":
-                    if lines[2] == "mouse move":
-                        type_event = "鼠标移动到"
-                    elif lines[2] == "mouse left down":
-                        type_event = "左键按下"
-                    elif lines[2] == "mouse left up":
-                        type_event = "左键抬起"
-                    elif lines[2] == "mouse right down":
-                        type_event = "右键按下"
-                    elif lines[2] == "mouse right up":
-                        type_event = "右键抬起"
-                    elif lines[2] == "mouse middle down":
-                        type_event = "中键按下"
-                    elif lines[2] == "mouse middle up":
-                        type_event = "中键抬起"
-                    elif lines[2] == "mouse scroll":
-                        type_event = "滚轮滑动"
-                    else:
-                        type_event = "未知操作"
-                    self.edit_text.append(f"鼠标  {type_event}  {lines[3]}")
-                elif lines[1] == "K":
-                    if lines[2] == 'key down':
-                        type_event = "按下按键"
-                    elif lines[2] == 'key up':
-                        type_event = "抬起按键"
-                    else:
-                        type_event = "未知"
-                    self.edit_text.append(f"键盘  {type_event}  {lines[3]}")
+            QScrollBar::add-page:vertical,
+            QScrollBar::sub-page:vertical {
+                background: none;
+            }
+            """
+        )
 
-    def handle_line(self):
-        text = self.edit_text.toPlainText()
-        text_lines = text.split('\n')
-        total_time = 0
-        count = 0
-        self.lists = []
+        self.layout.addWidget(self.text_edit)
+
+        # 按钮布局
+        button_layout = QHBoxLayout()
+        self.load_button = QPushButton('📂 加载配置文件')
+        self.save_button = QPushButton('💾 保存配置文件')
+
+        for btn in (self.load_button, self.save_button):
+            btn.setFixedHeight(30)
+            btn.setStyleSheet("""
+                    QPushButton {
+                        background-color: #3498db;
+                        color: white;
+                        border: none;
+                        border-radius: 5px;
+                        font-size: 11pt;
+                        font-family: 等线;
+                        padding: 6px 20px;
+                    }
+                    QPushButton:hover {
+                        background-color: #2980b9;
+                    }
+                """)
+
+        self.load_button.clicked.connect(self.load_file)
+        self.save_button.clicked.connect(self.save_file)
+
+        button_layout.addWidget(self.load_button)
+        button_layout.addWidget(self.save_button)
+
+        self.layout.addLayout(button_layout)
+
+        if self.file != '':
+            try:
+                with open(self.file, 'r') as f:
+                    data = json.load(f)
+                self.original_data = data  # 存储原始数据
+                self.file_path = self.file
+                self.display_records(data)
+            except Exception as e:
+                QMessageBox.critical(self, '错误', f'加载文件失败: {str(e)}')
+
+    def load_file(self):
+        # 打开文件选择对话框
+        file_path, _ = QFileDialog.getOpenFileName(self, '选择配置文件', '', 'JSON Files (*.json *.txt)')
+        if not file_path:
+            return
+
         try:
-            for line in text_lines:
-                count += 1
-                lines = line.split('  ')
-                if lines[0] == '等待':
-                    total_time += int(float(lines[1]) * 1000)
-                else:
-                    list = []
-                    if total_time == 0:
-                        total_time = 1
-                    list.append(total_time)
-                    if lines[0] == '键盘':
-                        types = "K"
+            with open(file_path, 'r') as f:
+                data = json.load(f)
+            self.original_data = data  # 存储原始数据
+            self.file_path = file_path
+            self.display_records(data)
+        except Exception as e:
+            QMessageBox.critical(self, '错误', f'加载文件失败: {str(e)}')
+
+    def display_records(self, records):
+        lines = []
+        i = 0
+        while i < len(records):
+            record = records[i]
+            interval = record['interval']
+            event_type = record['type']
+            action = record['action']
+            details = record['details']
+
+            if event_type == 'mouse':
+                if action == 'move':
+                    move_records = [record]
+                    total_interval = interval
+                    j = i + 1
+                    while j < len(records) and records[j]['type'] == 'mouse' and records[j]['action'] == 'move':
+                        move_records.append(records[j])
+                        total_interval += records[j]['interval']
+                        j += 1
+
+                    if len(move_records) > 1:
+                        first = move_records[0]
+                        last = move_records[-1]
+                        lines.append(
+                            f'鼠标操作 鼠标移动: x:{first["details"]["x"]} y:{first["details"]["y"]} 间隔: {first["interval"]}')
+                        if len(move_records) > 2:
+                            lines.append(f'此处折叠 {len(move_records) - 2} 条鼠标移动记录')
+                        lines.append(
+                            f'鼠标操作 鼠标移动: x:{last["details"]["x"]} y:{last["details"]["y"]} 间隔: {total_interval - first["interval"]}')
+                        i = j
                     else:
-                        types = "M"
-                    list.append(types)
-                    if lines[1] == "按下按键":
-                        type_key = "key down"
-                    elif lines[1] == '抬起按键':
-                        type_key = 'key up'
-                    elif lines[1] == '左键按下':
-                        type_key = 'mouse left down'
-                    elif lines[1] == '左键抬起':
-                        type_key = 'mouse left up'
-                    elif lines[1] == '鼠标移动到':
-                        type_key = 'mouse move'
-                    elif lines[1] == '右键按下':
-                        type_key = 'mouse right down'
-                    elif lines[1] == '右键抬起':
-                        type_key = 'mouse right up'
-                    elif lines[1] == '中键按下':
-                        type_key = 'mouse middle down'
-                    elif lines[1] == '中键抬起':
-                        type_key = 'mouse middle up'
-                    else:
-                        type_key = 'key up'
-                    list.append(type_key)
-                    list.append(ast.literal_eval(lines[2]))
-                    total_time = 0
-                    self.lists.append(list)
-            if self.lists == self.list:
-                return "allow"
-            else:
-                return "refuse"
-        except:
-            return count
+                        lines.append(f'鼠标操作 鼠标移动: x:{details["x"]} y:{details["y"]} 间隔: {interval}')
+                        i += 1
+                elif action in ['down', 'up']:
+                    button_map = {'left': '左键', 'right': '右键', 'middle': '中键'}
+                    action_map = {'down': '按下', 'up': '松开'}
+                    button = button_map.get(details['button'], details['button'])
+                    action_cn = action_map.get(action, action)
+                    lines.append(
+                        f'鼠标操作 鼠标{button}{action_cn}: x:{details["x"]} y:{details["y"]} 间隔: {interval}')
+                    i += 1
+                elif action == 'scroll':
+                    lines.append(f'鼠标操作 鼠标滚动: dx:{details["dx"]} dy:{details["dy"]} 间隔: {interval}')
+                    i += 1
+            elif event_type == 'keyboard':
+                key_name = details['name']
+                key_code = details['code']
+                action_map = {'down': '按下', 'up': '抬起'}
+                action_cn = action_map.get(action, action.capitalize())
+                lines.append(f'键盘操作 {action_cn} {key_name}(keycode {key_code}) 间隔: {interval}')
+                i += 1
 
-    def ReLoad(self):
-        result = self.handle_line()
-        if result == 'refuse':
-            reply = QMessageBox.question(self, '确认退出',
-                                         "你已修改文件，是否确认重新导入？",
-                                         QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
-            if reply == QMessageBox.Yes:
-                self.edit_text.clear()
-                self.LoadFile()
-        elif result == 'allow':
-            self.edit_text.clear()
-            self.LoadFile()
-        elif isinstance(result, int):
-            QMessageBox.question(self, '错误',
-                                 f"不支持的语法 出现在 {result} 行 请修改后尝试",
-                                 QMessageBox.Yes, QMessageBox.No)
+        text = '\n'.join(lines)
+        self.text_edit.setPlainText(text)
+        self.text_edit.set_original_text(text)  # 设置为原始内容（用于对比变更）
 
-    def addpress(self, key, code, types):
-        if types == 'key':
-            cursor = self.edit_text.textCursor()
-            text = f'\n等待  0.1  秒\n键盘  按键按下  [{code},  \'{key}\']\n等待  0.1  秒\n键盘  按键抬起  [{code},  \'{key}\']'
+    def parse_text(self):
+        """解析 QTextEdit 中的文本内容，转换为 JSON 格式"""
+        lines = self.text_edit.toPlainText().split('\n')
+        new_records = []
+        i = 0
+        while i < len(lines):
+            line = lines[i].strip()
+            if not line:
+                i += 1
+                continue
+            # 忽略折叠提示
+            if re.match(r'^此处折叠 \d+ 条.*$', line):
+                i += 1
+                continue
 
-            if cursor.isNull():
-                print("没有光标")
-            else:
-                # 创建文本格式并设置颜色
-                text_format = QTextCharFormat()
-                text_format.setForeground(QColor('blue'))  # 设置字体颜色为蓝色
+            # 匹配鼠标移动
+            move_match = re.match(r'鼠标操作 鼠标移动: x:(\d+) y:(\d+) 间隔: (\d+)', line)
+            if move_match:
+                x, y, interval = map(int, move_match.groups())
+                new_records.append({
+                    'interval': interval,
+                    'type': 'mouse',
+                    'action': 'move',
+                    'details': {'x': x, 'y': y}
+                })
+                i += 1
+                # 检查是否为连续移动的第二行
+                if i < len(lines) and lines[i].startswith('鼠标操作 鼠标移动:'):
+                    next_match = re.match(r'鼠标操作 鼠标移动: x:(\d+) y:(\d+) 间隔: (\d+)', lines[i])
+                    if next_match:
+                        x, y, interval = map(int, next_match.groups())
+                        new_records.append({
+                            'interval': interval,
+                            'type': 'mouse',
+                            'action': 'move',
+                            'details': {'x': x, 'y': y}
+                        })
+                        i += 1
+                continue
 
-                cursor.beginEditBlock()  # 开始编辑块
-                cursor.setCharFormat(text_format)  # 应用文本格式
-                cursor.insertText(text, text_format)  # 插入带格式的文本
-                cursor.endEditBlock()  # 结束编辑块
-                line_number = cursor.blockNumber() + 1  # +1 to convert from zero-based index
-                print(f"光标所在行: {line_number}")
-        else:
-            cursor = self.edit_text.textCursor()
-            if key[0:2] == '左键':
-                text = f'\n等待  0.1  秒\n鼠标  左键按下  [0, 0]\n等待  0.1  秒\n鼠标  左键抬起  [0, 0]'
-            elif key[0:2] == '中键':
-                text = f'\n等待  0.1  秒\n鼠标  中键按下  [0, 0]\n等待  0.1  秒\n鼠标  中键抬起  [0, 0]'
-            elif key[0:2] == '右键':
-                text = f'\n等待  0.1  秒\n鼠标  右键按下  [0, 0]\n等待  0.1  秒\n鼠标  右键抬起  [0, 0]'
-            elif key[0:2] == '鼠标':
-                text = f'\n等待  0.1  秒\n鼠标  鼠标移动到  [0, 0]'
-            elif key[0:2] == '滚轮':
-                text = f'\n等待  0.1  秒\n鼠标  滚轮滑动  [0, 0]'
+            # 匹配鼠标按下/松开
+            click_match = re.match(r'鼠标操作 鼠标(左键|右键|中键)(按下|松开): x:(\d+) y:(\d+) 间隔: (\d+)', line)
+            if click_match:
+                button_cn, action_cn, x, y, interval = click_match.groups()
+                button_map = {'左键': 'left', '右键': 'right', '中键': 'middle'}
+                action_map = {'按下': 'down', '松开': 'up'}
+                new_records.append({
+                    'interval': int(interval),
+                    'type': 'mouse',
+                    'action': action_map[action_cn],
+                    'details': {
+                        'button': button_map[button_cn],
+                        'x': int(x),
+                        'y': int(y)
+                    }
+                })
+                i += 1
+                continue
 
-            if cursor.isNull():
-                print("没有光标")
-            else:
-                # 创建文本格式并设置颜色
-                text_format = QTextCharFormat()
-                text_format.setForeground(QColor('blue'))  # 设置字体颜色为蓝色
+            # 匹配鼠标滚动
+            scroll_match = re.match(r'鼠标操作 鼠标滚动: dx:(-?\d+) dy:(-?\d+) 间隔: (\d+)', line)
+            if scroll_match:
+                dx, dy, interval = map(int, scroll_match.groups())
+                new_records.append({
+                    'interval': interval,
+                    'type': 'mouse',
+                    'action': 'scroll',
+                    'details': {'dx': dx, 'dy': dy}
+                })
+                i += 1
+                continue
 
-                cursor.beginEditBlock()  # 开始编辑块
-                cursor.setCharFormat(text_format)  # 应用文本格式
-                cursor.insertText(text, text_format)  # 插入带格式的文本
-                cursor.endEditBlock()  # 结束编辑块
-                line_number = cursor.blockNumber() + 1  # +1 to convert from zero-based index
-                print(f"光标所在行: {line_number}")
+            # 匹配键盘操作
+            key_match = re.match(r'键盘操作 (按下|抬起) (\w+)\(keycode (\d+)\) 间隔: (\d+)', line)
+            if key_match:
+                action_cn, key_name, key_code, interval = key_match.groups()
+                action_map = {'按下': 'down', '抬起': 'up'}
+                new_records.append({
+                    'interval': int(interval),
+                    'type': 'keyboard',
+                    'action': action_map[action_cn],
+                    'details': {
+                        'code': int(key_code),
+                        'name': key_name
+                    }
+                })
+                i += 1
+                continue
 
-    def create_key_Menu(self):
-        key_menu = QMenu(self)
-
-        # 按键分组
-        groups = {
-            '功能键': ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11',
-                       'F12'],
-            '控制键': ['CTRL_L', 'CTRL_R', 'ALT', 'ALT_GR', 'ALT_L', 'ALT_R', 'SHIFT',
-                       'SHIFT_R'],
-            '导航键': ['HOME', 'END', 'PAGE_UP', 'PAGE_DOWN', 'LEFT', 'RIGHT', 'UP', 'DOWN'],
-            '系统键': ['ESC', 'ENTER', 'BACKSPACE', 'INSERT', 'DELETE', 'TAB', 'CAPS_LOCK',
-                       'NUM_LOCK', 'SCROLL_LOCK', 'PRINT_SCREEN', 'MENU'],
-            '字母': ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O',
-                     'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
-        }
-        # 为每个分组创建子菜单并添加动作
-        for group_name, keys in groups.items():
-            sub_menu = key_menu.addMenu(group_name)
-            for key in keys:
-                action = QAction(key, self)
-                action.triggered.connect(lambda checked, k=key: self.keyPressed(k))
-                sub_menu.addAction(action)
-
-        # 显示菜单
-        return key_menu
+            i += 1
+        return new_records
 
     def save_file(self):
+        if not self.file_path or not self.original_data:
+            QMessageBox.warning(self, '警告', '请先加载配置文件')
+            return
+
+        # 解析当前文本内容
+        new_records = self.parse_text()
+
+        # 获取原始文本显示内容
+        original_text = []
+        i = 0
+        while i < len(self.original_data):
+            record = self.original_data[i]
+            interval = record['interval']
+            event_type = record['type']
+            action = record['action']
+            details = record['details']
+
+            if event_type == 'mouse' and action == 'move':
+                move_records = [record]
+                total_interval = interval
+                j = i + 1
+                while j < len(self.original_data) and self.original_data[j]['type'] == 'mouse' and self.original_data[j]['action'] == 'move':
+                    move_records.append(self.original_data[j])
+                    total_interval += self.original_data[j]['interval']
+                    j += 1
+                if len(move_records) > 1:
+                    first = move_records[0]
+                    last = move_records[-1]
+                    original_text.append(f'鼠标操作 鼠标移动: x:{first["details"]["x"]} y:{first["details"]["y"]} 间隔: {first["interval"]}')
+                    original_text.append(f'鼠标操作 鼠标移动: x:{last["details"]["x"]} y:{last["details"]["y"]} 间隔: {total_interval - first["interval"]}')
+                    i = j
+                else:
+                    original_text.append(f'鼠标操作 鼠标移动: x:{details["x"]} y:{details["y"]} 间隔: {interval}')
+                    i += 1
+            elif event_type == 'mouse' and action in ['down', 'up']:
+                button_map = {'left': '左键', 'right': '右键', 'middle': '中键'}
+                action_map = {'down': '按下', 'up': '松开'}
+                button = button_map.get(details['button'], details['button'])
+                action_cn = action_map.get(action, action)
+                original_text.append(f'鼠标操作 鼠标{button}{action_cn}: x:{details["x"]} y:{details["y"]} 间隔: {interval}')
+                i += 1
+            elif event_type == 'mouse' and action == 'scroll':
+                original_text.append(f'鼠标操作 鼠标滚动: dx:{details["dx"]} dy:{details["dy"]} 间隔: {interval}')
+                i += 1
+            elif event_type == 'keyboard':
+                key_name = details['name']
+                key_code = details['code']
+                action_map = {'down': '按下', 'up': '抬起'}
+                action_cn = action_map.get(action, action.capitalize())
+                original_text.append(f'键盘操作 {action_cn} {key_name}(keycode {key_code}) 间隔: {interval}')
+                i += 1
+
+        # 获取当前文本内容
+
+        current_text = self.text_edit.toPlainText().split('\n')
+        current_text = [line.strip() for line in current_text if
+                        line.strip() and not line.strip().startswith('此处折叠')]
+
+        # 检查是否发生变化
+        if current_text == original_text:
+            QMessageBox.information(self, '提示', '内容未发生变化，无需保存')
+            return
+
+        # 构造最终 JSON 数据
+        final_records = []
+        i = 0
+        original_i = 0
+        while i < len(new_records):
+            if new_records[i]['type'] == 'mouse' and new_records[i]['action'] == 'move' and original_i < len(self.original_data):
+                # 检查原始数据中是否有连续的鼠标移动
+                move_records = []
+                j = original_i
+                while j < len(self.original_data) and self.original_data[j]['type'] == 'mouse' and self.original_data[j]['action'] == 'move':
+                    move_records.append(self.original_data[j])
+                    j += 1
+
+                # 检查文本中是否有对应的两行鼠标移动
+                if i + 1 < len(new_records) and new_records[i + 1]['type'] == 'mouse' and new_records[i + 1]['action'] == 'move':
+                    # 检查是否修改
+                    first_new = new_records[i]
+                    last_new = new_records[i + 1]
+                    first_orig = move_records[0]
+                    last_orig = move_records[-1]
+                    total_orig_interval = sum(r['interval'] for r in move_records[1:])
+
+                    # 如果首尾坐标或间隔有变化，则使用修改后的两行
+                    if (first_new['details']['x'] != first_orig['details']['x'] or
+                        first_new['details']['y'] != first_orig['details']['y'] or
+                        first_new['interval'] != first_orig['interval'] or
+                        last_new['details']['x'] != last_orig['details']['x'] or
+                        last_new['details']['y'] != last_orig['details']['y'] or
+                        last_new['interval'] != total_orig_interval):
+                        final_records.append(first_new)
+                        final_records.append(last_new)
+                    else:
+                        # 未修改，保留原始序列
+                        final_records.extend(move_records)
+                    i += 2
+                    original_i = j
+                else:
+                    # 单个鼠标移动，直接添加
+                    final_records.append(new_records[i])
+                    i += 1
+                    original_i += 1
+            else:
+                # 其他操作直接添加
+                final_records.append(new_records[i])
+                i += 1
+                original_i += 1
+
+        # 保存到文件
         try:
-            self.handle_line()
-            # 逐行写入文件
-            with open('./scripts/' + self.file, 'w') as file:
-                for line in self.lists:
-                    file.write(str(line) + '\n')  # 写入内容并换行
-            self.edit_text.clear()
-            self.LoadFile()
-            QMessageBox.information(self, "提示","保存成功！")
+            with open(self.file_path, 'w') as f:
+                json.dump(final_records, f, indent=2, ensure_ascii=False)
+            self.original_data = final_records  # 更新原始数据
+            QMessageBox.information(self, '提示', '文件保存成功')
         except Exception as e:
-            print(e)
-            QMessageBox.information(self, "提示",e)
+            QMessageBox.critical(self, '错误', f'保存文件失败: {str(e)}')
 
-    def keyPressed(self, key):
-        self.key_codes = {
-            'F1': 112,
-            'F2': 113,
-            'F3': 114,
-            'F4': 115,
-            'F5': 116,
-            'F6': 117,
-            'F7': 118,
-            'F8': 119,
-            'F9': 120,
-            'F10': 121,
-            'F11': 122,
-            'F12': 123,
-            'CTRL_L': 37,
-            'CTRL_R': 105,
-            'ALT': 64,
-            'ALT_GR': 108,
-            'ALT_L': 64,
-            'ALT_R': 108,
-            'SHIFT': 50,
-            'SHIFT_R': 62,
-            'HOME': 110,
-            'END': 115,
-            'PAGE_UP': 104,
-            'PAGE_DOWN': 109,
-            'LEFT': 113,
-            'RIGHT': 114,
-            'UP': 111,
-            'DOWN': 116,
-            'ESC': 9,
-            'ENTER': 36,
-            'BACKSPACE': 22,
-            'INSERT': 118,
-            'DELETE': 119,
-            'TAB': 23,
-            'CAPS_LOCK': 66,
-            'NUM_LOCK': 77,
-            'SCROLL_LOCK': 78,
-            'PRINT_SCREEN': 107,
-            'MENU': 135,
-            'A': 38,
-            'B': 56,
-            'C': 54,
-            'D': 40,
-            'E': 26,
-            'F': 41,
-            'G': 42,
-            'H': 43,
-            'I': 31,
-            'J': 44,
-            'K': 45,
-            'L': 46,
-            'M': 58,
-            'N': 57,
-            'O': 32,
-            'P': 33,
-            'Q': 24,
-            'R': 27,
-            'S': 39,
-            'T': 28,
-            'U': 30,
-            'V': 55,
-            'W': 25,
-            'X': 53,
-            'Y': 29,
-            'Z': 52
-        }
-        self.addpress(key, self.key_codes.get(key), 'key')
-
-    def create_mouse_Menu(self):
-        mouse_menu = QMenu(self)
-
-        action1 = QAction("左键点击", self)
-        action1.triggered.connect(lambda: self.mousePressed("左键点击"))
-
-        action2 = QAction("右键点击", self)
-        action2.triggered.connect(lambda: self.mousePressed("右键点击"))
-
-        action3 = QAction("中键点击", self)
-        action3.triggered.connect(lambda: self.mousePressed("中键点击"))
-
-        action4 = QAction("滚轮滚动", self)
-        action4.triggered.connect(lambda: self.mousePressed("滚轮滚动"))
-
-        action5 = QAction("鼠标移动", self)
-        action5.triggered.connect(lambda: self.mousePressed("鼠标移动"))
-
-        mouse_menu.addAction(action1)
-        mouse_menu.addAction(action2)
-        mouse_menu.addAction(action3)
-        mouse_menu.addAction(action4)
-        mouse_menu.addAction(action5)
-        return mouse_menu
-
-    def mousePressed(self, key):
-        self.addpress(key, "Null", 'mouse')
-
-    def closeEvent(self, Event):
-        result = self.handle_line()
-        if result == 'refuse':
-            reply = QMessageBox.question(self, '确认退出',
-                                         "你已修改文件，是否确认退出？",
-                                         QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
-
-            if reply == QMessageBox.Yes:
-                self.close()
-        elif isinstance(result, int):
-            QMessageBox.question(self, '错误',
-                                 f"不支持的语法 出现在 {self.handle_line()} 行 本次将不会保存配置文件",
-                                 QMessageBox.Yes, QMessageBox.No)
-            self.close()
+if __name__ == '__main__':
+    app = QApplication(sys.argv)
+    editor = EditorWindow()
+    editor.show()
+    sys.exit(app.exec_())

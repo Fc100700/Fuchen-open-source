@@ -218,7 +218,7 @@ Random_list = [1, 2, 3]
 handle_position = [30, -60]
 Click_Pause = 0.01
 res = False
-Version = 'V1.75'
+Version = 'V1.76'
 
 
 try:
@@ -418,6 +418,7 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
         self._is_maximized = False  # 跟踪最大化状态
         self.record_status = False
         self.execute_status = False
+        self.number_prompt_window = None
         if Theme == "White":
             self.should_draw = "White"
         elif Theme == "Custom":
@@ -456,6 +457,7 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
         self.title_bar.action_option8.triggered.connect(self.clear_temp)
         self.title_bar.action_option9.triggered.connect(self.restart_app)
         self.title_bar.action_option10.triggered.connect(self.open_website_help)
+        self.title_bar.action_option11.triggered.connect(self.opensource_link)
 
         self.avatar.clicked.connect(self.open_user_window)
         self.username.clicked.connect(self.open_user_window)
@@ -472,6 +474,10 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
         self.weather_label.setCursor(Qt.PointingHandCursor)  # 鼠标变手型
         self.weather_label.mousePressEvent = self.change_city_name  # 绑定点击事件
 
+        self.config_editor_button.clicked.connect(self.open_fileedit_window)
+        self.show_count_checkbox.stateChanged.connect(self.open_number_prompt_window)
+        self._3spinBox_3.valueChanged.connect(self.number_total_changed)
+        self.color_change_button.clicked.connect(self.number_prompt_window_color)
         # self._3pushButton.clicked.connect(self.Click_Record)  # 记录自动脚本
         # self._3pushButton_2.clicked.connect(self.Click_Record_execute)
 
@@ -524,7 +530,7 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
 
         self.uim._3pushButton_5.clicked.connect(self.mouseinfo)
 
-        self.uim.impor_button.clicked.connect(self.open_fileedit_window)
+        
         self.uim.reflash.clicked.connect(lambda: self.uim.populateMenu('scripts'))
 
 
@@ -691,7 +697,6 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
         self.fps_spin.setVisible(False)
         self.trand_problem.setVisible(False)
 
-
     def problems(self):
         if not cv2_available:
             window = extend_install.DownloadDialog(self)
@@ -700,6 +705,30 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
             QMessageBox.information(self, '提示',
                                     "此功能对电脑占用较高\n不推荐使用大于20秒的视频 否则可能会过多占用内存!!!")
 
+    def open_number_prompt_window(self, state):
+        if state == Qt.Checked:
+            self.number_prompt_window = ui.number_prompt.NotificationWindow()
+            self.number_prompt_window.show()
+            self.color_change_button.setVisible(True)
+        else:
+            self.number_prompt_window = ui.number_prompt.NotificationWindow()
+            self.number_prompt_window.close()
+            self.color_change_button.setVisible(False)
+    def handle_number_window(self, type, now, total):
+        if self.number_prompt_window != None:
+            self.number_prompt_window.update_operation(type)
+            self.number_prompt_window.update_now_number(now)
+            self.number_prompt_window.update_total_number(total)
+        pass
+    def number_prompt_window_color(self):
+        if self.number_prompt_window != None:
+            self.number_prompt_window.update_color()
+    def number_now_changed(self, value):
+        if self.number_prompt_window != None:
+            self.number_prompt_window.update_now_number(value)
+    def number_total_changed(self, value):
+        if self.number_prompt_window != None:
+            self.number_prompt_window.update_total_number(value)
     def save_setting_option(self):
         global AutoLogin, Sound, ClosePrompt, CloseExecute, window_s, Theme, transparent, FPS
 
@@ -1256,11 +1285,11 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
         self.console_window.show()
 
     def open_fileedit_window(self):
-        if (self.uim.button_file.text() in ('选择配置文件', '暂无配置文件 需要创建')):
-            pyautogui.confirm("需要先选择或创建配置文件")
-            return 0
-        pyautogui.confirm("此功能还处于开发中 功能不全面可能有BUG")
-        self.fileedit_window = ui.fileEdit.FileEdit(self.button_file.text(), self)
+        if self.file_lineEdit.text() == '':
+            file_name = ''
+        else:
+            file_name = self.file_lineEdit.text()
+        self.fileedit_window = ui.fileEdit.EditorWindow(file_name, self)
         self.fileedit_window.show()
 
     def clo(self):
@@ -1325,6 +1354,7 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
         dialog.setWindowTitle('修改城市')
         dialog.setLabelText('请输入城市名称:')
         dialog.setTextValue(str(city_name))
+        #dialog.setWindowFlags(Qt.FramelessWindowHint)
 
         # 设置对话框整体样式
         dialog.setStyleSheet("""
@@ -1361,7 +1391,11 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
 
         # 调整对话框尺寸
         dialog.resize(300, 150)
-
+        '''# 计算居中位置并移动对话框[6,7,8](@ref)
+        screen_geometry = QApplication.desktop().availableGeometry()
+        x = (screen_geometry.width() - dialog.width()) // 2
+        y = (screen_geometry.height() - dialog.height()) // 2
+        dialog.move(x, y)'''
         if dialog.exec_() == QDialog.Accepted:
             new_city = dialog.textValue().strip()
             if new_city:
@@ -1720,7 +1754,6 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
             configurations.append(config)
 
         if configurations != []:
-            print(configurations)
             for i in range(self.spin_executions.value()):
 
                 for x in configurations:
@@ -2245,6 +2278,8 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
             self.record_status = True
         else:
             return
+        if self.execute_status == True:  # 防止重复执行
+            return
         if self.file_lineEdit.text() == '':
             QMessageBox.information(self, "提示", f"配置文件为空 请先选则文件")
             self.record_status = False
@@ -2423,6 +2458,8 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
             self.execute_status = True
         else:
             return
+        if self.record_status == True:  # 防止重复执行
+            return
         if self.file_lineEdit.text() == '':
             QMessageBox.information(self, "提示", f"配置文件为空 请先选则文件")
             self.execute_status = False
@@ -2509,6 +2546,16 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
                     'F10': Key.f10,
                     'F11': Key.f11,
                     'F12': Key.f12,
+                    'F13': Key.f13,
+                    'F14': Key.f14,
+                    'F15': Key.f15,
+                    'F16': Key.f16,
+                    'F17': Key.f17,
+                    'F18': Key.f18,
+                    'F19': Key.f19,
+                    'F20': Key.f20,
+                    'F21': Key.f21,
+                    'F22': Key.f22,
                     'HOME': Key.home,
                     'INSERT': Key.insert,
                     'LEFT': Key.left,
@@ -2603,6 +2650,7 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
                 deal_time += x[0]
             star = time.time()
             for i in range(count):  # 开始执行自动脚本
+
                 for record in records:
                     if stop_script:  # 检测是否需要终止
                         print("脚本执行已终止。")
@@ -2643,6 +2691,7 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
                     elif record[1] == 'K':  # 键盘事件
                         key_code, key_char = record[3]
                         key = get_key(key_code, key_char)
+                        print(key)
                         if 'down' in record[2]:
                             keyboard_controller.press(key)
                         elif 'up' in record[2]:
@@ -2662,6 +2711,9 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
             win32api.mouse_event(win32con.MOUSEEVENTF_MIDDLEDOWN, 0, 0, 0, 0)
             elif 'mouse middle up' in record[2]:
             win32api.mouse_event(win32con.MOUSEEVENTF_MIDDLEUP, 0, 0, 0, 0)"""
+                self.number_now_changed(i + 1)
+                self.number_prompt_window.repaint()
+                self.number_prompt_window.update()
             # 停止监听器
             if listener is not None:
                 listener.stop()
@@ -2902,7 +2954,7 @@ if __name__ == "__main__":
     def handle_login_success(login_data):
         # 延迟导入UI模块
         global ui
-        import ui.userinfo, ui.console_window, ui.fileEdit, ui.hotkey_record
+        import ui.userinfo, ui.console_window, ui.fileEdit, ui.hotkey_record, ui.number_prompt
 
         # 更新全局变量
         for key, value in login_data.items():

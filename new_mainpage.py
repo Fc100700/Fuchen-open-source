@@ -407,6 +407,8 @@ class CustomTitleBar(QWidget):
         self.action_option9.setFont(style_font_black_10)
         self.action_option10 = self.menu.addAction("使用帮助")
         self.action_option10.setFont(style_font_black_10)
+        self.action_option11 = self.menu.addAction("开源链接")
+        self.action_option11.setFont(style_font_black_10)
 
         self.separate_label = QLabel("|")
         font = QFont()
@@ -1088,7 +1090,7 @@ class MainWindow(QMainWindow):
             }
         """)
         clicker_layout = QHBoxLayout(clicker_panel)
-        clicker_layout.setContentsMargins(10, 10, 10, 10)
+        clicker_layout.setContentsMargins(10, 10,  10, 10)
 
         config_Widget = QWidget()
         config_Widget.setObjectName('config_Widget')
@@ -1316,10 +1318,44 @@ class MainWindow(QMainWindow):
         param_group.addWidget(self.end_key_combo)
         # param_group.addStretch()
 
+        # 新增的水平布局容器
+        additional_controls_layout = QHBoxLayout()
+        '''self.show_count_checkbox = QCheckBox("提示次数窗口")
+        self.show_count_checkbox.setStyleSheet("""
+                            QCheckBox {
+                                font: 13px '等线';
+                                color: #344054;
+                            }
+                            QCheckBox::indicator {
+                                margin-left: 5px;  /* 在文字和复选框之间添加间距 */
+                            }
+                            QCheckBox::indicator:left {
+                                right: 50px;  /* 将复选框移到右侧 */
+                            }
+                        """)
+        self.color_change_button = QPushButton(self)
+        #self.color_change_button.clicked.connect(self.save)
+        self.color_change_button.setObjectName('color_change_button')
+        self.color_change_button.setStyleSheet("background-color: transparent; border: none;")
+        self.color_change_button.setIcon(QIcon("./image/Component/吸管.png"))  # 替换为实际图标路径
+        self.color_change_button.setIconSize(QSize(15, 15))  # 明确设置图标大小
+        self.color_change_button.setVisible(False)
+        additional_controls_layout.addSpacing(60)
+        additional_controls_layout.addWidget(self.show_count_checkbox)
+        additional_controls_layout.addSpacing(10)
+        additional_controls_layout.addWidget(self.color_change_button)
+        additional_controls_layout.addSpacing(70)
+        additional_controls_layout.addStretch()
+        additional_controls_layout.addStretch()'''
+
         form_layout.addRow("脚本名称:", self.file_lineEdit)
         form_layout.addRow(QLabel("参数设置:"), self.param_lineEdit)
         form_layout.addRow(param_group)
+        #form_layout.addRow(additional_controls_layout)
+
+
         script_layout.addLayout(form_layout)
+        script_layout.addSpacing(10)
 
         # 控制按钮
         action_btns = QHBoxLayout()
@@ -1353,10 +1389,30 @@ class MainWindow(QMainWindow):
                     /* 其他属性保持与默认状态一致 */
                 }
             """)
+        self.config_editor_button = QPushButton("配置编辑器")
+        self.config_editor_button.setStyleSheet("""
+                            QPushButton {
+                                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                    stop:0 #9CA3AF, stop:1 #6B7280);  /* 灰色渐变 */
+                                color: white;
+                                border-radius: 8px;
+                                padding: 10px 24px;         /* 减小内边距 */
+                                font: 14px '等线';         /* 缩小字体 */
+                                min-width: 100px;          /* 缩小最小宽度 */
+                                margin: 0 10px;
+                            }
+                            QPushButton:hover { 
+                                background: #4B5563;      /* 深灰色悬停 */
+                            }
+                            QPushButton:pressed { 
+                                background: #374151;      /* 更深的灰色按压 */
+                            }
+                        """)
         action_btns.addStretch()
         #action_btns.addWidget(self.record_hotkey_btn)
         action_btns.addWidget(self._3pushButton)
         action_btns.addWidget(self._3pushButton_2)
+        action_btns.addWidget(self.config_editor_button)
         action_btns.addStretch()
         script_layout.addLayout(action_btns)
 
@@ -2878,6 +2934,49 @@ class MainWindow(QMainWindow):
         self.sound_check = QCheckBox("启用点击提示音")
         self.sound_check.setStyleSheet("QCheckBox { padding: 8px 0; }")
 
+        count_layout = QHBoxLayout()
+        count_layout.setSpacing(0)
+
+
+        self.show_count_checkbox = QCheckBox("提示次数窗口")
+        self.show_count_checkbox.setStyleSheet("""
+                                    QCheckBox {
+                                        font: 13px '等线';
+                                        color: #344054;
+                                    }
+                                    QCheckBox::indicator {
+                                        margin-left: 5px;  /* 在文字和复选框之间添加间距 */
+                                    }
+                                    QCheckBox::indicator:left {
+                                        right: 50px;  /* 将复选框移到右侧 */
+                                    }
+                                """)
+
+        self.color_change_button = QPushButton(self)
+        # self.color_change_button.clicked.connect(self.save)
+        self.color_change_button.setObjectName('color_change_button')
+        self.color_change_button.setStyleSheet("background-color: transparent; border: none;")
+        self.color_change_button.setIcon(QIcon("./image/Component/吸管.png"))  # 替换为实际图标路径
+        self.color_change_button.setIconSize(QSize(15, 15))  # 明确设置图标大小
+        self.color_change_button.setVisible(False)
+
+        # 设置控件尺寸策略为固定（Fixed）或最小（Minimum）
+        self.show_count_checkbox.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.color_change_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        # 清除控件内边距（可选）
+        self.show_count_checkbox.setStyleSheet("margin: 0px; padding: 0px;")
+        self.color_change_button.setStyleSheet("margin: 0px; padding: 0px;")
+
+        # 添加控件并左对齐
+        count_layout.addWidget(self.show_count_checkbox)
+        count_layout.addSpacing(10)  # 固定间距
+        count_layout.addWidget(self.color_change_button)
+        count_layout.addStretch(1)  # 将剩余空间放在右侧
+
+        '''count_layout.addWidget(self.show_count_checkbox)
+        count_layout.addSpacing(10)
+        count_layout.addWidget(self.color_change_button)'''
+
         # ===== 关闭操作组 =====
         self.close_group = QGroupBox("关闭时操作")
         close_layout = QVBoxLayout()
@@ -2983,7 +3082,7 @@ class MainWindow(QMainWindow):
         dynamic_radio_layout.addWidget(self.bg_dynamic)
 
         # 创建提示按钮（根据你的代码调整父级参数）
-        self.trand_problem = QPushButton()  # 移除了父级参数，后续会自动加入布局
+        self.trand_problem = QPushButton()
         self.trand_problem.setFixedSize(15, 15)
         #self.trand_problem.clicked.connect(self.problem)
 
@@ -3090,6 +3189,7 @@ class MainWindow(QMainWindow):
         basic_group_layout = QVBoxLayout()
         basic_group_layout.addWidget(self.auto_login_check)
         basic_group_layout.addWidget(self.sound_check)
+        basic_group_layout.addLayout(count_layout)
         basic_group_layout.addWidget(self.close_group)
         basic_group.setLayout(basic_group_layout)
 
@@ -3134,6 +3234,10 @@ class MainWindow(QMainWindow):
                 else:
                     txt = '选择配置文件'
                 #self.uim.button_file.setText(txt)
+
+    def opensource_link(self):
+        pyautogui.confirm("请确保您已开启VPN 如已开启请忽略")
+        webbrowser.open("https://github.com/Fc100700/Fuchen-open-source")
 
     def LogRecord(self):  # 打开日志
         subprocess.Popen(["notepad.exe", "INFOR.log"])

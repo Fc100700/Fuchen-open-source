@@ -8,9 +8,6 @@ import traceback
 from PyQt5.QtCore import QThread, pyqtSignal, QSize, Qt, QTimer
 import time
 from PyQt5.QtGui import QIcon, QColor, QPixmap
-from PyQt5.QtWidgets import QMessageBox
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 import pyautogui
 import re
 import queue
@@ -18,25 +15,7 @@ import queue
 socket_information = queue.Queue()
 sock_lock = threading.Lock()  # 在全局或类里定义锁
 
-def encrypt(message, key, iv):
-    cipher = Cipher(algorithms.AES(key), modes.CFB(iv), backend=default_backend())
-    encryptor = cipher.encryptor()
-    ciphertext = encryptor.update(message) + encryptor.finalize()
-    return ciphertext
 
-def decrypt(ciphertext, key, iv):
-    cipher = Cipher(algorithms.AES(key), modes.CFB(iv), backend=default_backend())
-    decryptor = cipher.decryptor()
-    plaintext = decryptor.update(ciphertext) + decryptor.finalize()
-    return plaintext
-
-def send_encry(text, s, key, iv):  # 加密发送
-    content = encrypt((text).encode('utf-8'), key, iv)
-    s.sendall(content)
-
-def send_decry(text, key, iv):  # 解密内容
-    content = decrypt(text, key, iv).decode('utf-8')
-    return content
 def TypedJSONClient(msg_type,payload):
     data = {"type": msg_type, "data": payload}
     # 发送请求
