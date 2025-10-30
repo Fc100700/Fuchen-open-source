@@ -6,7 +6,6 @@ import socket,ssl
 import concurrent.futures
 import struct
 import webbrowser
-import vlc
 import keyboard as keys
 import pyautogui
 import requests
@@ -28,7 +27,7 @@ try:
     import op  #计数文件
 except:
     pass
-from playsound import playsound
+from playsound3 import playsound
 from PIL import Image, ImageFilter
 from pypinyin import pinyin, Style #
 from collections import deque
@@ -42,7 +41,7 @@ from PyQt5.QtWidgets import QApplication, QMessageBox, QFileDialog, QLabel, QSho
     QDialog, QGraphicsOpacityEffect, QInputDialog, QFrame, QSizePolicy
 from PyQt5 import QtCore, QtGui
 
-print("导入耗时:", time.perf_counter() - t0)
+print("导入库耗时:", time.perf_counter() - t0)
 logging.basicConfig(filename='INFOR.log', level=logging.ERROR)
 
 
@@ -218,7 +217,7 @@ Random_list = [1, 2, 3]
 handle_position = [30, -60]
 Click_Pause = 0.01
 res = False
-Version = 'V1.76'
+Version = 'V1.77.1'
 
 
 try:
@@ -333,13 +332,25 @@ if function.parse_version(Version) < function.parse_version(formal_version):
             shortcut.Targetpath = new_exe_path
             shortcut.WorkingDirectory = os.path.dirname(new_exe_path)  # 设置快捷方式的起始位置为exe文件所在的文件夹
             shortcut.save()
+
+
+            def copy_scripts_safe(src_folder, dst_folder):
+                os.makedirs(dst_folder, exist_ok=True)
+                for item in os.listdir(src_folder):
+                    s = os.path.join(src_folder, item)
+                    d = os.path.join(dst_folder, item)
+                    if os.path.isdir(s):
+                        shutil.copytree(s, d, dirs_exist_ok=True)
+                    else:
+                        shutil.copy2(s, d)
             try:
-                shutil.copytree('./scripts', rf'{new_version_path}\scripts')
-                shutil.copytree('./mod/music', rf'{new_version_path}\mod\music')
-                shutil.copytree('./mod/picture', rf'{new_version_path}\mod\picture')
-                shutil.copytree('./mod/xlsx', rf'{new_version_path}\mod\xlsx')
-                #迁移旧版数据
-            except:
+                # 迁移旧版数据
+                copy_scripts_safe('./scripts', rf'{new_version_path}\scripts')
+                copy_scripts_safe('./mod/music', rf'{new_version_path}\mod\music')
+                copy_scripts_safe('./mod/picture', rf'{new_version_path}\mod\picture')
+                copy_scripts_safe('./mod/xlsx', rf'{new_version_path}\mod\xlsx')
+
+            except Exception as e:
                 pass
 
             with open(f"{new_version_path}\\Fuchen.tmp", "w") as f:
@@ -476,7 +487,7 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
 
         self.config_editor_button.clicked.connect(self.open_fileedit_window)
         self.show_count_checkbox.stateChanged.connect(self.open_number_prompt_window)
-        self._3spinBox_3.valueChanged.connect(self.number_total_changed)
+        #self._3spinBox_3.valueChanged.connect(self.number_total_changed)
         self.color_change_button.clicked.connect(self.number_prompt_window_color)
         # self._3pushButton.clicked.connect(self.Click_Record)  # 记录自动脚本
         # self._3pushButton_2.clicked.connect(self.Click_Record_execute)
@@ -2030,11 +2041,13 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
             play_prompt_sound("C:\\Windows\\Media\\Windows Notify Messaging.wav")
             times = self.handle_send_times.value()
             wait_time = self.handle_send_interval.value()
+            self.handle_number_window("QQ句柄式发送", 0, times)
             win32gui.SetForegroundWindow(hwnd)
             time.sleep(0.5)  # 等待窗口聚焦
 
             for i in range(int(times)):
                 doClick(handle_position[0], handle_position[1], hwnd)  # 点击 (30, height-60)
+                self.number_now_changed(i+1)
                 time.sleep(wait_time)  # 等待操作完成
 
         hwnd = self._2lineEdit_3.text()
@@ -2047,6 +2060,7 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
             pyautogui.confirm("请输入需要发送的消息")
         else:
             try:
+
                 send_qq(int(hwnd), massage)
                 self.open_point_window()
             except Exception as e:
@@ -2073,18 +2087,19 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
                 pyautogui.confirm('请输入正确的QQ号')
             else:
                 time.sleep(3)
-                number = 0
                 pyautogui.PAUSE = pause_time
                 if self.QQ_StartSend_At_number_checkbox.isChecked():
                     number_send = True
                 self.showMinimized()
+                self.handle_number_window("QQ@指定用户", 0, times)
+                number = 0
                 while True:
                     if keys.is_pressed("F10"):  # 按下F10退出
                         self.showNormal()
                         self.open_point_window()
                         break
-                    number = number + 1  # 新增次数检测逻辑
-                    if times != 0 and number >= times:
+                    number = number + 1  # Increment at the start
+                    if times != 0 and number > times:  # Change condition to number > times
                         self.showNormal()
                         self.open_point_window()
                         break
@@ -2094,7 +2109,7 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
                     pyautogui.press('enter')
                     pyautogui.hotkey('ctrl', 'v')
                     if number_send == True:
-                        pyautogui.write(str(number))
+                        pyautogui.write(str(number))  # Already incremented, so no change needed
                     randfigure = random.choice(Random_list)  # 随机符号
                     if randfigure == 1:
                         pyautogui.press('.')
@@ -2103,6 +2118,7 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
                     else:
                         pyautogui.press(',')
                     pyautogui.click(send_position)
+                    self.number_now_changed(number)
 
         else:
             pyautogui.confirm("QQ未启动")
@@ -2122,6 +2138,7 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
             number = 0
             start_time = time.time()
             self.showMinimized()
+            self.handle_number_window("QQ复制内容发送", 0, times)
             while True:
                 if keys.is_pressed("F10"):  # 按下F10退出
                     self.showNormal()
@@ -2133,7 +2150,7 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
                     print(f"执行时间: {execution_time} 秒")
                     break
                 number = number + 1
-                if times != 0 and number >= times:
+                if times != 0 and number > times:
                     self.showNormal()
                     self.open_point_window()
                     break
@@ -2148,6 +2165,7 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
                 else:
                     pyautogui.press(',')
                 pyautogui.click(send_position)  # 点击第二处位置
+                self.number_now_changed(number)
             print(f"本次Fuchen累计发送{number}条消息")
         else:
             pyautogui.confirm("QQ未启动!")
@@ -2510,6 +2528,7 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
             wait_time = self.wait_doubleSpinBox.value()
             current_position = pyautogui.position()
             count = self._3spinBox_3.value()
+            self.handle_number_window("执行自动脚本", 0, count)
             time.sleep(wait_time)
 
             # self.handle_minimize()
@@ -2691,7 +2710,6 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
                     elif record[1] == 'K':  # 键盘事件
                         key_code, key_char = record[3]
                         key = get_key(key_code, key_char)
-                        print(key)
                         if 'down' in record[2]:
                             keyboard_controller.press(key)
                         elif 'up' in record[2]:
@@ -2712,8 +2730,7 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
             elif 'mouse middle up' in record[2]:
             win32api.mouse_event(win32con.MOUSEEVENTF_MIDDLEUP, 0, 0, 0, 0)"""
                 self.number_now_changed(i + 1)
-                self.number_prompt_window.repaint()
-                self.number_prompt_window.update()
+
             # 停止监听器
             if listener is not None:
                 listener.stop()

@@ -17,7 +17,13 @@ class Ui_MainWindow(object):
 
     def setupUi(self, MainWindow):
         MainWindow.setObjectName("MainWindow")
-        MainWindow.setWindowFlags(Qt.FramelessWindowHint) # 隐藏边框
+        MainWindow.setWindowFlags(
+            Qt.Window
+            | Qt.FramelessWindowHint
+            | Qt.WindowSystemMenuHint
+            | Qt.WindowMinimizeButtonHint
+            | Qt.WindowMaximizeButtonHint
+        )
 
         def get_random_image(folder_path):
             # 定义支持的图像文件扩展名

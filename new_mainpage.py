@@ -737,10 +737,17 @@ class FileNameDialog(QDialog):
         except Exception as e:
             QMessageBox.critical(self, "错误", f"创建文件失败: {str(e)}")
 
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowFlags(Qt.FramelessWindowHint | Qt.Window)
+        self.setWindowFlags(
+            Qt.Window
+            | Qt.FramelessWindowHint
+            | Qt.WindowSystemMenuHint
+            | Qt.WindowMinimizeButtonHint
+            | Qt.WindowMaximizeButtonHint
+        )
         self.setFixedSize(1000,640)
 
 
@@ -1355,7 +1362,6 @@ class MainWindow(QMainWindow):
 
 
         script_layout.addLayout(form_layout)
-        script_layout.addSpacing(10)
 
         # 控制按钮
         action_btns = QHBoxLayout()
@@ -2056,6 +2062,38 @@ class MainWindow(QMainWindow):
                 border: 2px solid #D1D1D6;
                 border-radius: 8px;
                 background: #F5F5F7;
+            }
+            QScrollBar:vertical {
+                border: none;
+                background: #F5F5F5;
+                width: 10px;
+                /* 滚动条宽度 */
+                border-radius: 5px;
+                /* 设置滚动条的圆角 */
+                margin: 0px 0 0px 0;
+                /* 取消上下按钮时可能需要调整margin来防止空白 */
+            }
+
+            QScrollBar::handle:vertical {
+                background: #E2E2E2;
+                min-height: 20px;
+                border-radius: 5px;
+                /* 设置滑块的圆角 */
+            }
+
+            QScrollBar::add-line:vertical,
+            QScrollBar::sub-line:vertical {
+                height: 0px;
+                /* 隐藏上下按钮 */
+                border: none;
+                /* 取消边框 */
+                background: none;
+                /* 取消背景 */
+            }
+
+            QScrollBar::add-page:vertical,
+            QScrollBar::sub-page:vertical {
+                background: none;
             }
         """)
 
@@ -3198,15 +3236,45 @@ class MainWindow(QMainWindow):
         system_group_layout.addWidget(self.float_check)
         system_group.setLayout(system_group_layout)
 
+        # 创建一个容器 QWidget 来包含所有内容
+        container = QWidget()
+        container_layout = QVBoxLayout(container)
+        container_layout.setContentsMargins(5, 5, 5, 5)  # 添加内边距
+        container_layout.addWidget(basic_group)
+        container_layout.addWidget(system_group)
+        container_layout.addWidget(bg_group)
+        container_layout.addWidget(status_group)
+        container_layout.addWidget(self.save_setting_btn, 0, Qt.AlignRight)
+        container_layout.addStretch(1)  # 添加伸缩项确保所有内容顶部对齐
 
+        # 创建 QScrollArea 并将容器放入其中
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)  # 重要：允许内容自适应调整
+        scroll_area.setWidget(container)
+        scroll_area.setFrameShape(QFrame.NoFrame)  # 移除边框
 
-        main_layout.addWidget(basic_group)
-        main_layout.addWidget(system_group)
-        main_layout.addWidget(bg_group)
-        main_layout.addWidget(status_group)  # 新增状态信息组
-        main_layout.addWidget(self.save_setting_btn, 0, Qt.AlignRight)
+        # 应用滚动区域的样式
+        scroll_area.setStyleSheet("""
+                QScrollArea {
+                    background-color: transparent;
+                    border: none;
+                }
+                QScrollBar:vertical {
+                    background: transparent;
+                    width: 8px;
+                }
+                QScrollBar::handle:vertical {
+                    background: #D0D0D0;
+                    border-radius: 4px;
+                    min-height: 30px;
+                }
+                QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                    background: none;
+                    height: 0;
+                }
+            """)
 
-        return page
+        return scroll_area  # 返回滚动区域而不是原始页面
 
     def upwindow(self):  # 置顶窗口
         if self.is_topmost == False:  # 置顶
