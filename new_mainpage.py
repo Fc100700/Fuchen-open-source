@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 import webbrowser
@@ -7,9 +8,33 @@ import threading
 import psutil
 import requests
 from PyQt5 import QtCore, QtGui
-from PyQt5.QtCore import Qt, QPoint, QSize, QLine, QObject, pyqtSignal, QTimer, QRect, QUrl, QEvent
-from PyQt5.QtGui import QFont, QColor, QPixmap, QMouseEvent, QIcon, QPainterPath, QRegion, QKeySequence, QCursor, \
-    QPainter, QRadialGradient, QDesktopServices, QImage
+from PyQt5.QtCore import (
+    Qt,
+    QPoint,
+    QSize,
+    QLine,
+    QObject,
+    pyqtSignal,
+    QTimer,
+    QRect,
+    QUrl,
+    QEvent,
+)
+from PyQt5.QtGui import (
+    QFont,
+    QColor,
+    QPixmap,
+    QMouseEvent,
+    QIcon,
+    QPainterPath,
+    QRegion,
+    QKeySequence,
+    QCursor,
+    QPainter,
+    QRadialGradient,
+    QDesktopServices,
+    QImage,
+)
 from PyQt5.QtWidgets import *
 from bs4 import BeautifulSoup
 from pynput import mouse
@@ -18,7 +43,6 @@ import win32con
 import ast
 
 import SundryUI
-import extend_install
 import function
 import ui.buttons
 import ui.style
@@ -50,12 +74,14 @@ Name = None
 Account = None
 send_position = None
 textedit_position = None
-mode = 'login'
-Version = 'V1.0.0'
-information = '正在加载'
+mode = "login"
+Version = "V1.0.0"
+information = "正在加载"
+
 
 class MouseSignals(QObject):
     right_click = pyqtSignal()
+
 
 class ScreenMask(QWidget):
     def __init__(self, main_window):
@@ -80,7 +106,9 @@ class ScreenMask(QWidget):
         font.setPointSize(11)
 
         self.label = QLabel(self)
-        self.label.setStyleSheet("color: white; font-size: 16px; background: rgba(0,0,0,0.5);")
+        self.label.setStyleSheet(
+            "color: white; font-size: 16px; background: rgba(0,0,0,0.5);"
+        )
         self.label.resize(200, 40)
         self.label.setFont(font)
         self.label.hide()
@@ -100,8 +128,7 @@ class ScreenMask(QWidget):
 
     def on_right_click(self):
         self.close()
-        #QApplication.instance().quit()
-
+        # QApplication.instance().quit()
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -134,7 +161,9 @@ class ScreenMask(QWidget):
                     window_title = "未知标题"
 
                 try:
-                    point = win32gui.ScreenToClient(hwnd, (screen_pos.x(), screen_pos.y()))
+                    point = win32gui.ScreenToClient(
+                        hwnd, (screen_pos.x(), screen_pos.y())
+                    )
                     rel_x, rel_y = point
                 except:
                     rel_x = screen_pos.x() - rect[0]
@@ -148,7 +177,8 @@ class ScreenMask(QWidget):
                     self.label.setText(
                         f"句柄: {hwnd}\n"
                         f"标题: {window_title}\n"  # 新增标题显示
-                        f"坐标: ({rel_x}, {rel_y})")
+                        f"坐标: ({rel_x}, {rel_y})"
+                    )
 
                     # 调整标签尺寸以适应更多行
                     self.label.resize(200, 60)  # 增加高度
@@ -190,6 +220,7 @@ class ScreenMask(QWidget):
         self.listener.stop()
         event.accept()
 
+
 class CustomLineEdit(QLineEdit):  # 网易云链接解析输入框
     def __init__(self, ui_form_instance, parent=None):
         super().__init__(parent)
@@ -199,23 +230,27 @@ class CustomLineEdit(QLineEdit):  # 网易云链接解析输入框
         if event.matches(QKeySequence.Paste):
             clipboard = QApplication.clipboard()
             url = clipboard.text()
-            if '/#/' in url:
-                url = url.replace('/#/', '/')
-            if url.startswith('https://music.163.com/song?id'):
+            if "/#/" in url:
+                url = url.replace("/#/", "/")
+            if url.startswith("https://music.163.com/song?id"):
                 try:
                     header = {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0'}
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0"
+                    }
                     res = requests.get(url, headers=header)
-                    soup = BeautifulSoup(res.text, 'html.parser')
-                    keywords_tag = soup.find('meta', {'name': 'keywords'})
-                    keywords_content = keywords_tag['content'] if keywords_tag else None
+                    soup = BeautifulSoup(res.text, "html.parser")
+                    keywords_tag = soup.find("meta", {"name": "keywords"})
+                    keywords_content = keywords_tag["content"] if keywords_tag else None
                     if keywords_content:
-                        first_content = keywords_content.split('，')[0]
+                        first_content = keywords_content.split("，")[0]
                         # 使用已初始化的实例设置文本
-                        self.ui_form_instance.music_filename.setText(first_content + ".mp3")
+                        self.ui_form_instance.music_filename.setText(
+                            first_content + ".mp3"
+                        )
                 except Exception as e:
                     print(e)
         super().keyPressEvent(event)
+
 
 class OperationGroup(QGroupBox):
     def __init__(self):
@@ -268,7 +303,6 @@ class OperationGroup(QGroupBox):
         self.combo_action.addItems(["点击", "右键", "粘贴", "按键", "回车", "等待"])
         self.combo_action.setFont(style_font_11)
 
-
         # 参数输入
         self.edit_param = QLineEdit()
         self.edit_param.setPlaceholderText("参数（可选）")
@@ -299,6 +333,7 @@ class OperationGroup(QGroupBox):
         layout.addWidget(opera_param_label)
         layout.addWidget(self.edit_param)
         layout.addWidget(self.btn_remove)
+
 
 class CustomTitleBar(QWidget):
     def __init__(self, parent):
@@ -351,25 +386,23 @@ class CustomTitleBar(QWidget):
         layout = QHBoxLayout()
         layout.setContentsMargins(10, 0, 10, 0)
 
-
-
         # 标题图标和文字
         self.icon = QLabel()
-        self.icon.setPixmap(QPixmap(r"C:\Users\13224\Desktop\项目\image\fc 斜体.png").scaled(24, 24))  # 准备图标文件
-        font= QFont()
+        self.icon.setPixmap(
+            QPixmap(r"C:\Users\13224\Desktop\项目\image\fc 斜体.png").scaled(24, 24)
+        )  # 准备图标文件
+        font = QFont()
         font.setPointSize(11)
         font.setItalic(True)
-        font.setFamily('等线')
+        font.setFamily("等线")
         self.title = QLabel(f" Fuchen - {Version}")
         self.title.setFont(font)
         self.title.setStyleSheet("color: #555555; font-size: 14px;font-family:等线;")
         # 或者给标题增加上方边距
         self.title.setContentsMargins(0, 3, 0, 0)
 
-
-
         self.Button_More = ui.buttons.ComponentButton()
-        self.Button_More.setToolTip('更多')
+        self.Button_More.setToolTip("更多")
         self.Button_More.setObjectName("Button_More")
         self.Button_More.setIcon(QIcon("./image/same/更多2.png"))
         self.Button_More.setIconSize(QtCore.QSize(21, 21))
@@ -387,15 +420,23 @@ class CustomTitleBar(QWidget):
         # 创建一个菜单
         self.menu = QMenu()
 
-        '''self.action_option1 = self.menu.addAction(QIcon("./image/page_menu/setting.png"), "设置")
-        self.action_option1.setFont(style_font_black_10)'''
-        self.action_option2 = self.menu.addAction(QIcon("./image/page_menu/about.png"), "关于")
+        """self.action_option1 = self.menu.addAction(QIcon("./image/page_menu/setting.png"), "设置")
+        self.action_option1.setFont(style_font_black_10)"""
+        self.action_option2 = self.menu.addAction(
+            QIcon("./image/page_menu/about.png"), "关于"
+        )
         self.action_option2.setFont(style_font_black_10)
-        self.action_option3 = self.menu.addAction(QIcon("./image/page_menu/help.png"), "赞助")
+        self.action_option3 = self.menu.addAction(
+            QIcon("./image/page_menu/help.png"), "赞助"
+        )
         self.action_option3.setFont(style_font_black_10)
-        self.action_option4 = self.menu.addAction(QIcon("./image/page_menu/log.png"), "日志")
+        self.action_option4 = self.menu.addAction(
+            QIcon("./image/page_menu/log.png"), "日志"
+        )
         self.action_option4.setFont(style_font_black_10)
-        self.action_option5 = self.menu.addAction(QIcon("./image/page_menu/web.png"), "官网")
+        self.action_option5 = self.menu.addAction(
+            QIcon("./image/page_menu/web.png"), "官网"
+        )
         self.action_option5.setFont(style_font_black_10)
         self.action_option6 = self.menu.addAction("意见反馈")
         self.action_option6.setFont(style_font_black_10)
@@ -420,7 +461,7 @@ class CustomTitleBar(QWidget):
         self.Button_More.setPopupMode(QToolButton.InstantPopup)
 
         self.Button_SetTop = ui.buttons.ComponentButton()
-        self.Button_SetTop.setToolTip('置顶')
+        self.Button_SetTop.setToolTip("置顶")
         self.Button_SetTop.setObjectName("Button_SetTop")
         self.Button_SetTop.setIcon(QIcon("./image/Component/Top.png"))
         self.Button_SetTop.setIconSize(QtCore.QSize(21, 21))
@@ -429,13 +470,13 @@ class CustomTitleBar(QWidget):
         self.Button_Minisize.setIcon(QIcon("./image/short.png"))
         self.Button_Minisize.setIconSize(QtCore.QSize(19, 19))
         self.Button_Minisize.setObjectName("Button_Minisize")
-        self.Button_Minisize.setToolTip('最小化')
+        self.Button_Minisize.setToolTip("最小化")
 
         self.Button_Close = ui.buttons.CloseButton()
-        self.Button_Close.setToolTip('关闭')
+        self.Button_Close.setToolTip("关闭")
         self.Button_Close.setIcon(QIcon("./image/quit.png"))
         self.Button_Close.setIconSize(QtCore.QSize(24, 24))
-        self.Button_Close.setFixedSize(24,24)
+        self.Button_Close.setFixedSize(24, 24)
         self.Button_Close.setObjectName("Button_Close")
         self.Button_Close.clicked.connect(self.window().close)
 
@@ -444,7 +485,7 @@ class CustomTitleBar(QWidget):
         layout.addWidget(self.title)
         layout.addStretch()
         layout.addSpacing(5)
-        #layout.addWidget(self.separate_label)
+        # layout.addWidget(self.separate_label)
         layout.addSpacing(5)
         layout.addWidget(self.Button_More)
         layout.addSpacing(8)
@@ -460,10 +501,7 @@ class CustomTitleBar(QWidget):
 
         # 按钮信号连接
         self.Button_Minisize.clicked.connect(self.window().showMinimized)
-        #self.Button_Close.clicked.connect(self.window().close)
-
-
-
+        # self.Button_Close.clicked.connect(self.window().close)
 
     def create_context_menu(self):
         self.context_menu = QMenu(self)
@@ -490,7 +528,7 @@ class CustomTitleBar(QWidget):
         }
     """)
 
-        self.console_action = QAction("控制台",self)
+        self.console_action = QAction("控制台", self)
         # 添加菜单项
         minimize_action = QAction("最小化", self)
         minimize_action.triggered.connect(self.window().showMinimized)
@@ -511,6 +549,7 @@ class CustomTitleBar(QWidget):
     def show_other_options(self):
         # 实现其他功能
         pass
+
     def toggle_maximize(self):
         if self.window().isMaximized():
             self.window().showNormal()
@@ -529,6 +568,7 @@ class CustomTitleBar(QWidget):
         self.window().move(self.window().x() + delta.x(), self.window().y() + delta.y())
         self.mouse_pos = event.globalPos()
 
+
 class UserWidget(QGroupBox):
     def __init__(self, name, user_id, avatar_path):
         super().__init__()
@@ -545,7 +585,9 @@ class UserWidget(QGroupBox):
 
         # 头像区域（添加固定尺寸确保对齐）
         self.avatar_frame = QLabel()
-        self.avatar_user_team = QPixmap(avatar_path).scaled(100, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        self.avatar_user_team = QPixmap(avatar_path).scaled(
+            100, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation
+        )
         self.avatar_frame.setPixmap(self.avatar_user_team)
         self.avatar_frame.setFixedSize(100, 100)  # 固定头像框尺寸
         layout.addWidget(self.avatar_frame)
@@ -553,10 +595,12 @@ class UserWidget(QGroupBox):
         # 用户信息（添加间距和垂直居中）
         info_layout = QVBoxLayout()
         info_layout.setContentsMargins(10, 0, 0, 0)  # 左侧留出间距
-        info_layout.setAlignment(Qt.AlignVCenter)   # 垂直居中
+        info_layout.setAlignment(Qt.AlignVCenter)  # 垂直居中
 
         self.lbl_name = QLabel(name)
-        self.lbl_name.setStyleSheet("font: bold 16px 'Microsoft YaHei'; color: #212121;")
+        self.lbl_name.setStyleSheet(
+            "font: bold 16px 'Microsoft YaHei'; color: #212121;"
+        )
         self.lbl_id = QLabel(f"ID: {user_id}")  # 添加ID前缀更清晰
         self.lbl_id.setStyleSheet("font: 12px 'Microsoft YaHei'; color: #757575;")
 
@@ -567,7 +611,15 @@ class UserWidget(QGroupBox):
         # 其他保持不变...
         # 选项区域
         self.combo_options = QComboBox()
-        self.combo_options.addItems(["句柄式发送消息", "@指定用户", "复制消息发送", "QQ个人信息更新", "执行自动脚本"])
+        self.combo_options.addItems(
+            [
+                "句柄式发送消息",
+                "@指定用户",
+                "复制消息发送",
+                "QQ个人信息更新",
+                "执行自动脚本",
+            ]
+        )
         self.combo_options.setStyleSheet("""
             QComboBox {
                 padding: 8px;
@@ -575,6 +627,16 @@ class UserWidget(QGroupBox):
                 border-radius: 6px;
                 min-width: 120px;
                 font: 14px 'Microsoft YaHei';
+            }
+            QComboBox QAbstractItemView {
+                background-color: #FFFFFF;
+                color: #212121;
+                selection-background-color: #EAF3FF;
+                selection-color: #212121;
+                border: 1px solid #E0E0E0;
+            }
+            QComboBox QAbstractItemView::item {
+                background-color: #FFFFFF;
             }
             QComboBox::drop-down {
                 subcontrol-origin: padding;
@@ -592,8 +654,10 @@ class UserWidget(QGroupBox):
         layout.addWidget(self.combo_options)
 
         self.setLayout(layout)
+
     def get_selection(self):
         return self.combo_options.currentText()
+
 
 class FileNameDialog(QDialog):
     def __init__(self, parent=None):
@@ -658,13 +722,16 @@ class FileNameDialog(QDialog):
             os.makedirs(directory)
 
         # 查找已有文件
-        files = [f for f in os.listdir(directory)
-                 if f.startswith(date_str) and f.endswith(".txt")]
+        files = [
+            f
+            for f in os.listdir(directory)
+            if f.startswith(date_str) and f.endswith(".json")
+        ]
 
         # 找出最大序号
         max_number = 0
         for file in files:
-            parts = file.replace(".txt", "").split("-")
+            parts = file.replace(".json", "").split("-")
             if len(parts) == 4:  # 格式为年-月-日-编号
                 try:
                     number = int(parts[3])
@@ -672,7 +739,7 @@ class FileNameDialog(QDialog):
                 except ValueError:
                     continue
 
-        return f"{date_str}-{max_number + 1:02d}.txt"
+        return f"{date_str}-{max_number + 1:02d}.json"
 
     def init_ui(self):
         layout = QVBoxLayout()
@@ -719,6 +786,10 @@ class FileNameDialog(QDialog):
             QMessageBox.warning(self, "警告", "文件名不能为空！")
             return
 
+        base_name, extension = os.path.splitext(filename)
+        if extension.lower() != ".json":
+            filename = f"{base_name or filename}.json"
+
         directory = "./scripts/"
         filepath = os.path.join(directory, filename)
 
@@ -748,8 +819,7 @@ class MainWindow(QMainWindow):
             | Qt.WindowMinimizeButtonHint
             | Qt.WindowMaximizeButtonHint
         )
-        self.setFixedSize(1000,640)
-
+        self.setFixedSize(1000, 640)
 
         screen = QDesktopWidget().screenGeometry()
         window = self.geometry()
@@ -760,8 +830,37 @@ class MainWindow(QMainWindow):
         # 设置窗口位置
         self.move(x, y)
 
-        self.record_hotkey = None
-        self.execute_hotkey = None
+        # 从config.json读取热键与触发模式配置
+        try:
+            with open("config.json", "r", encoding="utf-8") as f:
+                cfg = json.load(f)
+            self.record_hotkey_text = cfg.get("record_hotkey")
+            self.execute_hotkey_text = cfg.get("execute_hotkey")
+            script_click_trigger = cfg.get("script_click_trigger")
+            script_hotkey_trigger = cfg.get("script_hotkey_trigger")
+
+            if script_click_trigger is None:
+                script_click_trigger = bool(
+                    cfg.get("record_click_trigger", False)
+                    or cfg.get("execute_click_trigger", False)
+                )
+            if script_hotkey_trigger is None:
+                script_hotkey_trigger = bool(
+                    cfg.get("record_hotkey_trigger", True)
+                    or cfg.get("execute_hotkey_trigger", True)
+                )
+
+            self.script_click_trigger_enabled = script_click_trigger
+            self.script_hotkey_trigger_enabled = script_hotkey_trigger
+        except Exception:
+            self.record_hotkey_text = None
+            self.execute_hotkey_text = None
+            self.script_click_trigger_enabled = False
+            self.script_hotkey_trigger_enabled = True
+
+        # keyboard 全局热键注册句柄
+        self.record_hotkey_handler = None
+        self.execute_hotkey_handler = None
         self.sort = "F8"
         self.end_key = "ESC"
         self.end_execute_key = "ESC"
@@ -769,14 +868,6 @@ class MainWindow(QMainWindow):
         self.recorded_keys = set()
         self.record_key_status = False
         self.execute_key_status = False
-
-        # VLC播放器和视频容器初始化为None
-        self.video_frame = None
-        self.instance = None
-        self.mediaplayer = None
-
-
-
 
         # 创建遮罩层
         self.mask = QWidget()
@@ -796,6 +887,12 @@ class MainWindow(QMainWindow):
         self.main_layout.setContentsMargins(0, 0, 0, 0)
         self.main_layout.setSpacing(0)
 
+        # 放在 MainWindow / Ui_Form 初始化 UI 的末尾，确保在其它控件之下
+        self.wallpaper_label = QLabel(self)
+        self.wallpaper_label.setGeometry(0, 0, self.width(), self.height())
+        self.wallpaper_label.setScaledContents(True)
+        self.wallpaper_label.lower()  # 永远在底层
+
         shadow_effect = QGraphicsDropShadowEffect(self)
         shadow_effect.setBlurRadius(30)  # 阴影模糊程度
         shadow_effect.setOffset(0, 0)  # 阴影偏移，0表示四周都有
@@ -807,7 +904,7 @@ class MainWindow(QMainWindow):
                     background-color: #F5F6FA;
                     border-radius: 15px;
                 """)
-        #self.main_widget.setGraphicsEffect(shadow_effect)  # 应用阴影
+        # self.main_widget.setGraphicsEffect(shadow_effect)  # 应用阴影
 
         # 添加自定义标题栏
         self.title_bar = CustomTitleBar(self)
@@ -824,20 +921,53 @@ class MainWindow(QMainWindow):
         self.init_sidebar()
         self.init_content_area()
 
-        self.choose_music.clicked.connect(lambda: self.select_file_path('download_music'))
-        self.QQ_Seq_file_button.clicked.connect(lambda: self.select_file_path('qq_send_seq'))
+        self.choose_music.clicked.connect(
+            lambda: self.select_file_path("download_music")
+        )
+        self.QQ_Seq_file_button.clicked.connect(
+            lambda: self.select_file_path("qq_send_seq")
+        )
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        if hasattr(self, "wallpaper_label") and self.wallpaper_label is not None:
+            self.wallpaper_label.setGeometry(0, 0, self.width(), self.height())
 
     def init_sidebar(self):
         # 侧边栏初始化（使用绝对布局）
         self.sidebar = QWidget()  # 改用QWidget更轻量
         self.sidebar.setFixedWidth(240)
-        self.sidebar.setStyleSheet("""
+
+        try:
+            # 1. 读取本地 json
+            with open("config.json", "r", encoding="utf-8") as f:
+                cfg = json.load(f)
+
+            # 2. 取出 left_color
+            # 形如 ["horizontal", "#6ec7ff", "#7cb9e8"]
+            mode, c1, c2 = cfg.get("left_color", ["horizontal", "#6ec7ff", "#7cb9e8"])
+
+            # 3. 根据方向生成 qlineargradient 的坐标
+            if mode == "vertical":
+                direction = "x1:0, y1:0, x2:0, y2:1"
+            else:  # 默认水平
+                direction = "x1:0, y1:0, x2:1, y2:0"
+
+            # 4. 拼成最终样式
+            sidebar_style = f"""
+                    background: qlineargradient({direction},
+                        stop:0 {c1}, stop:1 {c2});
+                    border-radius: 10px;
+                    margin: 10px 5px 10px 10px;
+                """
+        except Exception as e:
+            sidebar_style = f"""
             background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
                 stop:0 #6ec7ff, stop:1 #7cb9e8);
             border-radius: 10px;
             margin: 10px 5px 10px 10px;
-        """)
-
+        """
+        self.sidebar.setStyleSheet(sidebar_style)
 
         # ===== 用户信息区域 =====
         # 头像
@@ -901,7 +1031,7 @@ class MainWindow(QMainWindow):
         glow_effect.setBlurRadius(10)
         glow_effect.setOffset(0)
         glow_effect.setColor(QColor(255, 255, 255, 50))
-        #self.weather_label.setGraphicsEffect(glow_effect)
+        # self.weather_label.setGraphicsEffect(glow_effect)
 
         # ===== 导航按钮 =====
         nav_items = [
@@ -909,7 +1039,7 @@ class MainWindow(QMainWindow):
             ("📨 消息发送", 1),
             ("👥 组队功能", 2),
             ("🛠️ 常用工具", 3),
-            ("⚙️ 系统设置", 4)
+            ("⚙️ 系统设置", 4),
         ]
         COMMON_STYLE = """
             QPushButton {
@@ -928,7 +1058,6 @@ class MainWindow(QMainWindow):
                 border-left: 3px solid #2196f3;
             }
         """
-
 
         self.button_group = QButtonGroup()
 
@@ -975,14 +1104,17 @@ class MainWindow(QMainWindow):
         self.button_group.addButton(self.button_5)
 
         self.slabel = QLabel(self.sidebar)
-        self.slabel.setGeometry(self.button_1.pos().x(),self.button_1.pos().y(),220,50)
+        self.slabel.setGeometry(
+            self.button_1.pos().x(), self.button_1.pos().y(), 220, 50
+        )
         self.slabel.setObjectName("slabel")
-        self.slabel.setStyleSheet("background-color: rgba(255,255,255,0.2); border-radius: 8px;")
+        self.slabel.setStyleSheet(
+            "background-color: rgba(255,255,255,0.2); border-radius: 8px;"
+        )
         self.slabel.lower()
         self.animation = QtCore.QPropertyAnimation(self.slabel, b"pos")
         # 添加装饰元素
         self.add_sidebar_decorations()
-
 
         # ===== 公告区域 =====
         self.notice_browser = QTextBrowser(self.sidebar)
@@ -999,7 +1131,6 @@ class MainWindow(QMainWindow):
                     }
                 """)
 
-
         # 示例公告内容（支持HTML格式）
         self.notice_browser.setHtml("""
                     <p style='color: rgba(255,255,255,0.95); margin:2px;'>
@@ -1010,17 +1141,21 @@ class MainWindow(QMainWindow):
                         <span style='color: #ffdd55;'>[详情]</span>
                     </p>
                 """)
-        self.notice_browser.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)  # 禁用垂直滚动条
+        self.notice_browser.setVerticalScrollBarPolicy(
+            Qt.ScrollBarAlwaysOff
+        )  # 禁用垂直滚动条
         # 启用链接交互功能
         self.notice_browser.setOpenExternalLinks(False)  # 禁用自动跳转，由我们自己处理
         # 修改信号连接方式（替换原来的连接方式）
-        self.notice_browser.anchorClicked.connect(lambda link: self.open_notice_link(link))
-
+        self.notice_browser.anchorClicked.connect(
+            lambda link: self.open_notice_link(link)
+        )
 
         self.content_layout.addWidget(self.sidebar)
 
     def connect_handle(self):
         pass
+
     # 在类中添加处理方法
     def open_notice_link(self, link):
         current_html = self.notice_browser.toHtml()
@@ -1045,11 +1180,15 @@ class MainWindow(QMainWindow):
 
     # 侧边栏和内容区初始化代码与之前相同...
     def switch_page(self, index):
-
         self.stack.setCurrentIndex(index)
         # 移动标签到该按钮的右侧
         self.animation.setStartValue(self.slabel.pos())
-        self.animation.setEndValue(QtCore.QPoint(self.button_group.buttons()[index].x(), self.button_group.buttons()[index].y()))
+        self.animation.setEndValue(
+            QtCore.QPoint(
+                self.button_group.buttons()[index].x(),
+                self.button_group.buttons()[index].y(),
+            )
+        )
         self.animation.setDuration(135)
         self.animation.start()
 
@@ -1059,13 +1198,40 @@ class MainWindow(QMainWindow):
         self.stack.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.stack.setMinimumSize(0, 0)  # 允许缩小到零
         self.stack.setStyleSheet("border-radius: 15px;")
-        self.stack.setStyleSheet("""
-                    QStackedWidget {
-                        background-color: #FFFFFF;
+
+        try:
+            # 1. 读取本地 json
+            with open("config.json", "r", encoding="utf-8") as f:
+                cfg = json.load(f)
+
+            # 2. 取出 left_color
+            # 形如 ["horizontal", "#6ec7ff", "#7cb9e8"]
+            # 2. 取出 left_color
+            # 形如 ["horizontal", "#6ec7ff", "#7cb9e8"]
+            mode, c1, c2 = cfg.get("right_color", ["horizontal", "#6ec7ff", "#7cb9e8"])
+
+            # 3. 根据方向生成 qlineargradient 的坐标
+            if mode == "vertical":
+                direction = "x1:0, y1:0, x2:0, y2:1"
+            else:  # 默认水平
+                direction = "x1:0, y1:0, x2:1, y2:0"
+
+            # 4. 拼成最终样式
+            stack_style = f"""
+            QStackedWidget {{
+                        background: qlineargradient({direction},
+                        stop:0 {c1}, stop:1 {c2});
                         border-radius: 10px;
                         margin: 10px 10px 10px 0;
-                    }
-                """)
+                    }} """
+        except Exception as e:
+            stack_style = f"""
+            QStackedWidget {{
+                        background: #FFFFFF);
+                        border-radius: 10px;
+                        margin: 10px 10px 10px 0;
+                    }} """
+        self.stack.setStyleSheet(stack_style)
 
         # 创建四个页面
         self.stack.addWidget(self.create_click_page())
@@ -1074,7 +1240,6 @@ class MainWindow(QMainWindow):
         self.stack.addWidget(self.create_tools_page())
         self.stack.addWidget(self.create_setting_page())
 
-
         self.content_layout.addWidget(self.stack)
 
     def create_click_page(self):
@@ -1082,7 +1247,7 @@ class MainWindow(QMainWindow):
 
         # 主布局：上下分层（3:7比例）
         main_layout = QVBoxLayout(page)
-        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setContentsMargins(10, 10, 10, 10)
         main_layout.setSpacing(5)
 
         # ===== 上部连点器区域（30%）=====
@@ -1097,10 +1262,10 @@ class MainWindow(QMainWindow):
             }
         """)
         clicker_layout = QHBoxLayout(clicker_panel)
-        clicker_layout.setContentsMargins(10, 10,  10, 10)
+        clicker_layout.setContentsMargins(10, 10, 10, 10)
 
         config_Widget = QWidget()
-        config_Widget.setObjectName('config_Widget')
+        config_Widget.setObjectName("config_Widget")
         config_Widget.setStyleSheet("""
             QWidget#config_Widget {
                 background: #FAFCFF;
@@ -1111,11 +1276,11 @@ class MainWindow(QMainWindow):
         """)
         config_layout = QVBoxLayout(config_Widget)
         title_label_click = QLabel("连点器")
-        title_label_click.setStyleSheet('''QLabel {
+        title_label_click.setStyleSheet("""QLabel {
                 font: 20px '等线';
                 color: #667085;
                 border: None;
-            }''')
+            }""")
         config_layout.addWidget(title_label_click)
 
         # 点击类型选择
@@ -1133,7 +1298,6 @@ class MainWindow(QMainWindow):
         type_layout.addWidget(self.RClick_Radio)
         self.LClick_Radio.setChecked(True)
 
-
         # 间隔时间设置
         interval_layout = QHBoxLayout()
         interval_label = QLabel("间隔(秒):")
@@ -1147,7 +1311,6 @@ class MainWindow(QMainWindow):
         interval_layout.addSpacing(10)
         interval_layout.addWidget(self._3D)
         interval_layout.addSpacing(150)
-
 
         speed_mode_layout = QHBoxLayout()
         speed_label = QLabel("速度模式:")
@@ -1163,9 +1326,8 @@ class MainWindow(QMainWindow):
         self.high_speed_radio.setChecked(True)  # 默认选择高速模式
 
         config_layout.addLayout(interval_layout)
-        #config_layout.addLayout(speed_mode_layout)
+        # config_layout.addLayout(speed_mode_layout)
         config_layout.addLayout(type_layout)
-
 
         # 右侧控制区
         control_group = QFrame()
@@ -1206,7 +1368,7 @@ class MainWindow(QMainWindow):
 
         # ===== 下部脚本区域（70%）=====
         script_panel = QFrame()
-        script_panel.setObjectName('script_panel')
+        script_panel.setObjectName("script_panel")
         script_panel.setStyleSheet("""
             QFrame {
                 background: #F8FAFF;
@@ -1224,11 +1386,11 @@ class MainWindow(QMainWindow):
         # 标题和操作栏
         header = QHBoxLayout()
         title = QLabel("自动脚本")
-        title.setStyleSheet('''QLabel {
+        title.setStyleSheet("""QLabel {
                 font: 20px '等线';
                 color: #667085;
                 border: None;
-            }''')
+            }""")
         tool_buttons = QHBoxLayout()
         self.button_file = QPushButton("📂 选择脚本")
         self.button_file.clicked.connect(self.show_file_menu)
@@ -1252,6 +1414,25 @@ class MainWindow(QMainWindow):
         header.addWidget(title)
         header.addLayout(tool_buttons)
         script_layout.addLayout(header)
+
+        self.script_use_click_chk = QRadioButton("按钮触发")
+        self.script_use_hotkey_chk = QRadioButton("热键触发")
+
+        self.script_trigger_group = QButtonGroup(self)
+        self.script_trigger_group.setExclusive(True)
+        self.script_trigger_group.addButton(self.script_use_click_chk)
+        self.script_trigger_group.addButton(self.script_use_hotkey_chk)
+
+        if self.script_click_trigger_enabled:
+            self.script_use_click_chk.setChecked(True)
+        elif self.script_hotkey_trigger_enabled:
+            self.script_use_hotkey_chk.setChecked(True)
+        else:
+            self.script_use_click_chk.setChecked(True)
+
+        trigger_check_style = "font: 13px '等线'; color: #344054;"
+        self.script_use_click_chk.setStyleSheet(trigger_check_style)
+        self.script_use_hotkey_chk.setStyleSheet(trigger_check_style)
 
         # 配置表单
         form_layout = QFormLayout()
@@ -1325,6 +1506,14 @@ class MainWindow(QMainWindow):
         param_group.addWidget(self.end_key_combo)
         # param_group.addStretch()
 
+        trigger_mode_widget = QWidget()
+        trigger_mode_row = QHBoxLayout(trigger_mode_widget)
+        trigger_mode_row.setContentsMargins(0, 0, 0, 0)
+        trigger_mode_row.setSpacing(20)
+        trigger_mode_row.addWidget(self.script_use_click_chk)
+        trigger_mode_row.addWidget(self.script_use_hotkey_chk)
+        trigger_mode_row.addStretch()
+
         # 新增的水平布局容器
         additional_controls_layout = QHBoxLayout()
         '''self.show_count_checkbox = QCheckBox("提示次数窗口")
@@ -1358,19 +1547,20 @@ class MainWindow(QMainWindow):
         form_layout.addRow("脚本名称:", self.file_lineEdit)
         form_layout.addRow(QLabel("参数设置:"), self.param_lineEdit)
         form_layout.addRow(param_group)
-        #form_layout.addRow(additional_controls_layout)
-
+        form_layout.addRow("触发方式:", trigger_mode_widget)
+        # form_layout.addRow(additional_controls_layout)
 
         script_layout.addLayout(form_layout)
 
         # 控制按钮
         action_btns = QHBoxLayout()
 
-
-        self._3pushButton = QPushButton("开始录制: F9")
-        self._3pushButton.clicked.connect(lambda: self.start_recording("record"))
-        self._3pushButton_2 = QPushButton("开始执行: F10")
-        self._3pushButton_2.clicked.connect(lambda: self.start_recording("execute"))
+        self._3pushButton = QPushButton("开始录制")
+        self._3pushButton.clicked.connect(lambda: self.handle_script_trigger("record"))
+        self._3pushButton_2 = QPushButton("开始执行")
+        self._3pushButton_2.clicked.connect(
+            lambda: self.handle_script_trigger("execute")
+        )
         for btn in [self._3pushButton, self._3pushButton_2]:
             btn.setStyleSheet("""
                 QPushButton {
@@ -1415,12 +1605,18 @@ class MainWindow(QMainWindow):
                             }
                         """)
         action_btns.addStretch()
-        #action_btns.addWidget(self.record_hotkey_btn)
+        # action_btns.addWidget(self.record_hotkey_btn)
         action_btns.addWidget(self._3pushButton)
         action_btns.addWidget(self._3pushButton_2)
         action_btns.addWidget(self.config_editor_button)
         action_btns.addStretch()
         script_layout.addLayout(action_btns)
+
+        for chk in [self.script_use_click_chk, self.script_use_hotkey_chk]:
+            chk.toggled.connect(self.on_trigger_mode_changed)
+
+        self.update_script_trigger_buttons()
+        self.apply_hotkey_bindings()
 
         # 添加到主布局
         main_layout.addWidget(clicker_panel, stretch=4)
@@ -1428,44 +1624,161 @@ class MainWindow(QMainWindow):
 
         return page
 
-    def start_recording(self, types):
+    def handle_script_trigger(self, types):
+        use_click = self.script_use_click_chk.isChecked()
+        use_hotkey = self.script_use_hotkey_chk.isChecked()
 
-        """开始记录按键"""
-        if types == 'record':
-            if self.record_hotkey != None:
-                # 需要解绑时
-                keyboard.remove_hotkey(self.record_hotkey)
-            self._3pushButton.setText('开始录制: ')
+        if types == "record":
+            callback_name = "Click_Record"
+            action_text = "录制"
+        else:
+            callback_name = "Click_Record_execute"
+            action_text = "执行"
+
+        if use_click:
+            callback = getattr(self, callback_name, None)
+            if callable(callback):
+                callback()
+            else:
+                QMessageBox.information(
+                    self, "提示", f"当前页面未实现{action_text}操作"
+                )
+            return
+
+        if use_hotkey:
+            self.start_recording(types)
+            return
+
+        QMessageBox.information(self, "提示", f"请先选择{action_text}触发方式")
+
+    def on_trigger_mode_changed(self, checked):
+        if not checked:
+            return
+
+        self.save_hotkey_config(
+            "script_click_trigger", self.script_use_click_chk.isChecked()
+        )
+        self.save_hotkey_config(
+            "script_hotkey_trigger", self.script_use_hotkey_chk.isChecked()
+        )
+
+        self.update_script_trigger_buttons()
+        self.apply_hotkey_bindings()
+
+    def update_script_trigger_buttons(self):
+        record_hotkey_text = (
+            self.record_hotkey_text if self.record_hotkey_text else "未设置"
+        )
+        execute_hotkey_text = (
+            self.execute_hotkey_text if self.execute_hotkey_text else "未设置"
+        )
+
+        if not self.record_key_status:
+            if self.script_use_click_chk.isChecked():
+                self._3pushButton.setText("开始录制")
+                self._3pushButton.setToolTip("点击开始录制")
+            elif self.script_use_hotkey_chk.isChecked():
+                self._3pushButton.setText(f"设置录制热键: {record_hotkey_text}")
+                self._3pushButton.setToolTip("点击设置录制热键")
+            else:
+                self._3pushButton.setText("开始录制(未启用)")
+                self._3pushButton.setToolTip("请先选择按钮触发或热键触发")
+
+        if not self.execute_key_status:
+            if self.script_use_click_chk.isChecked():
+                self._3pushButton_2.setText("开始执行")
+                self._3pushButton_2.setToolTip("点击开始执行")
+            elif self.script_use_hotkey_chk.isChecked():
+                self._3pushButton_2.setText(f"设置执行热键: {execute_hotkey_text}")
+                self._3pushButton_2.setToolTip("点击设置执行热键")
+            else:
+                self._3pushButton_2.setText("开始执行(未启用)")
+                self._3pushButton_2.setToolTip("请先选择按钮触发或热键触发")
+
+        self._3pushButton.setEnabled(
+            self.script_use_click_chk.isChecked()
+            or self.script_use_hotkey_chk.isChecked()
+        )
+        self._3pushButton_2.setEnabled(
+            self.script_use_click_chk.isChecked()
+            or self.script_use_hotkey_chk.isChecked()
+        )
+
+    def remove_hotkey_bindings(self):
+        for attr_name in ["record_hotkey_handler", "execute_hotkey_handler"]:
+            hotkey_handler = getattr(self, attr_name, None)
+            if hotkey_handler is None:
+                continue
+            try:
+                keyboard.remove_hotkey(hotkey_handler)
+            except Exception:
+                pass
+            setattr(self, attr_name, None)
+
+    def apply_hotkey_bindings(self):
+        self.remove_hotkey_bindings()
+
+        if not hasattr(self, "script_use_hotkey_chk"):
+            return
+        if not self.script_use_hotkey_chk.isChecked():
+            return
+
+        record_hotkey_text = (self.record_hotkey_text or "").strip()
+        if record_hotkey_text and record_hotkey_text != "未设置":
+            callback = getattr(self, "Click_Record", None)
+            if callable(callback):
+                try:
+                    self.record_hotkey_handler = keyboard.add_hotkey(
+                        record_hotkey_text, callback
+                    )
+                except Exception as e:
+                    print(f"录制热键绑定失败: {e}")
+
+        execute_hotkey_text = (self.execute_hotkey_text or "").strip()
+        if execute_hotkey_text and execute_hotkey_text != "未设置":
+            callback = getattr(self, "Click_Record_execute", None)
+            if callable(callback):
+                try:
+                    self.execute_hotkey_handler = keyboard.add_hotkey(
+                        execute_hotkey_text, callback
+                    )
+                except Exception as e:
+                    print(f"执行热键绑定失败: {e}")
+
+    def start_recording(self, types):
+        """开始记录热键"""
+        self.remove_hotkey_bindings()
+
+        if types == "record":
+            self._3pushButton.setText("设置录制热键: ")
             self._3pushButton.setEnabled(False)
             self.record_key_status = True
+            self.execute_key_status = False
         else:
-            if self.execute_hotkey != None:
-                # 需要解绑时
-                keyboard.remove_hotkey(self.execute_hotkey)
-            self._3pushButton_2.setText('开始执行: ')
+            self._3pushButton_2.setText("设置执行热键: ")
             self._3pushButton_2.setEnabled(False)
             self.execute_key_status = True
+            self.record_key_status = False
         self.pressed_keys.clear()
         self.recorded_keys.clear()
         self.setFocus()
 
     def keyPressEvent(self, event):
         """处理按键按下事件"""
-        if self.record_key_status:
+        if self.record_key_status or self.execute_key_status:
             key = event.key()
             if key not in self.pressed_keys:
                 self.pressed_keys.add(key)
                 if len(self.recorded_keys) < 2:
                     self.recorded_keys.add(key)
-                    self.update_button_text('record')
-        elif self.execute_key_status:
-            key = event.key()
-            if key not in self.pressed_keys:
-                self.pressed_keys.add(key)
-                if len(self.recorded_keys) < 2:
-                    self.recorded_keys.add(key)
-                    self.update_button_text('execute')
-        event.accept()
+                    if self.record_key_status:
+                        self.update_button_text("record")
+                    else:
+                        self.update_button_text("execute")
+            event.accept()
+            return
+
+        super().keyPressEvent(event)
 
     def keyReleaseEvent(self, event):
         """处理按键释放事件"""
@@ -1477,71 +1790,110 @@ class MainWindow(QMainWindow):
                     self.record_key_status = False
                     self._3pushButton.setEnabled(True)
 
-                    # 提取按键名称
-                    hotkey = self._3pushButton.text().split(':')[-1].strip()
-                    if hotkey != '未设置':
-                        # 设置热键
-                        self.record_hotkey = keyboard.add_hotkey(hotkey, self.Click_Record)
+                    hotkey = self._3pushButton.text().split(":")[-1].strip()
+                    execute_hotkey = self.execute_hotkey_text
+
+                    if hotkey == "" or hotkey == "未设置":
+                        self.record_hotkey_text = None
+                    elif execute_hotkey and hotkey == execute_hotkey:
+                        QMessageBox.warning(
+                            self, "热键冲突", "录制热键与执行热键不能相同！"
+                        )
+                        self.record_hotkey_text = None
                     else:
-                        self.record_hotkey = None
-        elif self.execute_key_status:
+                        self.record_hotkey_text = hotkey
+
+                    self.save_hotkey_config("record_hotkey", self.record_hotkey_text)
+                    self.update_script_trigger_buttons()
+                    self.apply_hotkey_bindings()
+
+            event.accept()
+            return
+
+        if self.execute_key_status:
             key = event.key()
             if key in self.pressed_keys:
                 self.pressed_keys.remove(key)
                 if not self.pressed_keys:
                     self.execute_key_status = False
                     self._3pushButton_2.setEnabled(True)
-                    # 提取按键名称
-                    hotkey = self._3pushButton_2.text().split(':')[-1].strip()
-                    if hotkey != '未设置':
-                    # 设置热键
-                        self.execute_hotkey = keyboard.add_hotkey(hotkey, self.Click_Record_execute)
+
+                    hotkey = self._3pushButton_2.text().split(":")[-1].strip()
+                    record_hotkey = self.record_hotkey_text
+
+                    if hotkey == "" or hotkey == "未设置":
+                        self.execute_hotkey_text = None
+                    elif record_hotkey and hotkey == record_hotkey:
+                        QMessageBox.warning(
+                            self, "热键冲突", "执行热键与录制热键不能相同！"
+                        )
+                        self.execute_hotkey_text = None
                     else:
-                        self.execute_hotkey = None
-        event.accept()
+                        self.execute_hotkey_text = hotkey
+
+                    self.save_hotkey_config("execute_hotkey", self.execute_hotkey_text)
+                    self.update_script_trigger_buttons()
+                    self.apply_hotkey_bindings()
+
+            event.accept()
+            return
+
+        super().keyReleaseEvent(event)
 
     def update_button_text(self, types):
         """更新按钮显示的文本"""
         key_names = []
         for key in self.recorded_keys:
-            # 转换特殊按键
             special_keys = {
                 Qt.Key_Control: "Ctrl",
                 Qt.Key_Shift: "Shift",
                 Qt.Key_Alt: "Alt",
                 Qt.Key_Meta: "Meta",
-                Qt.Key_Space: "Space"
+                Qt.Key_Space: "Space",
             }
             if key in special_keys:
                 key_names.append(special_keys[key])
                 continue
 
-            # 处理功能键
             if Qt.Key_F1 <= key <= Qt.Key_F35:
                 key_names.append(f"F{key - Qt.Key_F1 + 1}")
                 continue
 
-            # 获取可读名称
             seq = QKeySequence(key)
             name = seq.toString()
             if not name:
-                key_name = Qt.Key(key).name[4:] if Qt.Key(key).name.startswith('Key_') else Qt.Key(key).name
+                key_name = (
+                    Qt.Key(key).name[4:]
+                    if Qt.Key(key).name.startswith("Key_")
+                    else Qt.Key(key).name
+                )
                 name = key_name.capitalize()
             key_names.append(name)
-        if types == 'record':
+
+        if not key_names:
+            return
+
+        if types == "record":
             if key_names[0] == "Esc":
-                '''self.record_hotkey = None
-                self.record_key_status = False'''
-                self._3pushButton.setText("开始录制: 未设置")
+                self._3pushButton.setText("设置录制热键: 未设置")
             else:
-                self._3pushButton.setText("开始录制: "+'+'.join(key_names))
+                self._3pushButton.setText("设置录制热键: " + "+".join(key_names))
         else:
             if key_names[0] == "Esc":
-                '''self.execute_hotkey = None
-                self.execute_key_status = False'''
-                self._3pushButton_2.setText("开始执行: 未设置")
+                self._3pushButton_2.setText("设置执行热键: 未设置")
             else:
-                self._3pushButton_2.setText("开始执行: " + '+'.join(key_names))
+                self._3pushButton_2.setText("设置执行热键: " + "+".join(key_names))
+
+    def save_hotkey_config(self, key, value):
+        """保存热键配置到config.json"""
+        try:
+            with open("config.json", "r", encoding="utf-8") as f:
+                config = json.load(f)
+            config[key] = value
+            with open("config.json", "w", encoding="utf-8") as f:
+                json.dump(config, f, indent=4, ensure_ascii=False)
+        except Exception as e:
+            print(f"保存热键配置失败: {e}")
 
     def create_sendmessage_page(self):
         page = QWidget()
@@ -1550,7 +1902,20 @@ class MainWindow(QMainWindow):
         # 主布局
         main_layout = QVBoxLayout(page)
         main_layout.setContentsMargins(10, 10, 10, 10)
-        main_layout.setSpacing(15)
+        main_layout.setSpacing(0)
+
+        content_card = QFrame()
+        content_card.setObjectName("send_message_card")
+        content_card.setStyleSheet("""
+            QFrame#send_message_card {
+                background: white;
+                border-radius: 12px;
+                border: 1px solid #dfe4ea;
+            }
+        """)
+        card_layout = QVBoxLayout(content_card)
+        card_layout.setContentsMargins(20, 20, 20, 20)
+        card_layout.setSpacing(15)
 
         # ===== 标题和切换按钮 =====
         header = QWidget()
@@ -1581,7 +1946,7 @@ class MainWindow(QMainWindow):
         self.style_group.addButton(self.btn_simulate)
         self.style_group.addButton(self.btn_custom)
 
-        for btn in [self.btn_handle, self.btn_simulate,self.btn_custom]:
+        for btn in [self.btn_handle, self.btn_simulate, self.btn_custom]:
             btn.setFixedSize(140, 26)
             btn.setCheckable(True)
             btn.setStyleSheet("""
@@ -1613,15 +1978,14 @@ class MainWindow(QMainWindow):
         header_layout.addStretch()
         header_layout.addWidget(btn_container)
 
-        main_layout.addWidget(header)
+        card_layout.addWidget(header)
 
         # ===== 页面堆栈 =====
         self.send_stack = QStackedWidget()
         self.send_stack.setStyleSheet("""
             QStackedWidget {
-                background: white;
-                border-radius: 12px;
-                border: 1px solid #dfe4ea;
+                background: transparent;
+                border: none;
             }
         """)
 
@@ -1630,7 +1994,8 @@ class MainWindow(QMainWindow):
         self.send_stack.addWidget(self.create_simulate_subpage())
         self.send_stack.addWidget(self.create_custom_subpage())
 
-        main_layout.addWidget(self.send_stack)
+        card_layout.addWidget(self.send_stack, 1)
+        main_layout.addWidget(content_card, 1)
 
         # 连接切换信号
         self.btn_handle.clicked.connect(lambda: self.send_stack.setCurrentIndex(0))
@@ -1723,10 +2088,10 @@ class MainWindow(QMainWindow):
         grid.addWidget(self._2pushButton2, 0, 2)
 
         # 参数设置
-        '''param_group = QWidget()
-        param_layout = QHBoxLayout(param_group)'''
+        """param_group = QWidget()
+        param_layout = QHBoxLayout(param_group)"""
 
-        spin_group = QGroupBox('参数设置')
+        spin_group = QGroupBox("参数设置")
         spin_group.setStyleSheet("""
             QLabel {
                 font-family: '等线';    /* 字体名称 */
@@ -1777,13 +2142,14 @@ class MainWindow(QMainWindow):
 
         spin_layout.addRow("间隔(秒):", self.handle_send_interval)
 
-
         # 内容输入
         content_group = QGroupBox("消息内容")
         content_group.setStyleSheet(input_group.styleSheet())
         content_layout = QVBoxLayout(content_group)
         self._2textEdit = QTextEdit()
-        self._2textEdit.setPlaceholderText("输入要发送的消息内容...\n提示：不能以数字开头")
+        self._2textEdit.setPlaceholderText(
+            "输入要发送的消息内容...\n提示：不能以数字开头"
+        )
         self._2textEdit.setStyleSheet(ui.style.style_textEdit)
         self._2textEdit.setFont(ui.style.style_font_Yahei)
         content_layout.addWidget(self._2textEdit)
@@ -1880,8 +2246,6 @@ class MainWindow(QMainWindow):
         times_check_layout.addWidget(self.QQ_StartSend_At_number_checkbox)
         times_check_layout.addStretch(1)  # 添加弹性空间保持左对齐
 
-
-
         at_layout.addRow("目标QQ:", self.QQ_StartSend_At_target_lineedit)
         at_layout.addRow("发送间隔:", self.QQ_StartSend_At_pause_doublespb)
         at_layout.addRow("发送次数:", times_check_layout)
@@ -1907,7 +2271,9 @@ class MainWindow(QMainWindow):
         button_layout.addWidget(self.QQ_StartSend_At_Button, stretch=2)  # 按钮占2份拉伸
         button_layout.addStretch(1)  # 右侧拉伸
         at_layout.addRow(button_layout)
-        at_card = create_card("@指定用户(此模拟点击发送页所有功能可按F10强制退出)", at_group)
+        at_card = create_card(
+            "@指定用户(此模拟点击发送页所有功能可按F10强制退出)", at_group
+        )
 
         # 复制发送
         copy_group = QWidget()
@@ -1927,7 +2293,7 @@ class MainWindow(QMainWindow):
         self.QQ_Send_Copy_times_spinbox.setStyleSheet(ui.style.new_spinbox_style)
         self.QQ_Send_Copy_times_spinbox.setValue(0)
 
-        self.QQ_Send_Copy_startsend_button = QPushButton('开始发送')
+        self.QQ_Send_Copy_startsend_button = QPushButton("开始发送")
         self.QQ_Send_Copy_startsend_button.setStyleSheet(ui.style.new_style_pushbutton)
         copy_layout.addRow("发送间隔:", self.QQ_Send_Copy_pause_doublespb)
         copy_layout.addRow("发送次数:", self.QQ_Send_Copy_times_spinbox)
@@ -1951,8 +2317,10 @@ class MainWindow(QMainWindow):
         # 创建文件选择按钮和水平布局
         file_select_layout = QHBoxLayout()
         self.QQ_Seq_file_button = QPushButton("选择文件")
-        self.QQ_Seq_file_button.setStyleSheet(ui.style.new_style_pushbutton)  # 使用现有按钮样式
-        #self.QQ_Seq_file_button.clicked.connect(self.open_seq_file_dialog)  # 连接点击信号
+        self.QQ_Seq_file_button.setStyleSheet(
+            ui.style.new_style_pushbutton
+        )  # 使用现有按钮样式
+        # self.QQ_Seq_file_button.clicked.connect(self.open_seq_file_dialog)  # 连接点击信号
         file_select_layout.addWidget(self.QQ_Seq_lineEdit)
         file_select_layout.addWidget(self.QQ_Seq_file_button)
 
@@ -1985,35 +2353,40 @@ class MainWindow(QMainWindow):
         self.label_position_status.setObjectName("label_position_status")
         if position_status != True:
             self.label_position_status.setText(
-                '<font color="black">位置设置：</font> <font color="red">未设置</font>')
+                '<font color="black">位置设置：</font> <font color="red">未设置</font>'
+            )
         else:
             self.label_position_status.setText(
-                '<font color="black">位置设置：</font> <font color="green">已设置</font>')
+                '<font color="black">位置设置：</font> <font color="green">已设置</font>'
+            )
 
         self.label_position_text = QLabel()
         self.label_position_text.setFont(style_font_10)
         self.label_position_text.setObjectName("label_position_text")
         if position_status != True:
             self.label_position_text.setText(
-                f'<font color="black">聊天框位置：</font> <font color="red">{textedit_position}</font>')
+                f'<font color="black">聊天框位置：</font> <font color="red">{textedit_position}</font>'
+            )
         else:
             self.label_position_text.setText(
-                f'<font color="black">聊天框位置：</font> <font color="green">{textedit_position}</font>')
+                f'<font color="black">聊天框位置：</font> <font color="green">{textedit_position}</font>'
+            )
 
         self.label_position_send = QLabel()
         self.label_position_send.setFont(style_font_10)
         self.label_position_send.setObjectName("label_position_send")
         if position_status != True:
             self.label_position_send.setText(
-                f'<font color="black">发送键位置：</font> <font color="red">{send_position}</font>')
+                f'<font color="black">发送键位置：</font> <font color="red">{send_position}</font>'
+            )
         else:
             self.label_position_send.setText(
-                f'<font color="black">发送键位置：</font> <font color="green">{send_position}</font>')
+                f'<font color="black">发送键位置：</font> <font color="green">{send_position}</font>'
+            )
 
         pos_layout.addWidget(self.label_position_status)
         pos_layout.addWidget(self.label_position_text)
         pos_layout.addWidget(self.label_position_send)
-
 
         self.record_position_button = QPushButton("📍 记录位置")
         self.record_position_button.setStyleSheet("""
@@ -2178,7 +2551,7 @@ class MainWindow(QMainWindow):
             (self.btn_import, "#9b59b6"),
             (self.btn_export, "#9b59b6"),
             (self.btn_get_position, "#2ecc71"),
-            (self.btn_custom_start, "#2ecc71")
+            (self.btn_custom_start, "#2ecc71"),
         ]
 
         for btn, color in buttons:
@@ -2224,55 +2597,79 @@ class MainWindow(QMainWindow):
     def load_custom_profile(self):
         options = QFileDialog.Options()
         options |= QFileDialog.ReadOnly
-        file_name, _ = QFileDialog.getOpenFileName(self, "Select File", "",
-                                                   "Text Files (*.txt)",
-                                                   options=options)
+        file_name, _ = QFileDialog.getOpenFileName(
+            self, "Select File", "", "Text Files (*.txt)", options=options
+        )
         self.clear_operation_groups()
-        with open(file_name, 'r') as file:
+        with open(file_name, "r") as file:
             num = 0
             for line in file:
                 # 将字符串转换为字典
                 line_dict = ast.literal_eval(line.strip())
                 self.add_operation_group()
                 self.operation_groups[num].edit_handle.setText(line_dict.get("handle"))
-                self.operation_groups[num].combo_action.setCurrentIndex(line_dict.get("action"))
+                self.operation_groups[num].combo_action.setCurrentIndex(
+                    line_dict.get("action")
+                )
                 self.operation_groups[num].edit_param.setText(line_dict.get("param"))
                 num += 1  # 确保每次循环递增num
-        #file_name = file_name.replace("/", "\\")
+        # file_name = file_name.replace("/", "\\")
 
     def save_custom_profile(self):
         file_path, _ = QFileDialog.getSaveFileName(
             self,
             "选择保存路径",
             "auto_profile.txt",  # 这里设置默认文件名
-            "All Files (*)"
+            "All Files (*)",
         )
         if file_path:  # 如果用户选择了路径
-            with open(file_path, 'w') as file:
+            with open(file_path, "w") as file:
                 for group in self.operation_groups:
                     config = {
                         "handle": group.edit_handle.text(),
                         "action": group.combo_action.currentIndex(),
-                        "param": group.edit_param.text()
+                        "param": group.edit_param.text(),
                     }
-                    file.write(str(config)+'\n')
+                    file.write(str(config) + "\n")
 
     def create_team_page(self):
         page = QWidget()
-        self.team_layout = QVBoxLayout(page)
+        page.setStyleSheet("background: transparent;")
+
+        main_layout = QVBoxLayout(page)
+        main_layout.setContentsMargins(10, 10, 10, 10)
+        main_layout.setSpacing(0)
+
+        team_card = QFrame()
+        team_card.setObjectName("team_card")
+        team_card.setStyleSheet(
+            """
+            QFrame#team_card {
+                background: #FFFFFF;
+                border: 1px solid #D7E4F2;
+                border-radius: 12px;
+            }
+            """
+        )
+
+        self.team_layout = QVBoxLayout(team_card)
+        self.team_layout.setContentsMargins(18, 14, 18, 14)
         self.team_layout.setSpacing(15)
 
         join_team_widget = QWidget()
-
 
         # 顶部按钮区域
         top_layout = QHBoxLayout(join_team_widget)
         top_layout.setContentsMargins(0, 0, 0, 10)
 
-        self.create_team_button = ui.buttons.CustomButton( radius=2, start_color=QColor(207, 207, 207, 0),
-                                                          hover_color=QColor(33, 150, 243, 255),
-                                                          border_color=QColor(33, 120, 255), border_width=1,
-                                                          font_color=QColor(0, 0, 0))
+        self.create_team_button = ui.buttons.CustomButton(
+            radius=2,
+            start_color=QColor(207, 207, 207, 0),
+            hover_color=QColor(33, 150, 243, 255),
+            border_color=QColor(33, 120, 255),
+            border_width=1,
+            font_color=QColor(0, 0, 0),
+        )
         self.create_team_button.setFixedSize(200, 35)
         font = QFont()
         font.setFamily("等线")
@@ -2294,17 +2691,18 @@ class MainWindow(QMainWindow):
             }
         """)
 
-
-        self.add_team_button = ui.buttons.CustomButton( radius=2, start_color=QColor(207, 207, 207, 0),
-                                                       hover_color=QColor(33, 150, 243, 255),
-                                                       border_color=QColor(33, 120, 255), border_width=1,
-                                                       font_color=QColor(0, 0, 0))
+        self.add_team_button = ui.buttons.CustomButton(
+            radius=2,
+            start_color=QColor(207, 207, 207, 0),
+            hover_color=QColor(33, 150, 243, 255),
+            border_color=QColor(33, 120, 255),
+            border_width=1,
+            font_color=QColor(0, 0, 0),
+        )
         self.add_team_button.setFixedSize(150, 35)
         self.add_team_button.setObjectName("add_team_button")
         self.add_team_button.setText("加入")
         self.add_team_button.setFont(style_font_12)
-
-
 
         self.add_team_ID = QLabel()
         self.add_team_ID.setFont(style_font_11)
@@ -2312,10 +2710,14 @@ class MainWindow(QMainWindow):
         self.add_team_ID.setVisible(False)
         self.add_team_ID.setText("队伍ID为:")
 
-        self.button_copy_id = ui.buttons.CustomButton(radius=2, start_color=QColor(207, 207, 207, 0),
-                                                      hover_color=QColor(33, 150, 243, 255),
-                                                      border_color=QColor(33, 120, 255), border_width=1,
-                                                      font_color=QColor(0, 0, 0))
+        self.button_copy_id = ui.buttons.CustomButton(
+            radius=2,
+            start_color=QColor(207, 207, 207, 0),
+            hover_color=QColor(33, 150, 243, 255),
+            border_color=QColor(33, 120, 255),
+            border_width=1,
+            font_color=QColor(0, 0, 0),
+        )
         font = QFont()
         font.setFamily("等线")
         font.setPointSize(12)
@@ -2333,13 +2735,11 @@ class MainWindow(QMainWindow):
         self.create_team_label_prompt.setText("队伍加入!")
         self.create_team_label_prompt.setVisible(False)
 
-
-
         top_layout.addWidget(self.create_team_button)
         top_layout.addWidget(self.add_team_lineEdit)
         top_layout.addWidget(self.add_team_button)
-        top_layout.addWidget(self.add_team_ID,stretch=7)
-        top_layout.addWidget(self.button_copy_id,stretch=3)
+        top_layout.addWidget(self.add_team_ID, stretch=7)
+        top_layout.addWidget(self.button_copy_id, stretch=3)
         top_layout.addWidget(self.create_team_label_prompt)
         self.team_layout.addWidget(join_team_widget)
 
@@ -2349,8 +2749,8 @@ class MainWindow(QMainWindow):
         else:
             self.user1 = UserWidget(f"{Name}[我]", f"{Account}", "./image/float/fc.png")
         self.user2 = UserWidget("等待用户加入", "None", "./image/other_user.png")
-        self.team_layout.addWidget(self.user1,stretch=4)
-        self.team_layout.addWidget(self.user2,stretch=4)
+        self.team_layout.addWidget(self.user1, stretch=4)
+        self.team_layout.addWidget(self.user2, stretch=4)
 
         # 开始按钮
         self.team_btn_start = QPushButton("开始执行")
@@ -2359,565 +2759,688 @@ class MainWindow(QMainWindow):
         self.team_execute_prompt = QLabel("等待队长开始执行...")
 
         self.team_layout.addWidget(self.team_btn_start)
+        main_layout.addWidget(team_card, 1)
 
         return page
 
     def create_tools_page(self):
-        # 创建主页面及其布局
         page = QWidget()
         main_layout = QVBoxLayout(page)
         main_layout.setContentsMargins(10, 10, 10, 10)
-        main_layout.setSpacing(10)
+        main_layout.setSpacing(0)
 
-        # 导航栏：使用水平布局放置四个按钮
+        tools_card = QFrame()
+        tools_card.setObjectName("tools_card")
+        tools_card.setStyleSheet("""
+            QFrame#tools_card {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #FFFFFF, stop:1 #F6FAFF);
+                border: 1px solid #D7E4F2;
+                border-radius: 12px;
+            }
+            QLabel#tool_header_title {
+                color: #1F3A5F;
+                font: 700 18px 'Microsoft YaHei';
+            }
+            QLabel#tool_header_desc {
+                color: #647895;
+                font: 11px 'Microsoft YaHei';
+            }
+            QFrame#tool_section_card {
+                background: #F7FBFF;
+                border: 1px solid #DEE8F5;
+                border-radius: 10px;
+            }
+        """)
+
+        card_layout = QVBoxLayout(tools_card)
+        card_layout.setContentsMargins(18, 14, 18, 14)
+        card_layout.setSpacing(10)
+
+        header_widget = QWidget()
+        header_layout = QVBoxLayout(header_widget)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(1)
+        header_title = QLabel("常用工具")
+        header_title.setObjectName("tool_header_title")
+        header_desc = QLabel("下载、格式转换、QQ 资料处理")
+        header_desc.setObjectName("tool_header_desc")
+        header_layout.addWidget(header_title)
+        header_layout.addWidget(header_desc)
+        card_layout.addWidget(header_widget)
+
+        nav_button_style = """
+            QPushButton {
+                min-height: 32px;
+                border-radius: 7px;
+                border: 1px solid #D1DEEF;
+                background: #F2F7FF;
+                color: #2B4770;
+                font: 600 12px 'Microsoft YaHei';
+                padding: 0 10px;
+            }
+            QPushButton:hover {
+                background: #E6F0FF;
+                border-color: #BFD3ED;
+            }
+            QPushButton:pressed {
+                background: #DCE9FF;
+            }
+            QPushButton:checked {
+                background: #2F7EDB;
+                border-color: #2F7EDB;
+                color: white;
+            }
+        """
+
         nav_bar = QWidget()
         nav_layout = QHBoxLayout(nav_bar)
         nav_layout.setContentsMargins(0, 0, 0, 0)
-        nav_layout.setSpacing(20)
+        nav_layout.setSpacing(8)
+        self.tools_nav_group = QButtonGroup(page)
+        self.tools_nav_group.setExclusive(True)
 
-        btn_music = QPushButton("下载网易云音乐", nav_bar)
-        btn_format = QPushButton("文件格式转换", nav_bar)
-        btn_qq = QPushButton("QQ信息", nav_bar)
-        btn_group = QPushButton("QQ群信息获取", nav_bar)
+        def create_nav_button(text):
+            button = QPushButton(text)
+            button.setCheckable(True)
+            button.setCursor(QCursor(Qt.PointingHandCursor))
+            button.setStyleSheet(nav_button_style)
+            button.setFixedHeight(32)
+            button.setMinimumWidth(110)
+            button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+            self.tools_nav_group.addButton(button)
+            return button
 
-        # 统一按钮风格
-        for btn in (btn_music, btn_format, btn_qq, btn_group):
-            btn.setFixedHeight(35)
-            btn.setStyleSheet("""
-                QPushButton {
-                    background-color: #2196F3;
-                    color: white;
-                    border: none;
-                    border-radius: 5px;
-                    font: bold 14px 'Microsoft YaHei';
-                }
-                QPushButton:hover {
-                    background-color: #1976D2;
-                }
-                QPushButton:pressed {
-                    background-color: #1565C0;
-                }
-            """)
-            nav_layout.addWidget(btn)
+        btn_music = create_nav_button("网易云音乐")
+        btn_format = create_nav_button("文件格式转换")
+        btn_qq = create_nav_button("QQ信息")
+        btn_group = create_nav_button("QQ群信息")
+        btn_music.setChecked(True)
 
-        main_layout.addWidget(nav_bar)
+        nav_layout.addWidget(btn_music)
+        nav_layout.addWidget(btn_format)
+        nav_layout.addWidget(btn_qq)
+        nav_layout.addWidget(btn_group)
+        nav_layout.addStretch(1)
+        card_layout.addWidget(nav_bar)
 
-        # 创建工具页堆栈，包含四个子页面
+        line = QFrame()
+        line.setFrameShape(QFrame.HLine)
+        line.setStyleSheet("border: none; background: #E3ECF8; min-height: 1px;")
+        card_layout.addWidget(line)
+
         self.tools_stack = QStackedWidget()
-        self.tools_stack.setStyleSheet("background-color: #FFFFFF; border-radius: 10px;")
-        main_layout.addWidget(self.tools_stack, 1)
+        self.tools_stack.setObjectName("tools_content_stack")
+        self.tools_stack.setStyleSheet(
+            "QStackedWidget#tools_content_stack { background: transparent; border: none; }"
+        )
+        card_layout.addWidget(self.tools_stack, 1)
+
+        main_layout.addWidget(tools_card, 1)
+
+        title_style = "font: 700 18px 'Microsoft YaHei'; color: #1E3A5F; border: none;"
+        subtitle_style = "font: 12px 'Microsoft YaHei'; color: #6D819E; border: none;"
+        field_label_style = (
+            "font: 600 13px 'Microsoft YaHei'; color: #355174; border: none;"
+        )
+
+        input_style = """
+            QLineEdit {
+                background: #FFFFFF;
+                border: 1px solid #C7D7EA;
+                border-radius: 8px;
+                padding: 6px 10px;
+                color: #1D2939;
+                font: 13px 'Microsoft YaHei';
+            }
+            QLineEdit:focus {
+                border: 1px solid #4A90E2;
+            }
+        """
+
+        secondary_btn_style = """
+            QPushButton {
+                background: #EAF3FF;
+                border: 1px solid #BCD2EE;
+                border-radius: 8px;
+                color: #2B4A73;
+                font: 600 12px 'Microsoft YaHei';
+                padding: 0 14px;
+            }
+            QPushButton:hover {
+                background: #DCEBFF;
+            }
+            QPushButton:pressed {
+                background: #CFE2FF;
+            }
+        """
+
+        primary_btn_style = """
+            QPushButton {
+                background: #2F7EDB;
+                border: none;
+                border-radius: 8px;
+                color: white;
+                font: 700 13px 'Microsoft YaHei';
+                padding: 0 22px;
+                min-height: 38px;
+            }
+            QPushButton:hover {
+                background: #2B70C4;
+            }
+            QPushButton:pressed {
+                background: #255DA4;
+            }
+            QPushButton:disabled {
+                background: #B8CDE8;
+                color: #EDF3FA;
+            }
+        """
+
+        radio_style = """
+            QRadioButton {
+                font: 600 13px 'Microsoft YaHei';
+                color: #304B74;
+                spacing: 7px;
+                border: none;
+                background: transparent;
+            }
+            QRadioButton::indicator {
+                width: 16px;
+                height: 16px;
+            }
+        """
+
+        checkbox_style = """
+            QCheckBox {
+                font: 13px 'Microsoft YaHei';
+                color: #304B74;
+                spacing: 6px;
+                border: none;
+                background: transparent;
+            }
+            QCheckBox::indicator {
+                width: 15px;
+                height: 15px;
+            }
+            QCheckBox:disabled {
+                color: #6F819A;
+            }
+        """
 
         # --- 页面1：网易云音乐下载 ---
         page_music = QWidget()
         layout_music = QVBoxLayout(page_music)
-        layout_music.setContentsMargins(20, 20, 20, 20)
-        layout_music.setSpacing(15)
+        layout_music.setContentsMargins(4, 2, 4, 4)
+        layout_music.setSpacing(12)
 
-        label_music_title = QLabel("下载网易云音乐")
-        label_music_title.setFont(QtGui.QFont("Arial", 18))
+        label_music_title = QLabel("网易云音乐下载")
+        label_music_title.setStyleSheet(title_style)
+        label_music_subtitle = QLabel("支持粘贴歌曲链接并自动填充歌曲名称")
+        label_music_subtitle.setStyleSheet(subtitle_style)
         layout_music.addWidget(label_music_title)
+        layout_music.addWidget(label_music_subtitle)
 
-        # 歌曲链接输入
-        url_layout = QHBoxLayout()
+        music_form_card = QFrame()
+        music_form_card.setObjectName("tool_section_card")
+        music_form_layout = QGridLayout(music_form_card)
+        music_form_layout.setContentsMargins(16, 16, 16, 16)
+        music_form_layout.setHorizontalSpacing(10)
+        music_form_layout.setVerticalSpacing(12)
+
         label_url = QLabel("歌曲链接")
-        label_url.setFont(style_font_Yahei)
+        label_url.setStyleSheet(field_label_style)
         self.music_url = CustomLineEdit(self)
-        self.music_url.setPlaceholderText("点击输入音乐链接 (Ctrl+V 粘贴)")
-        self.music_url.setStyleSheet(ui.style.new_style_lineEdit)
-        self.music_url.setFont(style_font_Yahei)
-        self.music_url.setFixedHeight(35)
-        url_layout.addWidget(label_url)
-        url_layout.addWidget(self.music_url)
-        layout_music.addLayout(url_layout)
+        self.music_url.setPlaceholderText("在这里粘贴网易云歌曲链接 (Ctrl+V)")
+        self.music_url.setStyleSheet(input_style)
+        self.music_url.setFixedHeight(36)
 
-        # 保存文件名输入
-        filename_layout = QHBoxLayout()
         label_filename = QLabel("歌曲名称")
-        label_filename.setFont(style_font_Yahei)
+        label_filename.setStyleSheet(field_label_style)
         self.music_filename = QLineEdit()
-        self.music_filename.setPlaceholderText("点击输入保存文件名 (包含扩展名)")
-        self.music_filename.setStyleSheet(ui.style.new_style_lineEdit)
-        self.music_filename.setFont(style_font_Yahei)
-        self.music_filename.setFixedHeight(35)
-        filename_layout.addWidget(label_filename)
-        filename_layout.addWidget(self.music_filename)
-        layout_music.addLayout(filename_layout)
+        self.music_filename.setPlaceholderText("输入保存文件名，建议保留 .mp3")
+        self.music_filename.setStyleSheet(input_style)
+        self.music_filename.setFixedHeight(36)
 
-        # 保存路径显示
-        path_layout = QHBoxLayout()
         label_path = QLabel("保存路径")
-        label_path.setFont(style_font_Yahei)
-        self.music_savepath = QLineEdit(os.getcwd() + '\\mod\\music')
-        self.music_savepath.setStyleSheet(ui.style.new_style_lineEdit)
-        self.music_savepath.setFont(style_font_Yahei)
-        self.music_savepath.setFixedHeight(35)
-        path_layout.addWidget(label_path)
-        path_layout.addWidget(self.music_savepath)
-        layout_music.addLayout(path_layout)
+        label_path.setStyleSheet(field_label_style)
+        self.music_savepath = QLineEdit(os.getcwd() + "\\mod\\music")
+        self.music_savepath.setStyleSheet(input_style)
+        self.music_savepath.setFixedHeight(36)
 
-        self.choose_music = QPushButton()
+        self.choose_music = QPushButton("选择路径")
         self.choose_music.setObjectName("choose_music")
-        self.choose_music.setText("选择")
-        self.choose_music.setStyleSheet("""
-                    QPushButton {
-                        background-color: #2196F3;
-                        border: 2px solid #1976D2;
-                        border-radius: 5px;
-                        color: white;
-                        font-family: 'Microsoft YaHei';
-                        font-size: 14px;
-                        min-width: 100px;
-                    }
-                    QPushButton:hover {
-                        background-color: #42A5F5;
-                        border: 2px solid #2196F3;
-                    }
-                    QPushButton:pressed {
-                        background-color: #1976D2;
-                        border: 2px solid #1565C0;
-                    }
-                """)
-        self.choose_music.setFont(style_font_9)
+        self.choose_music.setStyleSheet(secondary_btn_style)
+        self.choose_music.setFixedHeight(36)
 
-        self.view_music = QPushButton()
+        self.view_music = QPushButton("打开目录")
         self.view_music.setObjectName("view_music")
-        self.view_music.setText("浏览")
-        self.view_music.setStyleSheet("""
-                    QPushButton {
-                        background-color: #2196F3;
-                        border: 2px solid #1976D2;
-                        border-radius: 5px;
-                        color: white;
-                        font-family: 'Microsoft YaHei';
-                        font-size: 14px;
-                        min-width: 100px;
-                    }
-                    QPushButton:hover {
-                        background-color: #42A5F5;
-                        border: 2px solid #2196F3;
-                    }
-                    QPushButton:pressed {
-                        background-color: #1976D2;
-                        border: 2px solid #1565C0;
-                    }
-                """)
-        self.view_music.setFont(style_font_9)
+        self.view_music.setStyleSheet(secondary_btn_style)
+        self.view_music.setFixedHeight(36)
 
-        music_file_layout = QHBoxLayout()
-        music_file_layout.addStretch()
-        music_file_layout.addWidget(self.choose_music)
-        music_file_layout.addWidget(self.view_music)
+        music_form_layout.addWidget(label_url, 0, 0)
+        music_form_layout.addWidget(self.music_url, 0, 1, 1, 3)
+        music_form_layout.addWidget(label_filename, 1, 0)
+        music_form_layout.addWidget(self.music_filename, 1, 1, 1, 3)
+        music_form_layout.addWidget(label_path, 2, 0)
+        music_form_layout.addWidget(self.music_savepath, 2, 1)
+        music_form_layout.addWidget(self.choose_music, 2, 2)
+        music_form_layout.addWidget(self.view_music, 2, 3)
+        music_form_layout.setColumnStretch(1, 1)
 
-        layout_music.addLayout(music_file_layout)
+        self.btn_download_music = QPushButton("开始下载")
+        self.btn_download_music.setStyleSheet(primary_btn_style)
+        self.btn_download_music.setFixedWidth(160)
 
-        # 下载按钮
-        self.btn_download_music = QPushButton("下载")
-        self.btn_download_music.setFixedHeight(35)
-        self.btn_download_music.setStyleSheet("""
-            QPushButton {
-                background-color: #4CAF50;
-                color: white;
-                border: none;
-                border-radius: 5px;
-                font: bold 14px;
-            }
-            QPushButton:hover {
-                background-color: #43A047;
-            }
-        """)
-        layout_music.addWidget(self.btn_download_music)
+        music_action_layout = QHBoxLayout()
+        music_action_layout.setContentsMargins(0, 0, 0, 0)
+        music_action_layout.setSpacing(10)
+        music_hint = QLabel("提示：部分 VIP 或受限歌曲可能无法解析")
+        music_hint.setStyleSheet(subtitle_style)
+        music_action_layout.addWidget(music_hint)
+        music_action_layout.addStretch()
+        music_action_layout.addWidget(self.btn_download_music)
+
+        layout_music.addWidget(music_form_card)
+        layout_music.addLayout(music_action_layout)
         layout_music.addStretch()
-
         self.tools_stack.addWidget(page_music)
 
         # --- 页面2：文件格式转换 ---
         page_format = QWidget()
         layout_format = QVBoxLayout(page_format)
-        layout_format.setContentsMargins(20, 20, 20, 20)
-        layout_format.setSpacing(15)
+        layout_format.setContentsMargins(4, 2, 4, 4)
+        layout_format.setSpacing(12)
 
         label_format_title = QLabel("文件格式转换")
-        label_format_title.setFont(QtGui.QFont("Arial", 18))
+        label_format_title.setStyleSheet(title_style)
+        label_format_subtitle = QLabel("拖拽或选择文件，输出到目标文件夹")
+        label_format_subtitle.setStyleSheet(subtitle_style)
         layout_format.addWidget(label_format_title)
+        layout_format.addWidget(label_format_subtitle)
 
-        # 图片路径输入（添加选择按钮）
-        input_widget = QWidget()
-        input_layout = QHBoxLayout(input_widget)
-        input_layout.setContentsMargins(0, 0, 0, 0)
-        input_layout.setSpacing(10)
+        format_form_card = QFrame()
+        format_form_card.setObjectName("tool_section_card")
+        format_form_layout = QGridLayout(format_form_card)
+        format_form_layout.setContentsMargins(16, 16, 16, 16)
+        format_form_layout.setHorizontalSpacing(10)
+        format_form_layout.setVerticalSpacing(12)
 
-        # 图片路径输入
-        self.pic_input_lineEdit = ui.style.DraggableLineEdit('picture')
-        self.pic_input_lineEdit.setPlaceholderText("选择或拖拽文件到此处")
-        self.pic_input_lineEdit.setFixedHeight(35)
-        self.pic_input_lineEdit.setStyleSheet(ui.style.new_style_lineEdit)
-        #layout_format.addWidget(self.pic_input_lineEdit)
+        label_input = QLabel("输入文件")
+        label_input.setStyleSheet(field_label_style)
+        self.pic_input_lineEdit = ui.style.DraggableLineEdit("picture")
+        self.pic_input_lineEdit.setPlaceholderText("选择或拖拽图片/PDF 到此处")
+        self.pic_input_lineEdit.setFixedHeight(36)
+        self.pic_input_lineEdit.setStyleSheet(input_style)
 
-        # 添加文件选择按钮
         btn_input = QPushButton("选择文件")
-        btn_input.setFixedSize(80, 35)
-        btn_input.setStyleSheet("""
-                    QPushButton {
-                        background-color: #2196F3;
-                        color: white;
-                        border: none;
-                        border-radius: 5px;
-                        font: 14px;
-                        font-family: Segoe UI;
-                    }
-                    QPushButton:hover {
-                        background-color: #1976D2;
-                    }
-                """)
-        btn_input.clicked.connect(lambda: self.select_file_path('pic_file_path'))
+        btn_input.setStyleSheet(secondary_btn_style)
+        btn_input.setFixedHeight(36)
+        btn_input.clicked.connect(lambda: self.select_file_path("pic_file_path"))
 
-        input_layout.addWidget(self.pic_input_lineEdit)
-        input_layout.addWidget(btn_input)
-        layout_format.addWidget(input_widget)
-
-        # 输出文件夹路径输入（添加选择按钮）
-        output_widget = QWidget()
-        output_layout = QHBoxLayout(output_widget)
-        output_layout.setContentsMargins(0, 0, 0, 0)
-        output_layout.setSpacing(10)
-
-        # 输出文件夹路径输入
+        label_output = QLabel("输出目录")
+        label_output.setStyleSheet(field_label_style)
         self.pic_output_lineEdit = QLineEdit()
-        self.pic_output_lineEdit.setPlaceholderText("点击输入图片输出路径")
-        self.pic_output_lineEdit.setStyleSheet(ui.style.new_style_lineEdit)
-        self.pic_output_lineEdit.setFixedHeight(35)
-        #layout_format.addWidget(self.pic_output_lineEdit)
+        self.pic_output_lineEdit.setPlaceholderText("点击输入或选择输出路径")
+        self.pic_output_lineEdit.setStyleSheet(input_style)
+        self.pic_output_lineEdit.setFixedHeight(36)
 
-        # 添加文件夹选择按钮
         btn_output = QPushButton("选择路径")
-        btn_output.setFixedSize(80, 35)
-        btn_output.setStyleSheet("""
-                    QPushButton {
-                        background-color: #4CAF50;
-                        color: white;
-                        border: none;
-                        border-radius: 5px;
-                        font: 14px;
-                        font-family: Segoe UI;
-                    }
-                    QPushButton:hover {
-                        background-color: #45a049;
-                    }
-                """)
-        btn_output.clicked.connect(lambda: self.select_file_path('pic_folder_path'))
+        btn_output.setStyleSheet(secondary_btn_style)
+        btn_output.setFixedHeight(36)
+        btn_output.clicked.connect(lambda: self.select_file_path("pic_folder_path"))
 
-        output_layout.addWidget(self.pic_output_lineEdit)
-        output_layout.addWidget(btn_output)
-        layout_format.addWidget(output_widget)
+        format_form_layout.addWidget(label_input, 0, 0)
+        format_form_layout.addWidget(self.pic_input_lineEdit, 0, 1)
+        format_form_layout.addWidget(btn_input, 0, 2)
+        format_form_layout.addWidget(label_output, 1, 0)
+        format_form_layout.addWidget(self.pic_output_lineEdit, 1, 1)
+        format_form_layout.addWidget(btn_output, 1, 2)
+        format_form_layout.setColumnStretch(1, 1)
 
-        # 格式选择，使用单选按钮
-        format_selection = QWidget()
-        format_layout = QHBoxLayout(format_selection)
-        format_layout.setSpacing(20)
-        self.JPG_radioButton = QRadioButton()
+        format_select_card = QFrame()
+        format_select_card.setObjectName("tool_section_card")
+        format_select_layout = QVBoxLayout(format_select_card)
+        format_select_layout.setContentsMargins(16, 12, 16, 12)
+        format_select_layout.setSpacing(8)
+
+        format_select_title = QLabel("目标格式")
+        format_select_title.setStyleSheet(field_label_style)
+        format_radio_layout = QHBoxLayout()
+        format_radio_layout.setContentsMargins(0, 0, 0, 0)
+        format_radio_layout.setSpacing(22)
+
+        self.JPG_radioButton = QRadioButton("JPG")
         self.JPG_radioButton.setObjectName("JPG_radioButton")
-        self.JPG_radioButton.setText("JPG")
         self.JPG_radioButton.setChecked(True)
-        self.JPG_radioButton.setStyleSheet(style_Radio)
-        self.PNG_radioButton = QRadioButton()
+        self.JPG_radioButton.setStyleSheet(radio_style)
+
+        self.PNG_radioButton = QRadioButton("PNG")
         self.PNG_radioButton.setObjectName("PNG_radioButton")
-        self.PNG_radioButton.setText("PNG")
-        self.PNG_radioButton.setStyleSheet(style_Radio)
-        self.GIF_radioButton = QRadioButton()
+        self.PNG_radioButton.setStyleSheet(radio_style)
+
+        self.GIF_radioButton = QRadioButton("GIF")
         self.GIF_radioButton.setObjectName("GIF_radioButton")
-        self.GIF_radioButton.setText("GIF")
-        self.GIF_radioButton.setStyleSheet(style_Radio)
-        self.PDF_radioButton = QRadioButton()
+        self.GIF_radioButton.setStyleSheet(radio_style)
+
+        self.PDF_radioButton = QRadioButton("PDF")
         self.PDF_radioButton.setObjectName("PDF_radioButton")
-        self.PDF_radioButton.setText("PDF")
-        self.PDF_radioButton.setStyleSheet(style_Radio)
-        format_layout.addWidget(self.JPG_radioButton)
-        format_layout.addWidget(self.PNG_radioButton)
-        format_layout.addWidget(self.GIF_radioButton)
-        format_layout.addWidget(self.PDF_radioButton)
-        '''for fmt in ["JPG", "PNG", "GIF", "PDF"]:
-            radio = QRadioButton(fmt)
-            radio.setStyleSheet("font: 14px;")
-            if fmt == "JPG":
-                radio.setChecked(True)
-            format_layout.addWidget(radio)'''
-        layout_format.addWidget(format_selection)
+        self.PDF_radioButton.setStyleSheet(radio_style)
 
-        # 输出按钮
-        self.pic_confirm_button = QPushButton("输出")
-        self.pic_confirm_button.setFixedHeight(35)
-        self.pic_confirm_button.setStyleSheet("""
-            QPushButton {
-                background-color: #FF9800;
-                color: white;
-                border: none;
-                border-radius: 5px;
-                font: bold 14px;
-            }
-            QPushButton:hover {
-                background-color: #F57C00;
-            }
-        """)
-        layout_format.addWidget(self.pic_confirm_button)
+        format_radio_layout.addWidget(self.JPG_radioButton)
+        format_radio_layout.addWidget(self.PNG_radioButton)
+        format_radio_layout.addWidget(self.GIF_radioButton)
+        format_radio_layout.addWidget(self.PDF_radioButton)
+        format_radio_layout.addStretch()
+
+        format_select_layout.addWidget(format_select_title)
+        format_select_layout.addLayout(format_radio_layout)
+
+        self.pic_confirm_button = QPushButton("开始转换")
+        self.pic_confirm_button.setStyleSheet(primary_btn_style)
+        self.pic_confirm_button.setFixedWidth(160)
+
+        format_action_layout = QHBoxLayout()
+        format_action_layout.addStretch()
+        format_action_layout.addWidget(self.pic_confirm_button)
+
+        layout_format.addWidget(format_form_card)
+        layout_format.addWidget(format_select_card)
+        layout_format.addLayout(format_action_layout)
         layout_format.addStretch()
-
         self.tools_stack.addWidget(page_format)
 
         # --- 页面3：QQ信息 ---
         page_qq = QWidget()
         layout_qq = QVBoxLayout(page_qq)
-        layout_qq.setContentsMargins(20, 20, 20, 20)
-        layout_qq.setSpacing(15)
+        layout_qq.setContentsMargins(4, 2, 4, 4)
+        layout_qq.setSpacing(12)
 
-        # 标题行（包含主标题和等级标签）
-        title_widget = QWidget()
-        title_layout = QHBoxLayout(title_widget)
-        title_layout.setContentsMargins(0, 0, 0, 0)
-        title_layout.setSpacing(10)
-        label_qq_title = QLabel("QQ信息 - 随机下载QQ头像")
-        label_qq_title.setFont(QtGui.QFont("Arial", 18))
+        label_qq_title = QLabel("QQ信息工具")
+        label_qq_title.setStyleSheet(title_style)
+        label_qq_subtitle = QLabel("支持随机头像下载与资料批量修改")
+        label_qq_subtitle.setStyleSheet(subtitle_style)
+        layout_qq.addWidget(label_qq_title)
+        layout_qq.addWidget(label_qq_subtitle)
+
+        qq_download_card = QFrame()
+        qq_download_card.setObjectName("tool_section_card")
+        qq_download_layout = QVBoxLayout(qq_download_card)
+        qq_download_layout.setContentsMargins(16, 14, 16, 14)
+        qq_download_layout.setSpacing(10)
+
+        qq_download_title_widget = QWidget()
+        qq_download_title_layout = QHBoxLayout(qq_download_title_widget)
+        qq_download_title_layout.setContentsMargins(0, 0, 0, 0)
+        qq_download_title_layout.setSpacing(8)
+
+        qq_download_title = QLabel("随机下载QQ头像")
+        qq_download_title.setStyleSheet(field_label_style)
         label_lv2 = QLabel("LV2")
-        label_lv2.setFont(QtGui.QFont("Arial", 16))
-        label_lv2.setStyleSheet("color: #4CAF50;")  # 修改为绿色
-        title_layout.addWidget(label_qq_title)
-        title_layout.addWidget(label_lv2)
-        title_layout.addStretch()  # 保持标题左对齐
-        layout_qq.addWidget(title_widget)
+        label_lv2.setStyleSheet("""
+            QLabel {
+                background: #E8F5E9;
+                color: #1B7E3C;
+                border: 1px solid #B9E2C5;
+                border-radius: 7px;
+                font: 700 11px 'Microsoft YaHei';
+                padding: 2px 8px;
+            }
+        """)
+        qq_download_title_layout.addWidget(qq_download_title)
+        qq_download_title_layout.addWidget(label_lv2)
+        qq_download_title_layout.addStretch()
 
-        # 下载次数设置行
-        download_count_widget = QWidget()
-        download_count_layout = QHBoxLayout(download_count_widget)
-        download_count_layout.setContentsMargins(0, 0, 0, 0)
-        download_count_layout.setSpacing(10)
-        label_download_count = QLabel("下载次数：")
-        label_download_count.setFont(style_font_10)
+        count_widget = QWidget()
+        count_layout = QHBoxLayout(count_widget)
+        count_layout.setContentsMargins(0, 0, 0, 0)
+        count_layout.setSpacing(10)
+        label_download_count = QLabel("下载次数")
+        label_download_count.setStyleSheet(field_label_style)
         self.qq_image_down_spinbox = QSpinBox()
         self.qq_image_down_spinbox.setMinimum(1)
         self.qq_image_down_spinbox.setMaximum(9999)
         self.qq_image_down_spinbox.setValue(10)
         self.qq_image_down_spinbox.setStyleSheet(ui.style.new_spinbox_style)
-        download_count_layout.addWidget(label_download_count)
-        download_count_layout.addWidget(self.qq_image_down_spinbox)
-        download_count_layout.addStretch()
-        layout_qq.addWidget(download_count_widget)
+        self.qq_image_down_spinbox.setFixedHeight(34)
 
-        # 开始下载按钮
         self.btn_download_qq = QPushButton("开始下载")
-        self.btn_download_qq.setFixedSize(200,35)
-        self.btn_download_qq.setStyleSheet("""
-            QPushButton {
-                background-color: #9C27B0;
-                color: white;
-                border: none;
-                border-radius: 5px;
-                font: bold 14px;
-            }
-            QPushButton:hover {
-                background-color: #7B1FA2;
-            }
-        """)
+        self.btn_download_qq.setStyleSheet(primary_btn_style)
+        self.btn_download_qq.setFixedWidth(140)
 
+        count_layout.addWidget(label_download_count)
+        count_layout.addWidget(self.qq_image_down_spinbox)
+        count_layout.addStretch()
+        count_layout.addWidget(self.btn_download_qq)
 
-        # 浏览文件夹和清空文件夹按钮
+        stats_widget = QWidget()
+        stats_layout = QHBoxLayout(stats_widget)
+        stats_layout.setContentsMargins(0, 0, 0, 0)
+        stats_layout.setSpacing(20)
+        self.total_download_times = QLabel("总下载次数: 0 次")
+        self.total_download_times.setStyleSheet(subtitle_style)
+        self.successfully_download_times = QLabel("有效次数: 0 次")
+        self.successfully_download_times.setStyleSheet(subtitle_style)
+        stats_layout.addWidget(self.total_download_times)
+        stats_layout.addWidget(self.successfully_download_times)
+        stats_layout.addStretch()
+
         qq_folder_widget = QWidget()
         qq_folder_layout = QHBoxLayout(qq_folder_widget)
+        qq_folder_layout.setContentsMargins(0, 0, 0, 0)
         qq_folder_layout.setSpacing(10)
         btn_browse_qq = QPushButton("浏览图片文件夹")
-        btn_browse_qq.setStyleSheet(ui.style.new_style_pushbutton)
-        btn_browse_qq.clicked.connect(lambda: self.open_folder('picture'))
+        btn_browse_qq.setStyleSheet(secondary_btn_style)
+        btn_browse_qq.setFixedHeight(34)
+        btn_browse_qq.clicked.connect(lambda: self.open_folder("picture"))
+
         btn_clear_qq = QPushButton("一键清空文件夹")
-        btn_clear_qq.setStyleSheet(ui.style.new_style_pushbutton)
+        btn_clear_qq.setStyleSheet(secondary_btn_style)
+        btn_clear_qq.setFixedHeight(34)
         btn_clear_qq.clicked.connect(self.delete_images)
+
         qq_folder_layout.addWidget(btn_browse_qq)
         qq_folder_layout.addWidget(btn_clear_qq)
         qq_folder_layout.addStretch()
-        self.total_download_times = QLabel('总下载次数: 0 次')
-        self.total_download_times.setFont(style_font_10)
-        self.successfully_download_times  = QLabel('有效次数: 0 次')
-        self.successfully_download_times.setFont(style_font_10)
-        layout_qq.addWidget(self.total_download_times)
-        layout_qq.addWidget(self.successfully_download_times)
-        layout_qq.addWidget(qq_folder_widget)
-        layout_qq.addWidget(self.btn_download_qq)
 
-        # 信息修改区域
-        label_info_edit = QLabel("信息修改")
-        label_info_edit.setFont(QtGui.QFont("Arial", 16))
-        layout_qq.addWidget(label_info_edit)
+        qq_download_layout.addWidget(qq_download_title_widget)
+        qq_download_layout.addWidget(count_widget)
+        qq_download_layout.addWidget(stats_widget)
+        qq_download_layout.addWidget(qq_folder_widget)
 
-        # 操作间隔设置
+        qq_edit_card = QFrame()
+        qq_edit_card.setObjectName("tool_section_card")
+        qq_edit_layout = QVBoxLayout(qq_edit_card)
+        qq_edit_layout.setContentsMargins(16, 14, 16, 14)
+        qq_edit_layout.setSpacing(10)
+
+        label_info_edit = QLabel("QQ资料修改")
+        label_info_edit.setStyleSheet(field_label_style)
+
         interval_widget = QWidget()
         interval_layout = QHBoxLayout(interval_widget)
         interval_layout.setContentsMargins(0, 0, 0, 0)
         interval_layout.setSpacing(10)
         label_interval = QLabel("操作间隔（秒）")
-        label_interval.setFont(style_font_10)
+        label_interval.setStyleSheet(field_label_style)
+
         self.qq_image_update_spinbox_interval = QDoubleSpinBox()
         self.qq_image_update_spinbox_interval.setStyleSheet(ui.style.new_spinbox_style)
         self.qq_image_update_spinbox_interval.setMinimum(0.1)
         self.qq_image_update_spinbox_interval.setMaximum(3600.0)
         self.qq_image_update_spinbox_interval.setValue(1.0)
         self.qq_image_update_spinbox_interval.setSingleStep(0.5)
+        self.qq_image_update_spinbox_interval.setFixedHeight(34)
+
+        self.qq_information_edit_button = QPushButton("开始执行")
+        self.qq_information_edit_button.setStyleSheet(primary_btn_style)
+        self.qq_information_edit_button.setFixedWidth(140)
+
         interval_layout.addWidget(label_interval)
         interval_layout.addWidget(self.qq_image_update_spinbox_interval)
         interval_layout.addStretch()
-        layout_qq.addWidget(interval_widget)
+        interval_layout.addWidget(self.qq_information_edit_button)
 
-        # 开始执行按钮
-        self.qq_information_edit_button = QPushButton("开始执行")
-        self.qq_information_edit_button.setFixedSize(200,35)
-        self.qq_information_edit_button.setStyleSheet("""
-            QPushButton {
-                background-color: #4CAF50;
-                color: white;
-                border: none;
-                border-radius: 5px;
-                font: bold 14px;
-            }
-            QPushButton:hover {
-                background-color: #45a049;
-            }
-        """)
-        layout_qq.addWidget(self.qq_information_edit_button)
+        qq_edit_layout.addWidget(label_info_edit)
+        qq_edit_layout.addWidget(interval_widget)
 
-        # 底部弹性空间
+        layout_qq.addWidget(qq_download_card)
+        layout_qq.addWidget(qq_edit_card)
         layout_qq.addStretch()
-
         self.tools_stack.addWidget(page_qq)
 
         # --- 页面4：QQ群信息获取 ---
         page_group = QWidget()
         layout_group = QVBoxLayout(page_group)
-        layout_group.setContentsMargins(20, 20, 20, 20)
-        layout_group.setSpacing(15)
+        layout_group.setContentsMargins(4, 2, 4, 4)
+        layout_group.setSpacing(12)
 
         label_group_title = QLabel("QQ群信息获取")
-        label_group_title.setFont(QtGui.QFont("Arial", 18))
+        label_group_title.setStyleSheet(title_style)
+        label_group_subtitle = QLabel("选择浏览器与字段，一键导出群成员数据")
+        label_group_subtitle.setStyleSheet(subtitle_style)
         layout_group.addWidget(label_group_title)
+        layout_group.addWidget(label_group_subtitle)
 
-        # 输出文件夹路径输入（例如xlsx文件夹）
-        self.lineEdit_group_path = QLineEdit(os.getcwd() + '\\mod\\xlsx')
-        self.lineEdit_group_path.setPlaceholderText("点击输入xlsx文件夹路径")
-        self.lineEdit_group_path.setFont(style_font_10)
-        self.lineEdit_group_path.setStyleSheet("padding: 5px; border: 1px solid #CCCCCC; border-radius: 5px;")
-        layout_group.addWidget(self.lineEdit_group_path)
+        group_main_card = QFrame()
+        group_main_card.setObjectName("tool_section_card")
+        group_main_layout = QVBoxLayout(group_main_card)
+        group_main_layout.setContentsMargins(16, 14, 16, 14)
+        group_main_layout.setSpacing(12)
 
-        # 浏览和选择按钮并排显示
-        group_folder_widget = QWidget()
-        group_folder_layout = QHBoxLayout(group_folder_widget)
-        group_folder_layout.setSpacing(10)
-        btn_select_group = QPushButton("选择")
-        btn_select_group.setStyleSheet(ui.style.new_style_pushbutton)
-        btn_select_group.clicked.connect(lambda: self.select_file_path('group_folder_path'))
-        btn_browse_group = QPushButton("浏览")
-        btn_browse_group.setStyleSheet(ui.style.new_style_pushbutton)
-        btn_browse_group.clicked.connect(lambda: self.open_folder('xlsx'))
-        group_folder_layout.addStretch()
-        group_folder_layout.addWidget(btn_select_group)
-        group_folder_layout.addWidget(btn_browse_group)
-        layout_group.addWidget(group_folder_widget)
+        path_layout = QGridLayout()
+        path_layout.setHorizontalSpacing(10)
+        path_layout.setVerticalSpacing(10)
 
-        # 浏览器选择（Edge, Chrome, IE）
-        # ============ 浏览器选择 ============
+        label_group_path = QLabel("输出目录")
+        label_group_path.setStyleSheet(field_label_style)
+        self.lineEdit_group_path = QLineEdit(os.getcwd() + "\\mod\\xlsx")
+        self.lineEdit_group_path.setPlaceholderText("点击输入 xlsx 文件夹路径")
+        self.lineEdit_group_path.setStyleSheet(input_style)
+        self.lineEdit_group_path.setFixedHeight(36)
+
+        btn_select_group = QPushButton("选择路径")
+        btn_select_group.setStyleSheet(secondary_btn_style)
+        btn_select_group.setFixedHeight(36)
+        btn_select_group.clicked.connect(
+            lambda: self.select_file_path("group_folder_path")
+        )
+
+        btn_browse_group = QPushButton("打开目录")
+        btn_browse_group.setStyleSheet(secondary_btn_style)
+        btn_browse_group.setFixedHeight(36)
+        btn_browse_group.clicked.connect(lambda: self.open_folder("xlsx"))
+
+        path_layout.addWidget(label_group_path, 0, 0)
+        path_layout.addWidget(self.lineEdit_group_path, 0, 1)
+        path_layout.addWidget(btn_select_group, 0, 2)
+        path_layout.addWidget(btn_browse_group, 0, 3)
+        path_layout.setColumnStretch(1, 1)
+
+        browser_title = QLabel("浏览器")
+        browser_title.setStyleSheet(field_label_style)
         browser_widget = QWidget()
         browser_layout = QHBoxLayout(browser_widget)
+        browser_layout.setContentsMargins(0, 0, 0, 0)
+        browser_layout.setSpacing(24)
 
-        # Edge
         self.Edge_Radio = QRadioButton("Edge")
-        self.Edge_Radio.setFont(style_font_10)
         self.Edge_Radio.setChecked(True)
+        self.Edge_Radio.setStyleSheet(radio_style)
         browser_layout.addWidget(self.Edge_Radio)
 
-        # Chrome
         self.Chrome_Radio = QRadioButton("Chrome")
-        self.Chrome_Radio.setFont(style_font_10)
+        self.Chrome_Radio.setStyleSheet(radio_style)
         browser_layout.addWidget(self.Chrome_Radio)
 
-        # IE（注意用户指定控件名为Ie_Radio）
         self.Ie_Radio = QRadioButton("IE")
-        self.Ie_Radio.setFont(style_font_10)
+        self.Ie_Radio.setStyleSheet(radio_style)
         browser_layout.addWidget(self.Ie_Radio)
+        browser_layout.addStretch()
 
-        layout_group.addWidget(browser_widget)
+        field_title = QLabel("导出字段")
+        field_title.setStyleSheet(field_label_style)
+        field_widget = QWidget()
+        field_layout = QGridLayout(field_widget)
+        field_layout.setContentsMargins(0, 0, 0, 0)
+        field_layout.setHorizontalSpacing(16)
+        field_layout.setVerticalSpacing(8)
 
-        # ============ 内容选择 ============
-        checkbox_widget = QWidget()
-        checkbox_layout = QHBoxLayout(checkbox_widget)
-        checkbox_layout.setSpacing(10)
-
-        # 不可勾选的复选框
         self.checkBox_serial = QCheckBox("序号")
-        self.checkBox_serial.setFont(style_font_10)
         self.checkBox_serial.setChecked(True)
         self.checkBox_serial.setEnabled(False)
-        checkbox_layout.addWidget(self.checkBox_serial)
+        self.checkBox_serial.setStyleSheet(checkbox_style)
 
         self.checkBox_name = QCheckBox("名称")
-        self.checkBox_name.setFont(style_font_10)
         self.checkBox_name.setChecked(True)
         self.checkBox_name.setEnabled(False)
-        checkbox_layout.addWidget(self.checkBox_name)
+        self.checkBox_name.setStyleSheet(checkbox_style)
 
         self.checkBox_nickname = QCheckBox("群昵称")
-        self.checkBox_nickname.setFont(style_font_10)
         self.checkBox_nickname.setChecked(True)
         self.checkBox_nickname.setEnabled(False)
-        checkbox_layout.addWidget(self.checkBox_nickname)
+        self.checkBox_nickname.setStyleSheet(checkbox_style)
 
-        # 可勾选的复选框
         self.checkBox_qid = QCheckBox("QQ号")
-        self.checkBox_qid.setFont(style_font_10)
         self.checkBox_qid.setChecked(True)
-        checkbox_layout.addWidget(self.checkBox_qid)
+        self.checkBox_qid.setStyleSheet(checkbox_style)
 
         self.checkBox_sex = QCheckBox("性别")
-        self.checkBox_sex.setFont(style_font_10)
         self.checkBox_sex.setChecked(True)
-        checkbox_layout.addWidget(self.checkBox_sex)
+        self.checkBox_sex.setStyleSheet(checkbox_style)
 
         self.checkBox_qq_year = QCheckBox("QQ年龄")
-        self.checkBox_qq_year.setFont(style_font_10)
         self.checkBox_qq_year.setChecked(True)
-        checkbox_layout.addWidget(self.checkBox_qq_year)
+        self.checkBox_qq_year.setStyleSheet(checkbox_style)
 
         self.checkBox_join_date = QCheckBox("进群日期")
-        self.checkBox_join_date.setFont(style_font_10)
         self.checkBox_join_date.setChecked(True)
-        checkbox_layout.addWidget(self.checkBox_join_date)
+        self.checkBox_join_date.setStyleSheet(checkbox_style)
 
         self.checkBox_send_date = QCheckBox("最后发言日期")
-        self.checkBox_send_date.setFont(style_font_10)
         self.checkBox_send_date.setChecked(True)
-        checkbox_layout.addWidget(self.checkBox_send_date)
+        self.checkBox_send_date.setStyleSheet(checkbox_style)
 
         self.checkBox_group_lv = QCheckBox("群等级")
-        self.checkBox_group_lv.setFont(style_font_10)
         self.checkBox_group_lv.setChecked(True)
-        checkbox_layout.addWidget(self.checkBox_group_lv)
+        self.checkBox_group_lv.setStyleSheet(checkbox_style)
 
-        layout_group.addWidget(checkbox_widget)
+        fields = [
+            self.checkBox_serial,
+            self.checkBox_name,
+            self.checkBox_nickname,
+            self.checkBox_qid,
+            self.checkBox_sex,
+            self.checkBox_qq_year,
+            self.checkBox_join_date,
+            self.checkBox_send_date,
+            self.checkBox_group_lv,
+        ]
 
-        # 获取信息按钮
-        self.btn_get_group = QPushButton("获取")
-        self.btn_get_group.setFixedHeight(35)
-        self.btn_get_group.setStyleSheet("""
-            QPushButton {
-                background-color: #E91E63;
-                color: white;
-                border: none;
-                border-radius: 5px;
-                font: bold 14px;
-            }
-            QPushButton:hover {
-                background-color: #C2185B;
-            }
-        """)
-        layout_group.addWidget(self.btn_get_group)
+        for i, checkbox in enumerate(fields):
+            row = i // 3
+            col = i % 3
+            field_layout.addWidget(checkbox, row, col)
+
+        self.btn_get_group = QPushButton("开始获取")
+        self.btn_get_group.setStyleSheet(primary_btn_style)
+        self.btn_get_group.setFixedWidth(160)
+
+        group_action_layout = QHBoxLayout()
+        group_action_layout.addStretch()
+        group_action_layout.addWidget(self.btn_get_group)
+
+        group_main_layout.addLayout(path_layout)
+        group_main_layout.addWidget(browser_title)
+        group_main_layout.addWidget(browser_widget)
+        group_main_layout.addWidget(field_title)
+        group_main_layout.addWidget(field_widget)
+        group_main_layout.addLayout(group_action_layout)
+
+        layout_group.addWidget(group_main_card)
         layout_group.addStretch()
-
         self.tools_stack.addWidget(page_group)
 
-        # --- 按钮与子页面切换的信号 ---
         btn_music.clicked.connect(lambda: self.tools_stack.setCurrentIndex(0))
         btn_format.clicked.connect(lambda: self.tools_stack.setCurrentIndex(1))
         btn_qq.clicked.connect(lambda: self.tools_stack.setCurrentIndex(2))
@@ -2934,6 +3457,12 @@ class MainWindow(QMainWindow):
                     font-size: 9pt;
                 }
 
+                QFrame#settings_card {
+                    background: #FFFFFF;
+                    border: 1px solid #D7E4F2;
+                    border-radius: 12px;
+                }
+
                 /* 覆盖特殊控件的字号 */
                 QGroupBox {
                     font-size: 14px;
@@ -2945,7 +3474,15 @@ class MainWindow(QMainWindow):
 
         # 主布局
         main_layout = QVBoxLayout(page)
+        main_layout.setContentsMargins(10, 10, 10, 10)
+        main_layout.setSpacing(0)
         main_layout.setAlignment(Qt.AlignTop)
+
+        settings_card = QFrame()
+        settings_card.setObjectName("settings_card")
+        card_layout = QVBoxLayout(settings_card)
+        card_layout.setContentsMargins(18, 14, 18, 14)
+        card_layout.setSpacing(0)
 
         # ===== 基础设置组 =====
         basic_group = QGroupBox("基本设置")
@@ -2975,7 +3512,6 @@ class MainWindow(QMainWindow):
         count_layout = QHBoxLayout()
         count_layout.setSpacing(0)
 
-
         self.show_count_checkbox = QCheckBox("提示次数窗口")
         self.show_count_checkbox.setStyleSheet("""
                                     QCheckBox {
@@ -2992,9 +3528,13 @@ class MainWindow(QMainWindow):
 
         self.color_change_button = QPushButton(self)
         # self.color_change_button.clicked.connect(self.save)
-        self.color_change_button.setObjectName('color_change_button')
-        self.color_change_button.setStyleSheet("background-color: transparent; border: none;")
-        self.color_change_button.setIcon(QIcon("./image/Component/吸管.png"))  # 替换为实际图标路径
+        self.color_change_button.setObjectName("color_change_button")
+        self.color_change_button.setStyleSheet(
+            "background-color: transparent; border: none;"
+        )
+        self.color_change_button.setIcon(
+            QIcon("./image/Component/吸管.png")
+        )  # 替换为实际图标路径
         self.color_change_button.setIconSize(QSize(15, 15))  # 明确设置图标大小
         self.color_change_button.setVisible(False)
 
@@ -3011,9 +3551,9 @@ class MainWindow(QMainWindow):
         count_layout.addWidget(self.color_change_button)
         count_layout.addStretch(1)  # 将剩余空间放在右侧
 
-        '''count_layout.addWidget(self.show_count_checkbox)
+        """count_layout.addWidget(self.show_count_checkbox)
         count_layout.addSpacing(10)
-        count_layout.addWidget(self.color_change_button)'''
+        count_layout.addWidget(self.color_change_button)"""
 
         # ===== 关闭操作组 =====
         self.close_group = QGroupBox("关闭时操作")
@@ -3022,10 +3562,12 @@ class MainWindow(QMainWindow):
         # 主复选框
         self.close_check = QCheckBox("启用关闭提示")
         self.close_check.setChecked(True)
-        self.close_check.stateChanged.connect(lambda: [
-            btn.setEnabled(not self.close_check.isChecked())
-            for btn in [self.close_radio, self.tray_radio]
-        ])
+        self.close_check.stateChanged.connect(
+            lambda: [
+                btn.setEnabled(not self.close_check.isChecked())
+                for btn in [self.close_radio, self.tray_radio]
+            ]
+        )
 
         # 子选项
         self.close_radio = QRadioButton("直接关闭软件")
@@ -3040,21 +3582,54 @@ class MainWindow(QMainWindow):
 
         # ===== 系统设置组 =====
         system_group = QGroupBox("系统设置")
+        system_group.setStyleSheet("""
+            QGroupBox {
+                font: bold 14px 'Microsoft YaHei';
+                border: 1px solid #E0E0E0;
+                border-radius: 8px;
+                margin-top: 10px;
+                padding-top: 8px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 3px;
+            }
+        """)
 
         # 开机自启
         self.boot_check = QCheckBox("开机自动启动")
+        self.boot_check.setStyleSheet("QCheckBox { padding: 6px 0; }")
 
         # 悬浮窗
         self.float_check = QCheckBox("启用悬浮窗功能")
+        self.float_check.setStyleSheet("QCheckBox { padding: 6px 0; }")
 
         # ===== 背景设置组 =====
         bg_group = QGroupBox("背景设置")
+        bg_group.setStyleSheet("""
+            QGroupBox {
+                font: bold 14px 'Microsoft YaHei';
+                border: 1px solid #E0E0E0;
+                border-radius: 8px;
+                margin-top: 10px;
+                padding-top: 8px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 3px;
+            }
+        """)
         bg_layout = QVBoxLayout()
+        bg_layout.setContentsMargins(10, 10, 10, 10)
+        bg_layout.setSpacing(8)
 
         # 背景类型
         self.bg_default = QRadioButton("默认背景")
         self.bg_custom = QRadioButton("自定义背景")
-        self.bg_dynamic = QRadioButton("动态背景")
+        self.bg_default.setStyleSheet("QRadioButton { padding: 4px 0; }")
+        self.bg_custom.setStyleSheet("QRadioButton { padding: 4px 0; }")
         self.bg_default.setChecked(True)
 
         # 自定义背景设置
@@ -3062,8 +3637,6 @@ class MainWindow(QMainWindow):
         self.bg_custom_path.setPlaceholderText("请将图片文件拖拽至此处")
         self.bg_custom_path.setVisible(False)
         self.bg_custom_path.setStyleSheet(ui.style.new_style_lineEdit)
-
-
 
         # 自定义透明度滑块
         self.opacity_slider = QSlider(Qt.Horizontal)
@@ -3080,58 +3653,20 @@ class MainWindow(QMainWindow):
         """)
         self.opacity_slider.setVisible(False)
 
-        # 动态背景设置
-        dynamic_layout = QHBoxLayout()
-        self.bg_dynamic_path = ui.style.DraggableLineEdit()
-        self.bg_dynamic_path.setPlaceholderText("请将视频文件拖拽至此处")
-        self.bg_dynamic_path.setStyleSheet(ui.style.new_style_lineEdit)
-
-        self.fps_spin = QSpinBox()
-        self.fps_spin.setRange(1, 60)
-        self.fps_spin.setValue(24)
-        dynamic_layout.addWidget(self.bg_dynamic_path)
-        dynamic_layout.addWidget(QLabel("FPS:"))
-        dynamic_layout.addWidget(self.fps_spin)
-        dynamic_widget = QWidget()
-        dynamic_widget.setLayout(dynamic_layout)
-        dynamic_widget.setVisible(False)
-
         # 背景选项切换逻辑（修复默认背景显示问题）
         def update_bg_controls():
             is_custom = self.bg_custom.isChecked()
-            is_dynamic = self.bg_dynamic.isChecked()
 
             self.bg_custom_path.setVisible(is_custom)
             self.opacity_slider.setVisible(is_custom)
-            dynamic_widget.setVisible(is_dynamic)
 
         self.bg_default.toggled.connect(update_bg_controls)
         self.bg_custom.toggled.connect(update_bg_controls)
-        self.bg_dynamic.toggled.connect(update_bg_controls)
 
         bg_layout.addWidget(self.bg_default)
         bg_layout.addWidget(self.bg_custom)
         bg_layout.addWidget(self.bg_custom_path)
         bg_layout.addWidget(self.opacity_slider)
-        dynamic_radio_layout = QHBoxLayout()
-        dynamic_radio_layout.setSpacing(5)  # 设置按钮与文字间距
-
-        # 添加单选按钮和图标按钮
-        dynamic_radio_layout.addWidget(self.bg_dynamic)
-
-        # 创建提示按钮（根据你的代码调整父级参数）
-        self.trand_problem = QPushButton()
-        self.trand_problem.setFixedSize(15, 15)
-        #self.trand_problem.clicked.connect(self.problem)
-
-
-        # 将按钮加入布局并添加到主布局
-        dynamic_radio_layout.addWidget(self.trand_problem)
-        dynamic_radio_layout.addStretch(1)  # 添加伸缩项保持左对齐
-
-        # 替换原来的 addWidget(self.bg_dynamic)
-        bg_layout.addLayout(dynamic_radio_layout)
-        bg_layout.addWidget(dynamic_widget)
         bg_group.setLayout(bg_layout)
 
         # ===== 保存按钮 =====
@@ -3148,6 +3683,7 @@ class MainWindow(QMainWindow):
                 background-color: #1976D2;
             }
         """)
+
         # ===== 新增系统状态信息组 =====
         status_group = QGroupBox("状态信息")
         status_group.setFixedHeight(80)
@@ -3165,17 +3701,13 @@ class MainWindow(QMainWindow):
                 }
             """)
 
-
         status_layout = QVBoxLayout()
-
 
         version_layout = QHBoxLayout()
         version_layout.addWidget(QLabel(f"当前版本: {Version}"))
         self.version_button = QPushButton("检查更新")
         self.version_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         version_layout.addWidget(self.version_button)
-
-
 
         # occupation
         occupation_layout = QHBoxLayout()
@@ -3204,9 +3736,12 @@ class MainWindow(QMainWindow):
         status_layout.addLayout(occupation_layout)
         status_layout.addLayout(server_layout)
 
-
         # 数值右对齐
-        for btn in [self.version_button, self.storage_button,self.update_status_button]:
+        for btn in [
+            self.version_button,
+            self.storage_button,
+            self.update_status_button,
+        ]:
             btn.setStyleSheet("""
                 QPushButton {
                     background-color: transparent;
@@ -3232,14 +3767,20 @@ class MainWindow(QMainWindow):
         basic_group.setLayout(basic_group_layout)
 
         system_group_layout = QVBoxLayout()
+        system_group_layout.setContentsMargins(10, 10, 10, 10)
+        system_group_layout.setSpacing(8)
         system_group_layout.addWidget(self.boot_check)
         system_group_layout.addWidget(self.float_check)
         system_group.setLayout(system_group_layout)
 
         # 创建一个容器 QWidget 来包含所有内容
         container = QWidget()
+        container.setObjectName("settings_scroll_content")
+        container.setStyleSheet(
+            "QWidget#settings_scroll_content { background: #FFFFFF; border: none; }"
+        )
         container_layout = QVBoxLayout(container)
-        container_layout.setContentsMargins(5, 5, 5, 5)  # 添加内边距
+        container_layout.setContentsMargins(6, 4, 6, 4)  # 添加内边距
         container_layout.addWidget(basic_group)
         container_layout.addWidget(system_group)
         container_layout.addWidget(bg_group)
@@ -3252,6 +3793,7 @@ class MainWindow(QMainWindow):
         scroll_area.setWidgetResizable(True)  # 重要：允许内容自适应调整
         scroll_area.setWidget(container)
         scroll_area.setFrameShape(QFrame.NoFrame)  # 移除边框
+        scroll_area.viewport().setStyleSheet("background: #FFFFFF; border: none;")
 
         # 应用滚动区域的样式
         scroll_area.setStyleSheet("""
@@ -3274,34 +3816,44 @@ class MainWindow(QMainWindow):
                 }
             """)
 
-        return scroll_area  # 返回滚动区域而不是原始页面
+        card_layout.addWidget(scroll_area)
+        main_layout.addWidget(settings_card, 1)
+
+        return page
 
     def upwindow(self):  # 置顶窗口
         if self.is_topmost == False:  # 置顶
             self.windowHandle().setFlags(
-                self.windowFlags() | QtCore.Qt.WindowStaysOnTopHint)
+                self.windowFlags() | QtCore.Qt.WindowStaysOnTopHint
+            )
             self.is_topmost = True
             self.title_bar.Button_SetTop.setIcon(QIcon("./image/Component/Top2.png"))
-        else:  #取消置顶
+        else:  # 取消置顶
             self.windowHandle().setFlags(
-                self.windowFlags() & ~QtCore.Qt.WindowStaysOnTopHint)
+                self.windowFlags() & ~QtCore.Qt.WindowStaysOnTopHint
+            )
             self.is_topmost = False
             self.title_bar.Button_SetTop.setIcon(QIcon("./image/Component/Top.png"))
 
     def delete_file(self):
-        if (self.uim.button_file.text() not in ('选择配置文件', '暂无配置文件 需要创建')):
-            result = QMessageBox.question(self, '确认', "你确定要删除配置文件吗？", QMessageBox.Yes | QMessageBox.No)
+        if self.uim.button_file.text() not in ("选择配置文件", "暂无配置文件 需要创建"):
+            result = QMessageBox.question(
+                self,
+                "确认",
+                "你确定要删除配置文件吗？",
+                QMessageBox.Yes | QMessageBox.No,
+            )
             if result == QMessageBox.Yes:
-                os.remove('./scripts/' + self.uim.button_file.text())
-                #self.uim.populateMenu('scripts')
+                os.remove("./scripts/" + self.uim.button_file.text())
+                # self.uim.populateMenu('scripts')
                 # 列出文件夹中的所有文件和文件夹
                 files_in_folder = os.listdir("scripts")
                 # 检查文件夹中是否有文件
                 if len(files_in_folder) == 0:
                     txt = "暂无配置文件 需要创建"
                 else:
-                    txt = '选择配置文件'
-                #self.uim.button_file.setText(txt)
+                    txt = "选择配置文件"
+                # self.uim.button_file.setText(txt)
 
     def opensource_link(self):
         pyautogui.confirm("请确保您已开启VPN 如已开启请忽略")
@@ -3309,7 +3861,6 @@ class MainWindow(QMainWindow):
 
     def LogRecord(self):  # 打开日志
         subprocess.Popen(["notepad.exe", "INFOR.log"])
-
 
     def empyt_log(self):  # 清空日志
         log_file_path = "INFOR.log"
@@ -3320,7 +3871,8 @@ class MainWindow(QMainWindow):
     def about(self):
         pyautogui.confirm(
             f"版本:{Version}\nGui图形库:Pyqt5\n制作者:浮沉 QQ:3046447554 软件完全免费 纯净无广告\n软件免费 若发现收费购买 请联系我进行反馈\nUI设计本人没有灵感 略微草率还请谅解 如有建议请反馈",
-            "Fuchen")
+            "Fuchen",
+        )
 
     def open_website(self):
         webbrowser.open("https://fcyang.cn/")
@@ -3340,13 +3892,14 @@ class MainWindow(QMainWindow):
         # 获取USS内存（若可用）
         try:
             memory_info = process.memory_full_info()
-            memory_mb = memory_info.uss / (1024 ** 2)
+            memory_mb = memory_info.uss / (1024**2)
         except AttributeError:
             # 回退到RSS如果系统不支持USS
-            memory_mb = process.memory_info().rss / (1024 ** 2)
+            memory_mb = process.memory_info().rss / (1024**2)
 
         self.storage_label.setText(f"CPU: {cpu_percent}% Mem: {memory_mb:.2f}MB")
         return cpu_percent, memory_mb
+
     def mixPicture(self):  # 图片格式转换
         # 检查选择的格式
         if self.JPG_radioButton.isChecked():
@@ -3363,22 +3916,25 @@ class MainWindow(QMainWindow):
 
         input_image_path = self.pic_input_lineEdit.text()
         output_folder_path = self.pic_output_lineEdit.text()
-        if input_image_path == '' or output_folder_path == '':
+        if input_image_path == "" or output_folder_path == "":
             pyautogui.confirm("请选则文件")
             return 0
-        put = (input_image_path.split('.')[-1]).lower()
+        put = (input_image_path.split(".")[-1]).lower()
         out_put = output_image_format.lower()
         file_name = os.path.splitext(os.path.basename(input_image_path))[0]
-        file_path = output_folder_path + '\\' + file_name + '.' + out_put
+        file_path = output_folder_path + "\\" + file_name + "." + out_put
         if put == out_put:
             pyautogui.confirm("输入输出文件类型一致")
             return 0
-        result = function.Convert_File(put, out_put, input_image_path, output_folder_path, file_name, self)
+        result = function.Convert_File(
+            put, out_put, input_image_path, output_folder_path, file_name, self
+        )
         if result == 0:
             pyautogui.confirm(f"文件转换成功\n{input_image_path}\n{file_path}")
         else:
             pyautogui.confirm(f"文件转换失败\n错误如下:{result}")
-    def createMenu(self):  #连点器开启按键
+
+    def createMenu(self):  # 连点器开启按键
         menu = QMenu(self)
 
         action1 = QAction("F8", self)
@@ -3432,14 +3988,12 @@ class MainWindow(QMainWindow):
 
         return menu
 
-
     def action_Clicked(self, key):
-        if key == '自定义':
+        if key == "自定义":
             detector = SundryUI.KeyDetector()
             if detector.exec_() == QDialog.Accepted:
                 name = detector.inverted_dict.get(
-                    detector.current_keycode,
-                    f"未知按键: {detector.current_keycode}"
+                    detector.current_keycode, f"未知按键: {detector.current_keycode}"
                 )
                 if detector.current_keycode != 1:
                     self.sort = name
@@ -3453,25 +4007,29 @@ class MainWindow(QMainWindow):
     def tray_icon_activated(self, reason):
         if reason == QSystemTrayIcon.DoubleClick:
             self.showNormal()
+
     def download(self):  # 下载网易云音乐
         try:
-            download_url = 'https://music.163.com/song/media/outer/url?id={}'
+            download_url = "https://music.163.com/song/media/outer/url?id={}"
             headers = {
-                'Referer': 'https://music.163.com/search/',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/69.0.3497.100 Safari/537.36'
+                "Referer": "https://music.163.com/search/",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/69.0.3497.100 Safari/537.36",
             }
 
             url = self.music_url.text()
-            music_id = url.split('=')[1]
+            music_id = url.split("=")[1]
             response = requests.get(download_url.format(music_id), headers=headers)
             file_name = self.music_filename.text()
-            save_path = f'{self.music_savepath.text()}\\{file_name}'
-            with open(save_path, 'wb') as file:
+            save_path = f"{self.music_savepath.text()}\\{file_name}"
+            with open(save_path, "wb") as file:
                 file.write(response.content)
-            with open(save_path, 'rb') as f:
-                first_line = f.readline().decode('utf-8', errors='ignore')
-                if '<!DOCTYPE html>' in first_line:
-                    self.show_message_box("提示", "下载失败 该歌曲可能是VIP专属 或其他原因 VIP歌曲暂不支持解析")
+            with open(save_path, "rb") as f:
+                first_line = f.readline().decode("utf-8", errors="ignore")
+                if "<!DOCTYPE html>" in first_line:
+                    self.show_message_box(
+                        "提示",
+                        "下载失败 该歌曲可能是VIP专属 或其他原因 VIP歌曲暂不支持解析",
+                    )
                 else:
                     # 获取文件大小（以字节为单位）
                     file_size_bytes = os.path.getsize(save_path)
@@ -3479,9 +4037,13 @@ class MainWindow(QMainWindow):
                     if file_size_bytes < 1_000_000:  # 小于 1 MB
                         file_size = f"{(file_size_bytes / 1_024):.2f} KB"  # 转换为 KB
                     else:
-                        file_size = f"{(file_size_bytes / 1_024 / 1_024):.2f} MB"  # 转换为 MB
+                        file_size = (
+                            f"{(file_size_bytes / 1_024 / 1_024):.2f} MB"  # 转换为 MB
+                        )
 
-                    self.show_message_box("提示", f"下载成功! {file_name} 文件大小:{file_size}")
+                    self.show_message_box(
+                        "提示", f"下载成功! {file_name} 文件大小:{file_size}"
+                    )
         except Exception as e:
             self.show_message_box("提示", f"下载失败:{e}")
 
@@ -3500,18 +4062,19 @@ class MainWindow(QMainWindow):
 
         self.user1.lbl_name.setText(f"{self.username.text()}[我]")
         self.user1.lbl_id.setText(f"{self.username.text()}")
-        self.user1.avatar_user_team = QPixmap('./temp/avatar.png').scaled(100, 100,
-                                                                             Qt.KeepAspectRatio,
-                                                                             Qt.SmoothTransformation)
+        self.user1.avatar_user_team = QPixmap("./temp/avatar.png").scaled(
+            100, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation
+        )
         self.user1.avatar_frame.setPixmap(self.user1.avatar_user_team)
 
         self.user2.lbl_name.setText("等待用户加入")
         self.user2.lbl_id.setText("id: ")
-        self.user2.avatar_user_team = QPixmap('.image/other_user.png').scaled(100, 100,Qt.KeepAspectRatio,Qt.SmoothTransformation)
+        self.user2.avatar_user_team = QPixmap(".image/other_user.png").scaled(
+            100, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation
+        )
         self.user2.avatar_frame.setPixmap(self.user2.avatar_user_team)
 
-    def quit_team_H(self):  #队员退出队伍
-
+    def quit_team_H(self):  # 队员退出队伍
         self.create_team_button.setVisible(True)  # 创建队伍按钮
         self.add_team_lineEdit.setVisible(True)  # 加入队伍标签
         self.add_team_button.setVisible(True)
@@ -3522,8 +4085,48 @@ class MainWindow(QMainWindow):
 
         self.user2.lbl_name.setText("等待用户加入")
         self.user2.lbl_id.setText("id: ")
-        self.user2.avatar_user_team = QPixmap('.image/other_user.png').scaled(100, 100,Qt.KeepAspectRatio,Qt.SmoothTransformation)
+        self.user2.avatar_user_team = QPixmap(".image/other_user.png").scaled(
+            100, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation
+        )
         self.user2.avatar_frame.setPixmap(self.user2.avatar_user_team)
+
+    def reset_team_ui(self):
+        """断线时重置组队UI状态（覆盖队长和队员两种情况）"""
+        self.create_team_button.setVisible(True)
+        self.add_team_lineEdit.setVisible(True)
+        self.add_team_button.setVisible(True)
+        self.button_copy_id.setVisible(False)
+        self.add_team_ID.setText("队伍ID为:")
+        self.add_team_ID.setVisible(False)
+        self.create_team_label_prompt.setVisible(False)
+        self.user1.combo_options.setVisible(True)
+        self.user2.combo_options.setVisible(True)
+        self.team_btn_start.setVisible(True)
+        try:
+            self.team_layout.removeWidget(self.team_execute_prompt)
+            self.team_execute_prompt.setParent(None)
+            self.team_execute_prompt.hide()
+        except Exception:
+            pass
+        self.team_execute_prompt.setText("等待队长开始执行...")
+        self.user1.lbl_name.setText(f"{self.username.text()}[我]")
+        self.user1.lbl_id.setText(f"{self.username.text()}")
+        try:
+            self.user1.avatar_user_team = QPixmap("./temp/avatar.png").scaled(
+                100, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation
+            )
+            self.user1.avatar_frame.setPixmap(self.user1.avatar_user_team)
+        except Exception:
+            pass
+        self.user2.lbl_name.setText("等待用户加入")
+        self.user2.lbl_id.setText("id: ")
+        try:
+            self.user2.avatar_user_team = QPixmap(".image/other_user.png").scaled(
+                100, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation
+            )
+            self.user2.avatar_frame.setPixmap(self.user2.avatar_user_team)
+        except Exception:
+            pass
 
     def show_child_dialog(self):
         # 创建并显示子窗口
@@ -3534,8 +4137,11 @@ class MainWindow(QMainWindow):
     def populateMenu(self, folder_path):
         # 清空现有菜单项并填充新的菜单项
         self.file_menu.clear()
-        files = [f for f in os.listdir(folder_path) if
-                 os.path.isfile(os.path.join(folder_path, f))]
+        files = [
+            f
+            for f in os.listdir(folder_path)
+            if os.path.isfile(os.path.join(folder_path, f))
+        ]
 
         # 如果有文件，则为每个文件创建一个菜单项
         for file in files:
@@ -3545,86 +4151,102 @@ class MainWindow(QMainWindow):
         import_action.triggered.connect(self.select_file)
 
     def select_file_path(self, name):
-        if name == 'download_music':
-            folder_path = QFileDialog.getExistingDirectory(self, 'Select Folder')
-            if folder_path != '':
+        if name == "download_music":
+            folder_path = QFileDialog.getExistingDirectory(self, "Select Folder")
+            if folder_path != "":
                 folder_path = folder_path.replace("/", "\\")
                 self.music_savepath.setText(folder_path)
-        elif name == 'qq_send_seq':
+        elif name == "qq_send_seq":
             options = QFileDialog.Options()
             options |= QFileDialog.ReadOnly
-            file_name, _ = QFileDialog.getOpenFileName(self, "Select File", "",
-                                                       "Text Files (*.txt)",
-                                                       options=options)
+            file_name, _ = QFileDialog.getOpenFileName(
+                self, "Select File", "", "Text Files (*.txt)", options=options
+            )
             file_name = file_name.replace("/", "\\")
             self.QQ_Seq_lineEdit.setText(file_name)
-        elif name == 'pic_file_path':
+        elif name == "pic_file_path":
             file_path, _ = QFileDialog.getOpenFileName(
-                self, "选择输入文件", "", "Images (*.png *.jpg *.jpeg *.gif);;PDF (*.pdf)")
+                self,
+                "选择输入文件",
+                "",
+                "Images (*.png *.jpg *.jpeg *.gif);;PDF (*.pdf)",
+            )
             if file_path:
                 self.pic_input_lineEdit.setText(file_path)
-                if self.pic_output_lineEdit.text() == '':
+                if self.pic_output_lineEdit.text() == "":
                     parent_folder = os.path.dirname(file_path)
                     self.pic_output_lineEdit.setText(parent_folder)
 
-        elif name == 'pic_folder_path':
-            folder_path = QFileDialog.getExistingDirectory(
-                self, "选择输出文件夹")
+        elif name == "pic_folder_path":
+            folder_path = QFileDialog.getExistingDirectory(self, "选择输出文件夹")
             if folder_path:
                 self.pic_output_lineEdit.setText(folder_path)
-        elif name == 'group_folder_path':
-            folder_path = QFileDialog.getExistingDirectory(
-                self, "选择输出文件夹")
+        elif name == "group_folder_path":
+            folder_path = QFileDialog.getExistingDirectory(self, "选择输出文件夹")
             if folder_path:
                 self.lineEdit_group_path.setText(folder_path)
 
     def delete_images(self):
-        reply = QMessageBox.question(self, '确认删除', "你确定要删除文件夹内容吗?",
-                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        reply = QMessageBox.question(
+            self,
+            "确认删除",
+            "你确定要删除文件夹内容吗?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
         if reply == QMessageBox.Yes:
-            shutil.rmtree('./mod/picture')
+            shutil.rmtree("./mod/picture")
             # 重新创建空文件夹
-            os.mkdir('./mod/picture')
-            QMessageBox.information(self, '提示',"图片清除成功!")
+            os.mkdir("./mod/picture")
+            QMessageBox.information(self, "提示", "图片清除成功!")
 
     def open_folder(self, page):  # 浏览QQ头像下载文件夹
-        if page == 'picture':
-            folder_path = './mod/picture'
+        if page == "picture":
+            folder_path = "./mod/picture"
             url = QUrl.fromLocalFile(folder_path)
             QDesktopServices.openUrl(url)
-        elif page == 'xlsx':
+        elif page == "xlsx":
             folder_path = self.lineEdit_group_path.text()
             url = QUrl.fromLocalFile(folder_path)
             QDesktopServices.openUrl(url)
 
     def select_file(self):
-        file_path, _ = QFileDialog.getOpenFileName(None, "选择文件", "", "All Files (*);;Text Files (*.txt)")
+        file_path, _ = QFileDialog.getOpenFileName(
+            None, "选择文件", "", "JSON Files (*.json);;All Files (*)"
+        )
         self.file_lineEdit.setText(file_path)
         print(file_path)
         return file_path
 
     def showMenu(self):
         self.file_menu.exec_(
-            self.button_file.mapToGlobal(QtCore.QPoint(0, self.button_file.height())))
+            self.button_file.mapToGlobal(QtCore.QPoint(0, self.button_file.height()))
+        )
 
     def setup_menu(self):
         """动态构建文件菜单"""
         self.file_menu.clear()
-        self.folder_path = './scripts'
+        self.folder_path = "./scripts"
 
         if os.path.exists(self.folder_path):
             # 获取文件列表并排序
             files = sorted(
-                [f for f in os.listdir(self.folder_path)
-                 if os.path.isfile(os.path.join(self.folder_path, f))],
-                key=str.lower
+                [
+                    f
+                    for f in os.listdir(self.folder_path)
+                    if os.path.isfile(os.path.join(self.folder_path, f))
+                ],
+                key=str.lower,
             )
 
             # 添加文件操作项
             for file in files:
                 action = QAction(file, self)
                 action.triggered.connect(
-                    lambda _, f=file: self.updateButtonText(os.path.join(os.path.abspath(self.folder_path), f)))
+                    lambda _, f=file: self.updateButtonText(
+                        os.path.join(os.path.abspath(self.folder_path), f)
+                    )
+                )
                 self.file_menu.addAction(action)
             import_action = self.file_menu.addAction("请新建或点此导入外部配置")
             import_action.triggered.connect(self.select_file)
@@ -3634,8 +4256,8 @@ class MainWindow(QMainWindow):
         self.setup_menu()  # 每次点击刷新菜单
         self.file_menu.exec_(
             self.button_file.mapToGlobal(
-                self.button_file.rect().bottomLeft() +
-                self.button_file.rect().topRight() * 0.5
+                self.button_file.rect().bottomLeft()
+                + self.button_file.rect().topRight() * 0.5
             )
         )
 

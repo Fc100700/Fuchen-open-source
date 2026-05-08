@@ -1,16 +1,18 @@
 import time
+
+
 t0 = time.perf_counter()
 import logging
-import os, sys, json, re, time, random, string, shutil, psutil, platform, threading, traceback
-import socket,ssl
-import concurrent.futures
+import os, sys, json, re, time, random, string, shutil, platform, threading, traceback
+import psutil
+import socket, ssl
 import struct
 import webbrowser
 import keyboard as keys
 import pyautogui
 import requests
 import win32com.client
-import win32gui,win32api,win32con
+import win32gui, win32api, win32con
 import win32clipboard as w
 import winsound
 import ctypes
@@ -19,40 +21,67 @@ import subprocess
 import pygetwindow as gw
 import function
 import update_install
-import SundryUI, SocketThread, new_mainpage, extend_install  #
+import SundryUI, SocketThread, new_mainpage  #
 from SocketThread import socket_information
+
 # 使用新的登录窗口类
 import login_window
+
 try:
-    import op  #计数文件
+    import op  # 计数文件
 except:
     pass
 from playsound3 import playsound
 from PIL import Image, ImageFilter
-from pypinyin import pinyin, Style #
+from pypinyin import pinyin, Style  #
 from collections import deque
-from datetime import datetime,date
-from pynput import mouse,keyboard
+from datetime import datetime, date
+from pynput import mouse, keyboard
 from pynput.keyboard import Key, Controller as KeyboardController, KeyCode
 from pynput.mouse import Button, Controller as MouseController
 from PyQt5.QtCore import Qt, QTimer, QUrl, QTranslator, pyqtSignal, QObject, QThread
-from PyQt5.QtGui import QColor, QIcon, QPixmap, QKeySequence, QDesktopServices, QPalette, QBrush, QImage
-from PyQt5.QtWidgets import QApplication, QMessageBox, QFileDialog, QLabel, QShortcut, \
-    QDialog, QGraphicsOpacityEffect, QInputDialog, QFrame, QSizePolicy
+from PyQt5.QtGui import (
+    QColor,
+    QIcon,
+    QPixmap,
+    QKeySequence,
+    QDesktopServices,
+    QPalette,
+    QBrush,
+    QImage,
+)
+from PyQt5.QtWidgets import (
+    QApplication,
+    QMessageBox,
+    QFileDialog,
+    QLabel,
+    QShortcut,
+    QDialog,
+    QGraphicsOpacityEffect,
+    QInputDialog,
+    QFrame,
+    QSizePolicy,
+)
 from PyQt5 import QtCore, QtGui
 
 print("导入库耗时:", time.perf_counter() - t0)
-logging.basicConfig(filename='INFOR.log', level=logging.ERROR)
+logging.basicConfig(filename="INFOR.log", level=logging.ERROR)
 
 
 def log_exception(*args):
     # 记录异常信息到日志文件中
-    logging.exception(str(time.strftime('%Y-%m-%d  %H:%M:%S', time.localtime())) + "错误:" + str(args))
-    print("错误:",args)
+    logging.exception(
+        str(time.strftime("%Y-%m-%d  %H:%M:%S", time.localtime())) + "错误:" + str(args)
+    )
+    print("错误:", args)
+
 
 sys.excepthook = log_exception  # 日志
-with open("INFOR.log", 'a') as file:
-    file.write(str(time.strftime('%Y-%m-%d  %H:%M:%S', time.localtime()) + "  软件运行" + '\n'))
+with open("INFOR.log", "a") as file:
+    file.write(
+        str(time.strftime("%Y-%m-%d  %H:%M:%S", time.localtime()) + "  软件运行" + "\n")
+    )
+
 
 class TimedStream(QObject):
     text_written = pyqtSignal(str, str)
@@ -61,27 +90,27 @@ class TimedStream(QObject):
         super().__init__()
         self.original_stream = original_stream
         self.stream_type = stream_type
-        self.buffer = ''
+        self.buffer = ""
         self.history = []
 
     def write(self, text):
         self.buffer += text
-        while '\n' in self.buffer:
-            index = self.buffer.find('\n')
+        while "\n" in self.buffer:
+            index = self.buffer.find("\n")
             line = self.buffer[:index]
-            self.buffer = self.buffer[index + 1:]
+            self.buffer = self.buffer[index + 1 :]
             self._process_line(line)
 
     def _process_line(self, line):
-        '''timestamp = datetime.now().strftime('[%H:%M:%S] ')
+        """timestamp = datetime.now().strftime('[%H:%M:%S] ')
         full_line = f"{timestamp}{line}"
 
         self.history.append((full_line, self.stream_type))
         self.original_stream.write(f"{full_line}\n")  # 保持原始输出
-        self.text_written.emit(full_line, self.stream_type)'''
+        self.text_written.emit(full_line, self.stream_type)"""
 
-        timestamp = datetime.now().strftime('[%H:%M:%S] ')
-        if self.stream_type == 'stderr':
+        timestamp = datetime.now().strftime("[%H:%M:%S] ")
+        if self.stream_type == "stderr":
             full_line = f"{timestamp}[ERROR] {line}"  # 添加错误标签
         else:
             full_line = f"{timestamp}{line}"
@@ -94,16 +123,18 @@ class TimedStream(QObject):
     def flush(self):
         if self.buffer:
             self._process_line(self.buffer)
-            self.buffer = ''
+            self.buffer = ""
         # 确保原始流存在
         if self.original_stream is not None:
             self.original_stream.flush()
 
     def __getattr__(self, name):
         return getattr(self.original_stream, name)
+
+
 # 最早初始化流重定向
-stdout_stream = TimedStream(sys.stdout, 'stdout')
-stderr_stream = TimedStream(sys.stderr, 'stderr')
+stdout_stream = TimedStream(sys.stdout, "stdout")
+stderr_stream = TimedStream(sys.stderr, "stderr")
 sys.stdout = stdout_stream
 sys.stderr = stderr_stream
 
@@ -117,20 +148,584 @@ class MyThread(threading.Thread):  # 多线程封装（我也看不懂反正就�
         self.func = func
         self.args = args
 
-        self.daemon=True
+        self.daemon = True
         self.start()  # 在这里开始
 
     def run(self):
         self.func(*self.args)
+
+
+class ScriptRecordWorker(QObject):
+    finished = pyqtSignal(bool, str, object)
+
+    def __init__(self, file_path, wait_time, end_key_text, screen_width, screen_height):
+        super().__init__()
+        self.file_path = file_path
+        self.wait_time = wait_time
+        self.end_key_text = end_key_text
+        self.screen_width = max(1, int(screen_width))
+        self.screen_height = max(1, int(screen_height))
+
+    @staticmethod
+    def _resolve_end_key(end_key_text):
+        end_key_map = {
+            "ESC": Key.esc,
+            "F8": Key.f8,
+            "F9": Key.f9,
+            "F10": Key.f10,
+            "END": Key.end,
+        }
+        return end_key_map.get(end_key_text, Key.esc)
+
+    def run(self):
+        mouse_listener = None
+        keyboard_listener = None
+        cursor_position = None
+        success = True
+        error_text = ""
+
+        try:
+            time.sleep(self.wait_time)
+            play_prompt_sound("C:\\Windows\\Media\\Windows Notify Messaging.wav")
+
+            current_position = pyautogui.position()
+            cursor_position = (current_position.x, current_position.y)
+            print("开始记录自动脚本")
+
+            records = []
+            end_key = self._resolve_end_key(self.end_key_text)
+
+            last_time = time.perf_counter()
+            last_move_time = last_time
+            last_move_position = None
+
+            move_sample_ms = 12
+            move_min_delta = 3
+
+            def append_record(event_type, action, data):
+                nonlocal last_time
+                current_time = time.perf_counter()
+                interval = max(0, int((current_time - last_time) * 1000))
+                records.append([interval, event_type, action, data])
+                last_time = current_time
+
+            def normalize_position(x, y):
+                return [
+                    round(x / self.screen_width, 6),
+                    round(y / self.screen_height, 6),
+                ]
+
+            def build_key_desc(key):
+                if isinstance(key, Key):
+                    vk = getattr(getattr(key, "value", None), "vk", 0)
+                    return [vk if vk is not None else 0, key.name.upper()]
+                if isinstance(key, KeyCode):
+                    vk = key.vk if key.vk is not None else 0
+                    if key.char:
+                        return [vk, key.char.lower()]
+                    return [vk, "NUMPAD"]
+                key_char = getattr(key, "char", None)
+                key_vk = getattr(key, "vk", 0)
+                if key_char:
+                    return [key_vk if key_vk is not None else 0, key_char.lower()]
+                return [
+                    key_vk if key_vk is not None else 0,
+                    str(key).replace("Key.", "").upper(),
+                ]
+
+            def on_move(x, y):
+                nonlocal last_move_time, last_move_position
+                now = time.perf_counter()
+                if (now - last_move_time) * 1000 < move_sample_ms:
+                    return
+                if last_move_position is not None:
+                    if (
+                        abs(x - last_move_position[0]) < move_min_delta
+                        and abs(y - last_move_position[1]) < move_min_delta
+                    ):
+                        return
+                rx, ry = normalize_position(x, y)
+                append_record("M", "mouse move", [x, y, rx, ry])
+                last_move_position = (x, y)
+                last_move_time = now
+
+            def on_click(x, y, button, pressed):
+                action = ""
+                if button == mouse.Button.left:
+                    action = "mouse left down" if pressed else "mouse left up"
+                elif button == mouse.Button.right:
+                    action = "mouse right down" if pressed else "mouse right up"
+                elif button == mouse.Button.middle:
+                    action = "mouse middle down" if pressed else "mouse middle up"
+                if action:
+                    rx, ry = normalize_position(x, y)
+                    append_record("M", action, [x, y, rx, ry])
+
+            def on_scroll(x, y, dx, dy):
+                append_record("M", "mouse scroll", [dx, dy])
+
+            debounce_interval = 25
+            last_key_down = {"key": None, "time": 0.0}
+
+            def on_press(key):
+                now = time.perf_counter()
+                if key == end_key:
+                    return False
+
+                if (
+                    key == last_key_down["key"]
+                    and (now - last_key_down["time"]) * 1000 < debounce_interval
+                ):
+                    return
+
+                key_desc = build_key_desc(key)
+                append_record("K", "key down", key_desc)
+                last_key_down["key"] = key
+                last_key_down["time"] = now
+
+            def on_release(key):
+                if key == end_key:
+                    return
+
+                key_desc = build_key_desc(key)
+                append_record("K", "key up", key_desc)
+
+            mouse_listener = mouse.Listener(
+                on_click=on_click, on_move=on_move, on_scroll=on_scroll
+            )
+            keyboard_listener = keyboard.Listener(
+                on_press=on_press, on_release=on_release
+            )
+
+            mouse_listener.start()
+            keyboard_listener.start()
+            keyboard_listener.join()
+
+            json_records = []
+            for interval, event_type, action, data in records:
+                json_record = {
+                    "interval": interval,
+                    "type": "keyboard" if event_type == "K" else "mouse",
+                    "action": None,
+                    "details": {},
+                }
+
+                if event_type == "K":
+                    json_record["action"] = action.split()[-1]
+                    json_record["details"] = {
+                        "code": int(data[0]) if data[0] is not None else 0,
+                        "name": data[1].upper()
+                        if isinstance(data[1], str)
+                        else str(data[1]),
+                    }
+                else:
+                    if "move" in action:
+                        json_record["action"] = "move"
+                        json_record["details"] = {
+                            "x": data[0],
+                            "y": data[1],
+                            "rx": data[2],
+                            "ry": data[3],
+                        }
+                    elif "scroll" in action:
+                        json_record["action"] = "scroll"
+                        json_record["details"] = {"dx": data[0], "dy": data[1]}
+                    else:
+                        button = action.split()[1]
+                        json_record["action"] = action.split()[-1]
+                        json_record["details"] = {
+                            "button": button,
+                            "x": data[0],
+                            "y": data[1],
+                            "rx": data[2],
+                            "ry": data[3],
+                        }
+                json_records.append(json_record)
+
+            payload = {
+                "meta": {
+                    "version": 2,
+                    "screen": {
+                        "width": self.screen_width,
+                        "height": self.screen_height,
+                    },
+                },
+                "records": json_records,
+            }
+
+            with open(self.file_path, "w", encoding="utf-8") as f:
+                json.dump(payload, f, indent=2, ensure_ascii=False)
+
+            print("记录完毕")
+        except Exception:
+            success = False
+            error_text = traceback.format_exc()
+            print(error_text)
+        finally:
+            if keyboard_listener is not None:
+                keyboard_listener.stop()
+            if mouse_listener is not None:
+                mouse_listener.stop()
+            play_prompt_sound("C:\\Windows\\Media\\Windows Notify Messaging.wav")
+            self.finished.emit(success, error_text, cursor_position)
+
+
+class ScriptExecuteWorker(QObject):
+    progress = pyqtSignal(int)
+    finished = pyqtSignal(bool, str, object)
+
+    def __init__(
+        self,
+        file_path,
+        wait_time,
+        count,
+        speed,
+        end_key_text,
+        screen_width,
+        screen_height,
+    ):
+        super().__init__()
+        self.file_path = file_path
+        self.wait_time = wait_time
+        self.count = count
+        self.speed = max(0.01, speed)
+        self.end_key_text = end_key_text
+        self.screen_width = max(1, int(screen_width))
+        self.screen_height = max(1, int(screen_height))
+
+    @staticmethod
+    def _resolve_end_key(end_key_text):
+        end_key_map = {
+            "ESC": Key.esc,
+            "F8": Key.f8,
+            "F9": Key.f9,
+            "F10": Key.f10,
+            "END": Key.end,
+        }
+        return end_key_map.get(end_key_text, Key.esc)
+
+    @staticmethod
+    def _get_key(key_code, key_char):
+        special_keys = {
+            "ALT": Key.alt,
+            "ALT_GR": Key.alt_gr,
+            "ALT_L": Key.alt_l,
+            "ALT_R": Key.alt_r,
+            "BACKSPACE": Key.backspace,
+            "CAPS_LOCK": Key.caps_lock,
+            "CMD": Key.cmd,
+            "CTRL_L": Key.ctrl_l,
+            "CTRL_R": Key.ctrl_r,
+            "DELETE": Key.delete,
+            "DOWN": Key.down,
+            "END": Key.end,
+            "ENTER": Key.enter,
+            "ESC": Key.esc,
+            "F1": Key.f1,
+            "F2": Key.f2,
+            "F3": Key.f3,
+            "F4": Key.f4,
+            "F5": Key.f5,
+            "F6": Key.f6,
+            "F7": Key.f7,
+            "F8": Key.f8,
+            "F9": Key.f9,
+            "F10": Key.f10,
+            "F11": Key.f11,
+            "F12": Key.f12,
+            "F13": Key.f13,
+            "F14": Key.f14,
+            "F15": Key.f15,
+            "F16": Key.f16,
+            "F17": Key.f17,
+            "F18": Key.f18,
+            "F19": Key.f19,
+            "F20": Key.f20,
+            "F21": Key.f21,
+            "F22": Key.f22,
+            "HOME": Key.home,
+            "INSERT": Key.insert,
+            "LEFT": Key.left,
+            "NUM_LOCK": Key.num_lock,
+            "PAGE_DOWN": Key.page_down,
+            "PAGE_UP": Key.page_up,
+            "RIGHT": Key.right,
+            "SCROLL_LOCK": Key.scroll_lock,
+            "SHIFT": Key.shift,
+            "SHIFT_R": Key.shift_r,
+            "SPACE": Key.space,
+            "TAB": Key.tab,
+            "UP": Key.up,
+            "PRINT_SCREEN": Key.print_screen,
+            "MENU": Key.menu,
+        }
+        key_char = key_char or ""
+        key_upper = key_char.upper()
+        if key_upper in special_keys:
+            return special_keys[key_upper]
+        if "NUMPAD" in key_upper or key_code in range(96, 106) or key_code == 110:
+            numpad_keys = {
+                96: KeyCode(vk=96),
+                97: KeyCode(vk=97),
+                98: KeyCode(vk=98),
+                99: KeyCode(vk=99),
+                100: KeyCode(vk=100),
+                101: KeyCode(vk=101),
+                102: KeyCode(vk=102),
+                103: KeyCode(vk=103),
+                104: KeyCode(vk=104),
+                105: KeyCode(vk=105),
+                110: KeyCode(vk=110),
+            }
+            if key_code in numpad_keys:
+                return numpad_keys[key_code]
+        if len(key_char) == 1:
+            return KeyCode(char=key_char)
+        if key_code is not None:
+            return KeyCode(vk=key_code)
+        raise ValueError(f"无法识别的按键: code={key_code}, char={key_char}")
+
+    def _scale_position(self, x, y, record_screen):
+        if x is None or y is None:
+            return None, None
+        record_width = record_screen.get("width", 0)
+        record_height = record_screen.get("height", 0)
+        if record_width > 0 and record_height > 0:
+            x = int(round(x * self.screen_width / record_width))
+            y = int(round(y * self.screen_height / record_height))
+        x = max(0, min(self.screen_width - 1, int(x)))
+        y = max(0, min(self.screen_height - 1, int(y)))
+        return x, y
+
+    def _resolve_position(self, data, record_screen):
+        x, y, rx, ry = data
+        if rx is not None and ry is not None:
+            x = int(round(rx * self.screen_width))
+            y = int(round(ry * self.screen_height))
+            x = max(0, min(self.screen_width - 1, int(x)))
+            y = max(0, min(self.screen_height - 1, int(y)))
+            return x, y
+        return self._scale_position(x, y, record_screen)
+
+    def run(self):
+        listener = None
+        original_pause = pyautogui.PAUSE
+        stop_event = threading.Event()
+        cursor_position = None
+        success = True
+        error_text = ""
+        start_time = time.time()
+
+        try:
+            end_key = self._resolve_end_key(self.end_key_text)
+
+            def key_listener():
+                nonlocal listener
+
+                def on_press(key):
+                    try:
+                        if key == end_key:
+                            stop_event.set()
+                            print(f"检测到 {self.end_key_text}，脚本终止中...")
+                            return False
+                    except Exception as e:
+                        print(f"按键监听异常: {e}")
+
+                listener = keyboard.Listener(on_press=on_press)
+                listener.start()
+                listener.join()
+
+            listener_thread = threading.Thread(target=key_listener, daemon=True)
+            listener_thread.start()
+
+            play_prompt_sound("C:\\Windows\\Media\\Windows Notify Messaging.wav")
+            current_position = pyautogui.position()
+            cursor_position = (current_position.x, current_position.y)
+            time.sleep(self.wait_time)
+
+            mouse_controller = MouseController()
+            keyboard_controller = KeyboardController()
+
+            def wait_with_stop(milliseconds):
+                delay = max(0, milliseconds) / 1000.0
+                return stop_event.wait(delay)
+
+            pyautogui.PAUSE = 0
+
+            with open(self.file_path, "r", encoding="utf-8") as f:
+                raw_data = json.load(f)
+
+            if isinstance(raw_data, dict):
+                json_records = raw_data.get("records", [])
+                record_screen = raw_data.get("meta", {}).get("screen", {})
+            elif isinstance(raw_data, list):
+                json_records = raw_data
+                record_screen = {}
+            else:
+                raise ValueError("脚本文件格式错误")
+
+            records = []
+            for json_record in json_records:
+                event_type = json_record.get("type")
+                action = json_record.get("action")
+                interval = int(json_record.get("interval", 0))
+                details = json_record.get("details", {})
+
+                if event_type == "keyboard":
+                    key_name = details.get("name", "")
+                    key_code = details.get("code", 0)
+                    try:
+                        key_code = int(key_code)
+                    except (TypeError, ValueError):
+                        key_code = 0
+                    record = [
+                        interval,
+                        "K",
+                        f"key {action}",
+                        [
+                            key_code,
+                            key_name.lower()
+                            if isinstance(key_name, str)
+                            else str(key_name),
+                        ],
+                    ]
+                    records.append(record)
+                    continue
+
+                if event_type != "mouse":
+                    continue
+
+                if action == "move":
+                    record = [
+                        interval,
+                        "M",
+                        "mouse move",
+                        [
+                            details.get("x"),
+                            details.get("y"),
+                            details.get("rx"),
+                            details.get("ry"),
+                        ],
+                    ]
+                elif action == "scroll":
+                    record = [
+                        interval,
+                        "M",
+                        "mouse scroll",
+                        [details.get("dx", 0), details.get("dy", 0)],
+                    ]
+                else:
+                    button = details.get("button", "left")
+                    record = [
+                        interval,
+                        "M",
+                        f"mouse {button} {action}",
+                        [
+                            details.get("x"),
+                            details.get("y"),
+                            details.get("rx"),
+                            details.get("ry"),
+                        ],
+                    ]
+                records.append(record)
+
+            for record in records:
+                record[0] = int(record[0] / self.speed)
+
+            for i in range(self.count):
+                if stop_event.is_set():
+                    break
+
+                for record in records:
+                    if stop_event.is_set():
+                        print("脚本执行已终止。")
+                        break
+
+                    if wait_with_stop(record[0]):
+                        print("脚本执行已终止。")
+                        break
+
+                    if record[1] == "M":
+                        if "mouse move" in record[2]:
+                            x, y = self._resolve_position(record[3], record_screen)
+                            if x is None or y is None:
+                                continue
+                            mouse_controller.position = (x, y)
+                        elif "mouse left down" in record[2]:
+                            x, y = self._resolve_position(record[3], record_screen)
+                            if x is None or y is None:
+                                continue
+                            mouse_controller.position = (x, y)
+                            mouse_controller.press(Button.left)
+                        elif "mouse left up" in record[2]:
+                            x, y = self._resolve_position(record[3], record_screen)
+                            if x is None or y is None:
+                                continue
+                            mouse_controller.position = (x, y)
+                            mouse_controller.release(Button.left)
+                        elif "mouse right down" in record[2]:
+                            x, y = self._resolve_position(record[3], record_screen)
+                            if x is None or y is None:
+                                continue
+                            mouse_controller.position = (x, y)
+                            mouse_controller.press(Button.right)
+                        elif "mouse right up" in record[2]:
+                            x, y = self._resolve_position(record[3], record_screen)
+                            if x is None or y is None:
+                                continue
+                            mouse_controller.position = (x, y)
+                            mouse_controller.release(Button.right)
+                        elif "mouse middle down" in record[2]:
+                            x, y = self._resolve_position(record[3], record_screen)
+                            if x is None or y is None:
+                                continue
+                            mouse_controller.position = (x, y)
+                            mouse_controller.press(Button.middle)
+                        elif "mouse middle up" in record[2]:
+                            x, y = self._resolve_position(record[3], record_screen)
+                            if x is None or y is None:
+                                continue
+                            mouse_controller.position = (x, y)
+                            mouse_controller.release(Button.middle)
+                        elif "mouse scroll" in record[2]:
+                            dx, dy = record[3]
+                            mouse_controller.scroll(dx, dy)
+                    elif record[1] == "K":
+                        key_code, key_char = record[3]
+                        key = self._get_key(key_code, key_char)
+                        if "down" in record[2]:
+                            keyboard_controller.press(key)
+                        elif "up" in record[2]:
+                            keyboard_controller.release(key)
+
+                self.progress.emit(i + 1)
+
+            end_time = time.time()
+            print(f"实际执行时间:{(end_time - start_time):.2f}秒")
+        except Exception:
+            success = False
+            error_text = traceback.format_exc()
+            print(error_text)
+        finally:
+            if listener is not None:
+                listener.stop()
+            pyautogui.PAUSE = original_pause
+            self.finished.emit(success, error_text, cursor_position)
+
 
 def play_prompt_sound(file_path):
     global Sound
     try:
         if Sound:
             MyThread(playsound, file_path)
-            #winsound.PlaySound(file_path, winsound.SND_FILENAME)
+            # winsound.PlaySound(file_path, winsound.SND_FILENAME)
     except Exception as e:
-        logging.exception(str(time.strftime('%Y-%m-%d  %H:%M:%S', time.localtime())) + "错误:" + str(e))
+        logging.exception(
+            str(time.strftime("%Y-%m-%d  %H:%M:%S", time.localtime()))
+            + "错误:"
+            + str(e)
+        )
+
 
 def play_warning_sound():
     # 设置警告音频文件路径
@@ -138,7 +733,12 @@ def play_warning_sound():
         sound_file = "C:\\Windows\\Media\\Windows Foreground.wav"
         winsound.PlaySound(sound_file, winsound.SND_FILENAME)
     except Exception as e:
-        logging.exception(str(time.strftime('%Y-%m-%d  %H:%M:%S', time.localtime())) + "错误:" + str(e))
+        logging.exception(
+            str(time.strftime("%Y-%m-%d  %H:%M:%S", time.localtime()))
+            + "错误:"
+            + str(e)
+        )
+
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 # 创建 SSL 上下文（客户端模式）
@@ -147,7 +747,7 @@ context = ssl.create_default_context()
 # 如果你使用的是自签名证书，需要加载服务器证书用于验证（可选，建议）
 context.load_verify_locations("certificate.pem")
 
-s = context.wrap_socket(s, server_hostname='fcyang.cn')
+s = context.wrap_socket(s, server_hostname="fcyang.cn")
 
 
 def set_variables(vars_dict, namespace=None):
@@ -157,16 +757,15 @@ def set_variables(vars_dict, namespace=None):
     :param namespace: 命名空间字典，默认使用全局作用域
     """
     namespace = namespace or globals()
-    assignments = "; ".join(
-        [f"{k} = {repr(v)}" for k, v in vars_dict.items()]
-    )
+    assignments = "; ".join([f"{k} = {repr(v)}" for k, v in vars_dict.items()])
     exec(assignments, namespace)
 
-def TypedJSONClient(msg_type,payload):
+
+def TypedJSONClient(msg_type, payload):
     data = {"type": msg_type, "data": payload}
     # 发送请求
-    json_data = json.dumps(data).encode('utf-8')
-    header = struct.pack('>I', len(json_data))
+    json_data = json.dumps(data).encode("utf-8")
+    header = struct.pack(">I", len(json_data))
     s.sendall(header + json_data)
 
 
@@ -177,7 +776,7 @@ def recv_json(sock):
         header = sock.recv(4)
         if len(header) != 4:
             return None
-        data_len = struct.unpack('>I', header)[0]
+        data_len = struct.unpack(">I", header)[0]
 
         # 分块读取数据
         chunks = []
@@ -188,17 +787,17 @@ def recv_json(sock):
                 break
             chunks.append(chunk)
             bytes_received += len(chunk)
-        return json.loads(b''.join(chunks).decode('utf-8'))
+        return json.loads(b"".join(chunks).decode("utf-8"))
     except (json.JSONDecodeError, UnicodeDecodeError) as e:
         print(f"JSON解码失败: {e}")
-        return {'error': 'Invalid JSON'}
+        return {"error": "Invalid JSON"}
     except struct.error:
         return None
 
 
 function.initialization()
 
-with open('config.json', 'r') as file:
+with open("config.json", "r") as file:
     config = json.load(file)
 AutoLogin = config.get("AutoLogin", False)
 remember = config.get("Remember", False)
@@ -217,54 +816,55 @@ Random_list = [1, 2, 3]
 handle_position = [30, -60]
 Click_Pause = 0.01
 res = False
-Version = 'V1.77.1'
+Version = "V1.81"
 
 
 try:
     # 获取数据文本
-    url = 'https://fcyang.cn/data.txt'
-    response = requests.get(url,proxies={
-        "http": None,
-        "https": None
-    })
+    url = "https://fcyang.cn/data.txt"
+    response = requests.get(url, proxies={"http": None, "https": None})
     data = response.text
 
     # 解析键值对
     config = {}
     for line in data.splitlines():
-        if ':' in line:
-            key, value = line.split(':', 1)
+        if ":" in line:
+            key, value = line.split(":", 1)
             config[key.strip()] = value.strip()
 
     # 提取目标字段
-    formal_version = config.get('formal_version')
-    formal_link = config.get('formal_link')
+    formal_version = config.get("formal_version")
+    formal_link = config.get("formal_link")
 except:
     traceback.print_exc()
-    formal_version = 'V1.0.0'
+    formal_version = "V1.0.0"
 
-Number_People = '加载中...'
+Number_People = "加载中..."
 
-IP = '47.116.75.93'  # IP地址192.168.2.75 47.116.75.93
+IP = "fcyang.cn"  # IP地址192.168.2.75 47.116.75.93
 Port = 30000  # 端口号
-information = '正在加载公告...'
+information = "正在加载公告..."
 sys_list = []  # 控制台内容列表
 exp_status = None
-avatar_load_status = False  #头像加载
+avatar_load_status = False  # 头像加载
 connect_status = None
 Fuchen_name, Fuchen_type, Fuchen_fullname = function.get_exefile_name()
 Name = None
 mode = None
 avatar_date = None
 exp = None
-print('配置加载成功')
+access_token = None
+refresh_token = None
+print("配置加载成功")
 try:  # 连接服务器
     s.settimeout(10)
     s.connect((IP, Port))
     connect_status = True
 except Exception as e:
     traceback.print_exc()
-    logging.exception(str(time.strftime('%Y-%m-%d  %H:%M:%S', time.localtime())) + "错误:" + str(e))
+    logging.exception(
+        str(time.strftime("%Y-%m-%d  %H:%M:%S", time.localtime())) + "错误:" + str(e)
+    )
     pyautogui.confirm("服务器连接失败\n请留意服务器公告查询最新消息\n")
 
 try:  # 处理信息\公告
@@ -272,42 +872,54 @@ try:  # 处理信息\公告
         raise Exception()
     time.sleep(0.1)
 
-    TypedJSONClient('Get Notice', 'None')
+    TypedJSONClient("Get Notice", "None")
     request = recv_json(s)
-    request_data = request.get('data')
-    Server_Version = request_data.get('Version')
-    Number_People = request_data.get('Number')
-    link =  request_data.get('Link')
-    information = request_data.get('Notice')
+    request_data = request.get("data")
+    Server_Version = request_data.get("Version")
+    Number_People = request_data.get("Number")
+    link = request_data.get("Link")
+    information = request_data.get("Notice")
     try:
-        status = request_data.get('status')
-        if status == 'Fuchen Maintenance':
+        status = request_data.get("status")
+        if status == "Fuchen Maintenance":
             pyautogui.confirm("服务器正在维护 请稍后")
             sys.exit()
     except:
         pass
 
     try:
-        information = re.sub('~~space~~', ' ', information)
-        information = re.sub('~~next~~', '\n', information)
-        print(f""
-              f"--------------------------------------------------------------------------\n"
-              f"更新日志:\n"
-              f"{information}\n"
-              f"--------------------------------------------------------------------------")
+        information = re.sub("~~space~~", " ", information)
+        information = re.sub("~~next~~", "\n", information)
+        print(
+            f""
+            f"--------------------------------------------------------------------------\n"
+            f"更新日志:\n"
+            f"{information}\n"
+            f"--------------------------------------------------------------------------"
+        )
     except Exception as e:
-        logging.exception(str(time.strftime('%Y-%m-%d  %H:%M:%S', time.localtime())) + "错误:" + str(e))
+        logging.exception(
+            str(time.strftime("%Y-%m-%d  %H:%M:%S", time.localtime()))
+            + "错误:"
+            + str(e)
+        )
 except Exception as e:
     traceback.print_exc()
-    logging.exception(str(time.strftime('%Y-%m-%d  %H:%M:%S', time.localtime())) + "错误:" + str(e))
-    if connect_status != None:  #服务器连接成功 但数据接收失败
-        pyautogui.confirm("数据接收失败 请重新启动软件\n如多次重试失败 请尝试更新到最新版客户端")
+    logging.exception(
+        str(time.strftime("%Y-%m-%d  %H:%M:%S", time.localtime())) + "错误:" + str(e)
+    )
+    if connect_status != None:  # 服务器连接成功 但数据接收失败
+        pyautogui.confirm(
+            "数据接收失败 请重新启动软件\n如多次重试失败 请尝试更新到最新版客户端"
+        )
         os._exit(0)
-    else:  #服务器连接失败 以离线模式启动
+    else:  # 服务器连接失败 以离线模式启动
         result = pyautogui.confirm("服务器连接失败 是否以离线模式启动?")
         if result == "OK":
             formal_version = Version
-            information = "当前是离线模式 \n部分状态可能未正常显示\n部分功能可能无法正常使用"
+            information = (
+                "当前是离线模式 \n部分状态可能未正常显示\n部分功能可能无法正常使用"
+            )
         else:
             sys.exit()
 
@@ -316,23 +928,24 @@ if function.parse_version(Version) < function.parse_version(formal_version):
         sys.stdout = sys.__stdout__
         sys.stderr = sys.__stderr__
 
-        update_window = update_install.show_update_dialog(['', Version, formal_version])
-        if update_window == 'update_successful':
+        update_window = update_install.show_update_dialog(["", Version, formal_version])
+        if update_window == "update_successful":
             # 创建快捷方式
             desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")
-            shortcut_name = f'Fuchen.lnk'
+            shortcut_name = f"Fuchen.lnk"
             shortcut_path = os.path.join(desktop_path, shortcut_name)
             back_path = os.path.abspath(os.path.join(os.getcwd(), ".."))
-            new_version_path = os.path.join(back_path, f'Fuchen_{formal_version}')
+            new_version_path = os.path.join(back_path, f"Fuchen_{formal_version}")
 
-            new_exe_path = rf'{new_version_path}\{Fuchen_name}.exe'
+            new_exe_path = rf"{new_version_path}\{Fuchen_name}.exe"
 
             shell = win32com.client.Dispatch("WScript.Shell")
             shortcut = shell.CreateShortCut(shortcut_path)
             shortcut.Targetpath = new_exe_path
-            shortcut.WorkingDirectory = os.path.dirname(new_exe_path)  # 设置快捷方式的起始位置为exe文件所在的文件夹
+            shortcut.WorkingDirectory = os.path.dirname(
+                new_exe_path
+            )  # 设置快捷方式的起始位置为exe文件所在的文件夹
             shortcut.save()
-
 
             def copy_scripts_safe(src_folder, dst_folder):
                 os.makedirs(dst_folder, exist_ok=True)
@@ -343,52 +956,61 @@ if function.parse_version(Version) < function.parse_version(formal_version):
                         shutil.copytree(s, d, dirs_exist_ok=True)
                     else:
                         shutil.copy2(s, d)
+
             try:
                 # 迁移旧版数据
-                copy_scripts_safe('./scripts', rf'{new_version_path}\scripts')
-                copy_scripts_safe('./mod/music', rf'{new_version_path}\mod\music')
-                copy_scripts_safe('./mod/picture', rf'{new_version_path}\mod\picture')
-                copy_scripts_safe('./mod/xlsx', rf'{new_version_path}\mod\xlsx')
+                copy_scripts_safe("./scripts", rf"{new_version_path}\scripts")
+                copy_scripts_safe("./mod/music", rf"{new_version_path}\mod\music")
+                copy_scripts_safe("./mod/picture", rf"{new_version_path}\mod\picture")
+                copy_scripts_safe("./mod/xlsx", rf"{new_version_path}\mod\xlsx")
 
             except Exception as e:
                 pass
 
             with open(f"{new_version_path}\\Fuchen.tmp", "w") as f:
-                f.write(f'{os.getcwd()}')
+                f.write(f"{os.getcwd()}")
             OLD_DIR = os.path.dirname(os.path.abspath(sys.argv[0]))
-            function.new_update(new_exe_path,OLD_DIR, shortcut_path)
+            function.new_update(new_exe_path, OLD_DIR, shortcut_path)
             sys.exit()
-        elif update_window == 'cancel_update':
+        elif update_window == "cancel_update":
             sys.exit()
         else:
             sys.exit()
         os._exit(0)
     except Exception as e:
         traceback.print_exc()
-        logging.exception(str(time.strftime('%Y-%m-%d  %H:%M:%S', time.localtime())) + "错误:" + str(e))
+        logging.exception(
+            str(time.strftime("%Y-%m-%d  %H:%M:%S", time.localtime()))
+            + "错误:"
+            + str(e)
+        )
         print(f"{str(e)}")
         sys.exit()
 
 
 def check_process_exists(process_name):
-    for process in psutil.process_iter(attrs=['pid', 'name']):
-        if process.info['name'] == process_name:
+    for process in psutil.process_iter(attrs=["pid", "name"]):
+        if process.info["name"] == process_name:
             return True
     return False
+
+
 try:
-    res = requests.get('http://myip.ipip.net', timeout=5).text
+    res = requests.get("http://myip.ipip.net", timeout=5).text
     # 提取城市信息
-    split_res = res.split('  ')
+    split_res = res.split("  ")
     city_info = split_res[-2]  # 倒数第二个元素是城市信息
-    city_info = city_info.split(' ')
+    city_info = city_info.split(" ")
     city_name = city_info[-1]
-    #city_name = city_info[-2]+city_info[-1]+(split_res[-1].replace('\n',''))
-    #city_name = city_info
-    #del city_info
+    # city_name = city_info[-2]+city_info[-1]+(split_res[-1].replace('\n',''))
+    # city_name = city_info
+    # del city_info
 except Exception as e:
-    city_name = 'Unknown'
-    city_info = ['中国','Unknown','Unknown']
-    logging.exception(str(time.strftime('%Y-%m-%d  %H:%M:%S', time.localtime())) + "错误:" + str(e))
+    city_name = "Unknown"
+    city_info = ["中国", "Unknown", "Unknown"]
+    logging.exception(
+        str(time.strftime("%Y-%m-%d  %H:%M:%S", time.localtime())) + "错误:" + str(e)
+    )
 
 system = platform.system()  # 系统类型
 computer_name = platform.node()  # 计算机网络名称
@@ -411,17 +1033,21 @@ class SharedParams(ctypes.Structure):
 
 
 class Ui_Form(new_mainpage.MainWindow):  # 主窗口
+    trigger_click_record_signal = pyqtSignal()
+    trigger_click_execute_signal = pyqtSignal()
+    _tourist_prompt_signal = pyqtSignal()
+
     def __init__(self, stdout_stream, stderr_stream):
         super(Ui_Form, self).__init__()
         self.stdout_stream = stdout_stream
         self.stderr_stream = stderr_stream
-        self.setStyleSheet('''QDialog {
+        self.setStyleSheet("""QDialog {
                 background-color: #ffffff;
                 border-radius: 8px;
                 font-size: 16px;
                 color: #333333;
                 padding: 4px;
-            }''')
+            }""")
 
         self.open_status = False
         self.c_thread_object = None
@@ -434,19 +1060,16 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
             self.should_draw = "White"
         elif Theme == "Custom":
             self.should_draw = "Custom"
-        elif Theme == "Trend":
-            self.should_draw = "Trend"
         else:
             self.should_draw = "White"
-        self.window_icon = False  # 右下角图标存在或不存在 布尔值 存在为True不存在为False
+        self.window_icon = (
+            False  # 右下角图标存在或不存在 布尔值 存在为True不存在为False
+        )
         self.setupUi(self)
-        # self.record_hotkey = keys.add_hotkey(self.record_hotkey_btn.text(), self.Click_Record)
-        # 提取按键名称
-        hotkey = self._3pushButton.text().split(':')[-1].strip()
-        self.record_hotkey = keys.add_hotkey(hotkey, self.Click_Record)
-
-        hotkey = self._3pushButton_2.text().split(':')[-1].strip()
-        self.execute_hotkey = keys.add_hotkey(hotkey, self.Click_Record_execute)
+        self.trigger_click_record_signal.connect(self.Click_Record)
+        self.trigger_click_execute_signal.connect(self.Click_Record_execute)
+        self._tourist_prompt_signal.connect(self._on_tourist_prompt)
+        self.apply_hotkey_bindings()
         self.title_bar.Button_SetTop.clicked.connect(self.upwindow)
         self.title_bar.Button_Close.clicked.connect(self.clo)  # 退出按钮
 
@@ -487,7 +1110,7 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
 
         self.config_editor_button.clicked.connect(self.open_fileedit_window)
         self.show_count_checkbox.stateChanged.connect(self.open_number_prompt_window)
-        #self._3spinBox_3.valueChanged.connect(self.number_total_changed)
+        # self._3spinBox_3.valueChanged.connect(self.number_total_changed)
         self.color_change_button.clicked.connect(self.number_prompt_window_color)
         # self._3pushButton.clicked.connect(self.Click_Record)  # 记录自动脚本
         # self._3pushButton_2.clicked.connect(self.Click_Record_execute)
@@ -514,7 +1137,7 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
         self.team_btn_start.clicked.connect(self.team_c)  # 开始执行
         # ----工具页面----#
 
-        self.view_music.clicked.connect(lambda: self.open_folder('music'))
+        self.view_music.clicked.connect(lambda: self.open_folder("music"))
         self.btn_download_music.clicked.connect(self.download)
 
         self.pic_confirm_button.clicked.connect(self.mixPicture)
@@ -530,7 +1153,7 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
         self.version_button.clicked.connect(self.check_update)
         self.update_status_button.clicked.connect(self.get_connect_status)
 
-        '''
+        """
         self.uim.Start_Click_Radio.clicked.connect(lambda: self.record_change('click'))
         self.uim.Start_Hotkey_Radio.clicked.connect(lambda: self.record_change('hotkey'))
         self.uim.Hotkey_record_button.clicked.connect(self.record_hotkey_setting)
@@ -547,7 +1170,7 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
 
         self.uim.talk_lineEdit.returnPressed.connect(self.send_talk)
 
-        '''
+        """
 
         self.image_cache = deque(maxlen=30)
 
@@ -557,14 +1180,13 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
         self.border_width = 8
         self.record_thread = None
         self.execute_thread = None
+        self.record_worker = None
+        self.execute_worker = None
 
         self.hotkey_record_status = None
         self.hotkey_execute_status = None
 
         MainWindow.setWindowTitle("Fuchen 浮沉制作")
-
-        self.Trend_Status = False
-        self.Trend_Now = False
 
         icon = QIcon("image/window.ico")  # 设置窗口图标
         self.setWindowIcon(icon)
@@ -590,11 +1212,12 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
         self.data_thread = SocketThread.DataThread([self, s])
         self.data_thread.show_message_signal.connect(self.handle_message)
         self.data_thread.team_send_response.connect(self.deal_team_send)
+        self.data_thread.team_state_needs_reset.connect(self.reset_team_ui)
         self.data_thread.start()
 
         # 将文本分割成行
         global information
-        lines = information.split('\n')
+        lines = information.split("\n")
 
         # 生成HTML内容
         html_content = f"""
@@ -608,14 +1231,7 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
         self.notice_browser.setHtml(html_content)
 
     def setting_page_check(self):
-        try:
-            global cv2_available, cv2
-            import cv2
-            cv2_available = True
-            # raise ImportError
-        except ImportError:
-            cv2_available = False
-        if Account == '游客':
+        if Account == "游客":
             self.avatar.setEnabled(False)
             self.username.setEnabled(False)
             self.userid.setEnabled(False)
@@ -645,9 +1261,15 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
             self.close_radio.setChecked(False)
             self.tray_radio.setChecked(False)
         # 要检查的文件名
-        file_name = 'Fuchen_Start_File.bat'
-        startup_folder = os.path.join(os.getenv('APPDATA'), 'Microsoft', 'Windows',
-                                      'Start Menu', 'Programs', 'Startup')
+        file_name = "Fuchen_Start_File.bat"
+        startup_folder = os.path.join(
+            os.getenv("APPDATA"),
+            "Microsoft",
+            "Windows",
+            "Start Menu",
+            "Programs",
+            "Startup",
+        )
         file_path = os.path.join(startup_folder, file_name)
         self.First = False
         if os.path.exists(file_path):
@@ -659,62 +1281,21 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
             self.float_check.setChecked(True)
         else:
             self.float_check.setChecked(False)
-        if cv2_available:
-            self.trand_problem.setStyleSheet("""
-                        QPushButton {
-                            border-image: url(./image/Component/提示.png);
-                            background-color: rgba(245,245,245,0);
-                        }
-                    """)
-
-            print('设置成功')
-        else:
-            self.trand_problem.setStyleSheet("""
-                        QPushButton {
-                            border-image: url(./image/Component/下载.png);
-                            background-color: rgba(245,245,245,0);
-                        }
-                    """)
-            self.bg_dynamic.setEnabled(False)
-            self.bg_dynamic.setToolTip("需要安装扩展内容")
-            self.bg_dynamic_path.setPlaceholderText("需要先安装CV2扩展包才可使用")
-            self.bg_dynamic_path.setEnabled(False)
-            self.fps_spin.setEnabled(False)
-        self.trand_problem.clicked.connect(self.problems)
         if Theme == "White":
             self.bg_default.setChecked(True)
-        elif Theme == 'Custom':
+        elif Theme == "Custom":
             try:
                 self.bg_custom.setChecked(True)
-                with open('config.json', 'r') as file:  # 填充自定义图片壁纸的输入栏
+                with open("config.json", "r") as file:  # 填充自定义图片壁纸的输入栏
                     config = json.load(file)
                 # 添加新元素到数据结构
                 Path_Custom = config["Path"]
                 self.bg_custom_path.setText(Path_Custom)
             except Exception as e:
                 print(e)
-        elif Theme == 'Trend':
-            self.bg_dynamic.setChecked(True)
-            with open('config.json', 'r') as file:  # 填充自定义图片壁纸的输入栏
-                config = json.load(file)
-            # 添加新元素到数据结构
-            Path_Trend = config["Path"]
-            self.bg_dynamic_path.setText(Path_Trend)
         else:
             self.bg_default.setChecked(True)
-        self.fps_spin.setValue(FPS)
         self.opacity_slider.setValue(transparent)
-        self.bg_dynamic.setVisible(False)
-        self.fps_spin.setVisible(False)
-        self.trand_problem.setVisible(False)
-
-    def problems(self):
-        if not cv2_available:
-            window = extend_install.DownloadDialog(self)
-            window.exec_()
-        else:
-            QMessageBox.information(self, '提示',
-                                    "此功能对电脑占用较高\n不推荐使用大于20秒的视频 否则可能会过多占用内存!!!")
 
     def open_number_prompt_window(self, state):
         if state == Qt.Checked:
@@ -725,23 +1306,36 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
             self.number_prompt_window = ui.number_prompt.NotificationWindow()
             self.number_prompt_window.close()
             self.color_change_button.setVisible(False)
+
     def handle_number_window(self, type, now, total):
         if self.number_prompt_window != None:
             self.number_prompt_window.update_operation(type)
             self.number_prompt_window.update_now_number(now)
             self.number_prompt_window.update_total_number(total)
         pass
+
     def number_prompt_window_color(self):
         if self.number_prompt_window != None:
             self.number_prompt_window.update_color()
+
     def number_now_changed(self, value):
         if self.number_prompt_window != None:
             self.number_prompt_window.update_now_number(value)
+
     def number_total_changed(self, value):
         if self.number_prompt_window != None:
             self.number_prompt_window.update_total_number(value)
+
     def save_setting_option(self):
-        global AutoLogin, Sound, ClosePrompt, CloseExecute, window_s, Theme, transparent, FPS
+        global \
+            AutoLogin, \
+            Sound, \
+            ClosePrompt, \
+            CloseExecute, \
+            window_s, \
+            Theme, \
+            transparent, \
+            FPS
 
         if self.auto_login_check.isChecked():
             AutoLogin = True
@@ -759,7 +1353,7 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
             CloseExecute = "Close"
         else:
             CloseExecute = "Hide"
-        with open('config.json', 'r') as file:
+        with open("config.json", "r") as file:
             config = json.load(file)
         transparent = self.opacity_slider.value()
         config["AutoLogin"] = AutoLogin
@@ -767,44 +1361,52 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
         config["ClosePrompt"] = ClosePrompt
         config["CloseExecute"] = CloseExecute
         config["transparent"] = transparent
-        fps_value = self.fps_spin.value()
-        if fps_value != FPS:
-            config["FPS"] = fps_value
-            FPS = fps_value
         # 将更新后的数据写入 JSON 文件
-        with open('config.json', 'w') as file:
+        with open("config.json", "w") as file:
             json.dump(config, file, indent=4)
         n = True
         if (self.boot_check.isChecked()) and (self.First == False):
             try:
-                exe_file_name = 'Fuchen.exe'
-                startup_folder = os.path.join(os.getenv('APPDATA'), 'Microsoft', 'Windows',
-                                              'Start Menu', 'Programs', 'Startup')
-                bat_file_path = os.path.join(startup_folder, 'Fuchen_Start_File.bat')
+                exe_file_name = "Fuchen.exe"
+                startup_folder = os.path.join(
+                    os.getenv("APPDATA"),
+                    "Microsoft",
+                    "Windows",
+                    "Start Menu",
+                    "Programs",
+                    "Startup",
+                )
+                bat_file_path = os.path.join(startup_folder, "Fuchen_Start_File.bat")
 
-                with open(bat_file_path, 'w') as file:
+                with open(bat_file_path, "w") as file:
                     current_dir = os.path.dirname(os.path.abspath(__file__))
-                    parent_dir = os.path.abspath(os.path.join(current_dir, '..'))
+                    parent_dir = os.path.abspath(os.path.join(current_dir, ".."))
                     file.write(f'cd /d "{parent_dir}"\n')
-                    file.write(f'start {exe_file_name}')
+                    file.write(f"start {exe_file_name}")
 
-                print(f'成功创建并写入.bat文件到启动文件夹: {bat_file_path}')
+                print(f"成功创建并写入.bat文件到启动文件夹: {bat_file_path}")
                 self.First = True
             except Exception as e:
                 pyautogui.confirm(e)
         elif (self.boot_check.isChecked() == False) and (self.First == True):
             try:
                 # 要移除的文件名
-                file_name = 'Fuchen_Start_File.bat'
-                startup_folder = os.path.join(os.getenv('APPDATA'), 'Microsoft', 'Windows',
-                                              'Start Menu', 'Programs', 'Startup')
+                file_name = "Fuchen_Start_File.bat"
+                startup_folder = os.path.join(
+                    os.getenv("APPDATA"),
+                    "Microsoft",
+                    "Windows",
+                    "Start Menu",
+                    "Programs",
+                    "Startup",
+                )
                 file_path = os.path.join(startup_folder, file_name)
 
                 if os.path.exists(file_path):
                     os.remove(file_path)
-                    print(f'{file_name} 已从启动文件夹中移除')
+                    print(f"{file_name} 已从启动文件夹中移除")
                 else:
-                    print(f'{file_name} 不存在于启动文件夹中')
+                    print(f"{file_name} 不存在于启动文件夹中")
                 self.First = False
             except Exception as e:
                 pyautogui.confirm(e)
@@ -816,8 +1418,6 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
             window_s = False
         self.repaint()
         if self.bg_default.isChecked():
-            if Theme == "Trend":
-                self.stop_dynamic_background()
             self.should_draw = "White"  # 清空背景图片
             self.sidebar.setGraphicsEffect(QGraphicsOpacityEffect(opacity=1))
             self.stack.setGraphicsEffect(QGraphicsOpacityEffect(opacity=1))
@@ -825,47 +1425,49 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
             default_palette = QApplication.palette()
             self.setPalette(default_palette)
             # 读取 JSON 文件
-            with open('config.json', 'r') as file:
+            with open("config.json", "r") as file:
                 config = json.load(file)
             config["Theme"] = "White"
             # 将更新后的数据写入 JSON 文件
-            with open('config.json', 'w') as file:
+            with open("config.json", "w") as file:
                 json.dump(config, file, indent=4)
             Theme = "White"
 
         if self.bg_custom.isChecked():
             try:
-                if Theme == "Trend":
-                    self.stop_dynamic_background()
                 file_name = self.bg_custom_path.text()
-                with open('config.json', 'r') as file:
+                with open("config.json", "r") as file:
                     config = json.load(file)
-                if config["Theme"] != "Custom" or config[
-                    "Path"] != file_name:  # 这个判断是为了防止目前的背景和选择的背景相同而设置 因此当选择的文件和现有设置的文件相同时 将不会执行
-                    if file_name != '':
+                if (
+                    config["Theme"] != "Custom" or config["Path"] != file_name
+                ):  # 这个判断是为了防止目前的背景和选择的背景相同而设置 因此当选择的文件和现有设置的文件相同时 将不会执行
+                    if file_name != "":
                         self.should_draw = "Custom"
                         # 读取 JSON 文件
-                        with open('config.json', 'r') as file:
+                        with open("config.json", "r") as file:
                             config = json.load(file)
                         config["Theme"] = "Custom"
                         config["Path"] = file_name
                         # 将更新后的数据写入 JSON 文件
-                        with open('config.json', 'w') as file:
+                        with open("config.json", "w") as file:
                             json.dump(config, file, indent=4)
                         im = Image.open(file_name)
                         reim = im.resize((1000, 600))  # 宽*高
-                        reim.save('./temp/background_custom.png',
-                                  dpi=(400, 400))  ##200.0,200.0分别为想要设定的dpi值
+                        reim.save(
+                            "./temp/background_custom.png", dpi=(400, 400)
+                        )  ##200.0,200.0分别为想要设定的dpi值
                         # 打开图片
-                        image = Image.open('./temp/background_custom.png')
+                        image = Image.open("./temp/background_custom.png")
                         # 应用高斯模糊，radius参数控制模糊程度（半径越大越模糊）
                         blurred_image = image.filter(ImageFilter.GaussianBlur(radius=5))
                         # 保存处理后的图片
-                        blurred_image.save('./temp/background_custom.png')
+                        blurred_image.save("./temp/background_custom.png")
 
                         palette = QPalette()
-                        palette.setBrush(QPalette.Background,
-                                         QBrush(QPixmap('./temp/background_custom.png')))
+                        palette.setBrush(
+                            QPalette.Background,
+                            QBrush(QPixmap("./temp/background_custom.png")),
+                        )
                         self.setPalette(palette)
                         self.repaint()
                         self.update()  # 新增此行
@@ -882,166 +1484,81 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
             except Exception as e:
                 print(e)
 
-        if self.bg_dynamic.isChecked():
-            file_name_V = self.bg_dynamic_path.text()
-            with open('config.json', 'r') as file:
-                config = json.load(file)
-            if config["Theme"] != "Trend" or config["Path"] != file_name_V:
-                if config["Theme"] != "Trend":
-                    if file_name_V != '':
-                        self.should_draw = "Trend"
-                        # 读取 JSON 文件
-                        with open('config.json', 'r') as file:
-                            config = json.load(file)
-                        config["Theme"] = f"Trend"
-                        config["Path"] = file_name_V
-                        # 将更新后的数据写入 JSON 文件
-                        with open('config.json', 'w') as file:
-                            json.dump(config, file, indent=4)
-                        self.save_setting_btn.setText("正在加载 请等待")
-                        self.save_setting_btn.repaint()
-                        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
-                        trp = transparent / 100
-                        self.sidebar.setGraphicsEffect(QGraphicsOpacityEffect(opacity=trp))
-                        self.stack.setGraphicsEffect(QGraphicsOpacityEffect(opacity=trp - 0.1))
-                        # 打开文件对话框选择视频
-                        # 创建视频框架前先清理窗口样式
-
-                        video_path, _ = QFileDialog.getOpenFileName(self, "选择视频文件", "",
-                                                                    "视频文件 (*.mp4 *.avi *.mkv *.mov)")
-
-                        if video_path:
-                            # 如果已经存在视频框架，先移除它
-                            if self.video_frame is not None:
-                                self.video_frame.deleteLater()
-
-                            # 创建VLC实例
-                            if self.instance is None:
-                                self.instance = vlc.Instance("--no-xlib")
-
-                            # 创建媒体播放器
-                            self.mediaplayer = self.instance.media_player_new()
-
-                            # 创建用于显示视频的框架
-                            self.video_frame = QFrame(self)
-                            self.video_frame.setAutoFillBackground(True)
-                            self.video_frame.setFrameShape(QFrame.Shape.Box)
-                            self.video_frame.setGeometry(0, 0, self.width(), self.height())  # 关键修改3：绝对坐标
-                            self.video_frame.lower()  # 关键修改4：确保在底层
-
-                            # 将视频框架设置为视频播放的表面
-                            if sys.platform.startswith("linux"):  # Linux
-                                self.mediaplayer.set_xwindow(int(self.video_frame.winId()))
-                            elif sys.platform == "win32":  # Windows
-                                self.mediaplayer.set_hwnd(int(self.video_frame.winId()))
-                            elif sys.platform == "darwin":  # macOS
-                                self.mediaplayer.set_nsobject(int(self.video_frame.winId()))
-
-                            # 创建并设置媒体
-                            media = self.instance.media_new(video_path)
-                            self.mediaplayer.set_media(media)
-
-                            # 设置视频循环播放
-                            event_manager = self.mediaplayer.event_manager()
-                            event_manager.event_attach(vlc.EventType.MediaPlayerEndReached, self.on_end_reached)
-
-                            # 播放视频
-                            self.mediaplayer.play()
-
-                            # 确保其他控件可见
-                            '''self.label.raise_()
-                            self.set_bg_button.raise_()
-                            self.test_button.raise_()'''
-                            self.video_frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-                        self.save_setting_btn.setText("设置")
-                        Theme = "Trend"
-                elif config["Path"] != file_name_V:
-                    with open('config.json', 'r') as file:
-                        config = json.load(file)
-                    config["Theme"] = f"Trend"
-                    config["Path"] = file_name_V
-                    # 将更新后的数据写入 JSON 文件
-                    with open('config.json', 'w') as file:
-                        json.dump(config, file, indent=4)
-                    self.save_setting_btn.setText("正在加载 请等待")
-                    self.save_setting_btn.repaint()
-                    self.deal_pictures(file_name_V)
-                    self.execute_trend_again()
-                    self.save_setting_btn.setText("设置")
-
         if n == True:
             pyautogui.confirm("设置成功!")
 
-    def on_end_reached(self, event):
-        # 视频结束后重新播放
-        self.mediaplayer.set_position(0)
-        self.mediaplayer.play()
-
-    def test_button_clicked(self):
-        if self.label.text() == "这是示例文本，将显示在视频上方":
-            self.label.setText("按钮点击测试 - 控件在视频上方正常工作！")
-        else:
-            self.label.setText("这是示例文本，将显示在视频上方")
-
     def resizeEvent(self, event):
-        # 更新视频框架尺寸为窗口最新尺寸
-        if self.video_frame:
-            self.video_frame.setGeometry(0, 0, self.width(), self.height())
         super().resizeEvent(event)
 
     def tourist_prompt(self):
         if Account == "游客":
             try:
-                # 读取 JSON 文件
-                with open('config.json', 'r') as f:
+                with open("config.json", "r") as f:
+                    config = json.load(f)
+                config["tourist_number"] += 1
+                with open("config.json", "w") as f:
+                    json.dump(config, f, indent=4)
+
+                with open("config.json") as f:
                     config = json.load(f)
 
-                # 修改数值（确保原值是整数）
-                config['tourist_number'] += 1
+                tourist_status = config["tourist_status"]
+                tourist_number = config["tourist_number"]
 
-                # 重新写入文件（覆盖原文件）
-                with open('config.json', 'w') as f:
-                    json.dump(config, f, indent=4)  # indent 保持美观格式
-
-                with open('config.json') as f:
-                    config = json.load(f)
-
-                tourist_status = config['tourist_status']
-                tourist_number = config['tourist_number']
-
-                print(tourist_status, type(tourist_status))  # 输出示例: True <class 'bool'>
-                print(tourist_number, type(tourist_number))  # 输出示例: 5 <class 'int'>
-
-                if tourist_status == False:
-                    if tourist_number == (5 or 20 or 100):
-                        time_wait = random.randint(5, 15)
-                        time.sleep(time_wait)
-                        result = pyautogui.confirm(
-                            f"您已启动Fuchen {tourist_number} 次\n注册账号可以使用更全面的功能 推荐您注册账号使用完整功能")
-
+                if not tourist_status and tourist_number in (5, 20, 100):
+                    time.sleep(random.randint(5, 15))
+                    self._tourist_prompt_signal.emit()
             except:
                 pass
-            pass
         else:
             try:
                 # 读取 JSON 文件
-                with open('config.json', 'r') as f:
+                with open("config.json", "r") as f:
                     config = json.load(f)
 
                 # 修改数值（确保原值是整数）
-                config['tourist_status'] = True
+                config["tourist_status"] = True
 
                 # 重新写入文件（覆盖原文件）
-                with open('config.json', 'w') as f:
+                with open("config.json", "w") as f:
                     json.dump(config, f, indent=4)  # indent 保持美观格式
             except:
                 pass
+
+    def _on_tourist_prompt(self):
+        with open("config.json") as f:
+            config = json.load(f)
+        tourist_number = config.get("tourist_number", 0)
+
+        reply = QMessageBox.question(
+            self,
+            "提示",
+            f"您已启动Fuchen {tourist_number} 次\n注册账号可以使用更全面的功能\n是否立即注册？",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.Yes,
+        )
+        if reply == QMessageBox.Yes:
+            from ui.RegisterWindow import Register
+            register_dialog = Register(s)
+            register_dialog.exec_()
+            if (register_dialog.result_value and
+                    register_dialog.result_value[0] == "注册成功"):
+                reply2 = QMessageBox.question(
+                    self,
+                    "注册成功",
+                    "注册成功！是否立即重新启动软件并使用新账号登录？",
+                    QMessageBox.Yes | QMessageBox.No,
+                    QMessageBox.Yes,
+                )
+                if reply2 == QMessageBox.Yes:
+                    self.restart_app()
 
     def get_current_time_string(self):
         global current_time_string
         current_time = time.localtime()  # 获取当前时间的时间结构
-        current_time_string = "[" + time.strftime("%H:%M:%S",
-                                                  current_time) + "]"  # 格式化时间为字符串
+        current_time_string = (
+            "[" + time.strftime("%H:%M:%S", current_time) + "]"
+        )  # 格式化时间为字符串
 
     def restart_app(self):
         subprocess.Popen([Fuchen_fullname])
@@ -1065,86 +1582,19 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
                     if usru == "OK":
                         webbrowser.open(result[2])
 
-    def load_images(self, folder_path):  # 动态主题导入文件
-
-        images = []
-        directory = './trend'  # 图片文件夹路径
-        file_count = len(
-            [f for f in os.listdir(directory) if os.path.isfile(os.path.join(directory, f))])
-        for i in range(1, file_count):  # 假设图片名称格式为 'frame_1.jpg', 'frame_2.jpg', ...
-            img_path = os.path.join(folder_path, f'frame_{i}.jpg')
-            img = cv2.imread(img_path)
-            img = cv2.resize(img, (1000, 600))
-            if img is not None:
-                images.append(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))  # 转换颜色空间
-        return images
-
-    def update_frame(self):
-        if self.images:
-            # 显示当前索引的图片
-            frame = self.images[self.image_index]
-            height, width, channel = frame.shape
-            bytesPerLine = 3 * width
-            image = QImage(frame.data, width, height, bytesPerLine, QImage.Format_RGB888)
-            pix = QPixmap.fromImage(image)
-            self.trend_theme.setPixmap(pix)
-            # 更新索引，循环播放
-            self.image_index = (self.image_index + 1) % len(self.images)
-
-    def execute_trend(self):
-        trp = transparent / 100
-        self.sidebar.setGraphicsEffect(QGraphicsOpacityEffect(opacity=trp))
-        self.stack.setGraphicsEffect(QGraphicsOpacityEffect(opacity=trp - 0.1))
-        self.image_index = 0  # 当前显示的图片索引
-        # 加载文件夹里的图片
-        self.images = self.load_images('./trend')  # 设置图片文件夹路径
-        if not self.images:
-            pyautogui.alert("未找到图片或图片导入失败")
-            return 0
-        self.trend_theme = QLabel(self)
-        self.trend_theme.resize(self.size())
-        self.trend_theme.setScaledContents(True)
-        self.trend_theme.show()
-        self.trend_theme.lower()
-
-        # 设置定时器以每秒更新30帧
-        self.timer_trend = QTimer(self)
-        self.timer_trend.timeout.connect(self.update_frame)
-        self.timer_trend.start(int(1000 / FPS))  # 每帧 = (1000 ms / fps)
-
-    def execute_trend_again(self):
-        self.stop_dynamic_background()
-        self.execute_trend()
-
-    def stop_dynamic_background(self):
-        self.timer_trend.stop()
-        self.timer_trend.deleteLater()
-        self.trend_theme.clear()
-        self.trend_theme.deleteLater()
-        del self.image_index, self.images
-
-    def resize_frame(self, frame):
-        window_width = self.width()
-        window_height = self.height()
-        height, width, _ = frame.shape
-        scaling_factor = min(window_width / width, window_height / height)
-        new_size = (int(width * scaling_factor), int(height * scaling_factor))
-        frame_resized = cv2.resize(frame, new_size, interpolation=cv2.INTER_AREA)
-        return frame_resized
-
     def updateTime(self):
         currentTime = QtCore.QTime.currentTime()
         elapsedTime = self.startTime.secsTo(currentTime)
 
     def QQ_change(self, checked):  # 句柄发送位置切换
         global handle_position
-        if checked == 'old':
+        if checked == "old":
             handle_position = [30, -60]
         else:
             handle_position = [-30, -60]
 
     def get_connect_status(self):
-        TypedJSONClient('get_connect_status', 'N')
+        TypedJSONClient("get_connect_status", "N")
         try:
             color = QColor(36, 152, 42)
             self.status_label.setStyleSheet(f"color: {color.name()};")  # 设置字体颜色
@@ -1153,7 +1603,7 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
             print(result)
         except:
             traceback.print_exc()
-            print('与服务器断开连接')
+            print("与服务器断开连接")
             color = QColor(164, 38, 15)  # 使用RGB值设置颜色为红色
             self.status_label.setStyleSheet(f"color: {color.name()};")  # 设置字体颜色
             self.status_label.setText("与服务器状态: 断开连接")
@@ -1163,49 +1613,65 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
         param = globals()[value]
         return param
 
+    def update_auth_tokens(self, new_access_token=None, new_refresh_token=None):
+        global access_token, refresh_token
+        access_token = new_access_token
+        refresh_token = new_refresh_token
+
+    def on_socket_reconnected(self, new_socket):
+        global s
+        s = new_socket
+        new_mainpage.s = new_socket
+
     def clear_temp(self):
         # global Theme
         total_size = 0
-        for dirpath, dirnames, filenames in os.walk('./temp'):
+        for dirpath, dirnames, filenames in os.walk("./temp"):
             for filename in filenames:
                 filepath = os.path.join(dirpath, filename)
                 total_size += os.path.getsize(filepath)
-        if Theme != "Trend":
-            for dirpath, dirnames, filenames in os.walk('./trend'):
-                for filename in filenames:
-                    filepath = os.path.join(dirpath, filename)
-                    total_size += os.path.getsize(filepath)
         if total_size != 0:
             total_size = float(total_size / 1024)
             if total_size < 1024:
-                result = QMessageBox.question(self, "Fuchen",
-                                              f"缓存内容大小为:{round(total_size, 2)}KB\n清理缓存不影响正常使用 是否进行清除?",
-                                              QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+                result = QMessageBox.question(
+                    self,
+                    "Fuchen",
+                    f"缓存内容大小为:{round(total_size, 2)}KB\n清理缓存不影响正常使用 是否进行清除?",
+                    QMessageBox.Yes | QMessageBox.No,
+                    QMessageBox.No,
+                )
                 if result == QMessageBox.Yes:
-                    shutil.rmtree('./temp')
+                    shutil.rmtree("./temp")
                     # 重新创建空文件夹
-                    os.mkdir('./temp')
+                    os.mkdir("./temp")
                     pyautogui.confirm("缓存清除成功!")
             else:
                 total_size = float(total_size / 1024)
-                result = QMessageBox.question(self, "Fuchen",
-                                              f"缓存内容大小为:{round(total_size, 2)}MB\n清理缓存不影响正常使用 是否进行清除?",
-                                              QMessageBox.Yes | QMessageBox.No,
-                                              QMessageBox.No)
+                result = QMessageBox.question(
+                    self,
+                    "Fuchen",
+                    f"缓存内容大小为:{round(total_size, 2)}MB\n清理缓存不影响正常使用 是否进行清除?",
+                    QMessageBox.Yes | QMessageBox.No,
+                    QMessageBox.No,
+                )
                 if result == QMessageBox.Yes:
-                    shutil.rmtree('./temp')
+                    shutil.rmtree("./temp")
                     # 重新创建空文件夹
-                    os.mkdir('./temp')
-                    if Theme != "Trend":
-                        shutil.rmtree('./trend')
-                        # 重新创建空文件夹
-                        os.mkdir('./trend')
+                    os.mkdir("./temp")
                     pyautogui.confirm("缓存清除成功!")
         else:
             self.show_message_box("Fuchen", f"暂无缓存内容")
 
     def setValue(self, Set):
-        global AutoLogin, Sound, ClosePrompt, CloseExecute, window_s, Theme, transparent, FPS
+        global \
+            AutoLogin, \
+            Sound, \
+            ClosePrompt, \
+            CloseExecute, \
+            window_s, \
+            Theme, \
+            transparent, \
+            FPS
         AutoLogin = Set[0]
         Sound = Set[1]
         ClosePrompt = Set[2]
@@ -1237,18 +1703,18 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
     def run_team_command(self, command):
         if command == "handle":
             MyThread(self.Handle_Send)
-        elif command == 'qq':
+        elif command == "qq":
             MyThread(self.Send_QQ)
-        elif command == 'copy':
+        elif command == "copy":
             MyThread(self.Send_Copy)
-        elif command == 'update':
+        elif command == "update":
             MyThread(self.QQ_image_update)
-        elif command == 'execute':
+        elif command == "execute":
             MyThread(self.Click_Record_execute)
 
     def open_user_window(self):
         # 查找窗口
-        usr_win = gw.getWindowsWithTitle('Fuchen个人信息')
+        usr_win = gw.getWindowsWithTitle("Fuchen个人信息")
         # 判断窗口是否存在
         if usr_win:
             usr_win[0].close()  # 关闭第一个匹配的窗口
@@ -1281,23 +1747,25 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
 
     def open_record_window(self):
         import ui.RecordPosition
+
         self.record__position_window = ui.RecordPosition.record_position(self)
         self.record__position_window.exec_()
 
     def open_console_window(self):
         with open("config.json", "r") as file:
             config = json.load(file)
-        if config['console_theme'] == 'light':
-            console_theme = 'light'
+        if config["console_theme"] == "light":
+            console_theme = "light"
         else:
-            console_theme = 'dark'
+            console_theme = "dark"
         self.console_window = ui.console_window.ConsoleWindow(
-            [self.stdout_stream, self.stderr_stream, self, s, console_theme])
+            [self.stdout_stream, self.stderr_stream, self, s, console_theme]
+        )
         self.console_window.show()
 
     def open_fileedit_window(self):
-        if self.file_lineEdit.text() == '':
-            file_name = ''
+        if self.file_lineEdit.text() == "":
+            file_name = ""
         else:
             file_name = self.file_lineEdit.text()
         self.fileedit_window = ui.fileEdit.EditorWindow(file_name, self)
@@ -1323,37 +1791,24 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
     def play_sound(self):
         play_prompt_sound("C:\\Windows\\Media\\Windows Notify Messaging.wav")
 
-    '''def send_talk(self):
+    """def send_talk(self):
         text = self.uim.talk_lineEdit.text()
         text = re.sub(' ', '~~space~~', text)
         send_encry("20030 "+text)
-        self.uim.talk_lineEdit.clear()'''
+        self.uim.talk_lineEdit.clear()"""
 
     def closeEvent(self, e):
         try:
             if self.open_status == True:
-                self.c_thread_object.kill()
+                self._stop_click_process()
             try:
-                if hasattr(self, 'shm_ptr'):
-                    kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
-                    UnmapViewOfFile = kernel32.UnmapViewOfFile
-                    CloseHandle = kernel32.CloseHandle
-
-                    UnmapViewOfFile(self.shm_ptr)
-                    CloseHandle(self.shm_handle)
-
-                    del self.shm_ptr
-                    del self.shm_handle
+                self._cleanup_click_shared_memory()
             except:
                 pass
 
             os._exit(0)
         except Exception as e:
             print(e)
-
-    def cv2_download_link(self):
-        result = function.get_dwonload_link()
-        return result
 
     # 新增城市修改方法
     def change_city_name(self, event):
@@ -1362,10 +1817,10 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
         # 创建输入对话框
         dialog = QInputDialog(self)
         dialog.setInputMode(QInputDialog.TextInput)
-        dialog.setWindowTitle('修改城市')
-        dialog.setLabelText('请输入城市名称:')
+        dialog.setWindowTitle("修改城市")
+        dialog.setLabelText("请输入城市名称:")
         dialog.setTextValue(str(city_name))
-        #dialog.setWindowFlags(Qt.FramelessWindowHint)
+        # dialog.setWindowFlags(Qt.FramelessWindowHint)
 
         # 设置对话框整体样式
         dialog.setStyleSheet("""
@@ -1402,11 +1857,11 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
 
         # 调整对话框尺寸
         dialog.resize(300, 150)
-        '''# 计算居中位置并移动对话框[6,7,8](@ref)
+        """# 计算居中位置并移动对话框[6,7,8](@ref)
         screen_geometry = QApplication.desktop().availableGeometry()
         x = (screen_geometry.width() - dialog.width()) // 2
         y = (screen_geometry.height() - dialog.height()) // 2
-        dialog.move(x, y)'''
+        dialog.move(x, y)"""
         if dialog.exec_() == QDialog.Accepted:
             new_city = dialog.textValue().strip()
             if new_city:
@@ -1419,22 +1874,22 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
                 print("开始更新天气 请稍后")
                 api_key = "dce92b382ffb9409ca31ae4c1b240d4f"
                 # 发送请求获取IP地址信息
-                '''res = requests.get('http://myip.ipip.net', timeout=5).text
+                """res = requests.get('http://myip.ipip.net', timeout=5).text
                 # 提取城市信息
                 split_res = res.split('  ')
                 city_info = split_res[-2]  # 倒数第二个元素是位置信息
                 city_info = city_info.split(' ')
                 country = city_info[-3]
-                city_info = city_info[-1]'''
+                city_info = city_info[-1]"""
                 # global city_name, weather_status, temperature, humidity, weather_info
                 self.weather_label.setText("正在获取天气...")
                 global city_name, city_info
                 country = city_info[-3]
-                if country[-2:] == '中国':
+                if country[-2:] == "中国":
                     # city_name = city_info
                     pinyin_list = pinyin(city_name, style=Style.NORMAL)
                     # 从拼音列表中提取拼音并连接成字符串
-                    pinyin_str = ''.join([item[0] for item in pinyin_list])
+                    pinyin_str = "".join([item[0] for item in pinyin_list])
                     # 设置API请求的URL
                     base_url = "http://api.openweathermap.org/data/2.5/weather"
                     url = f"{base_url}?q={pinyin_str}&appid={api_key}"
@@ -1450,30 +1905,30 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
                         weather_id = data["weather"][0]["id"]
 
                         # 根据天气类型设置emoji和描述
-                        emoji, weather_desc = '🌡️', '未知天气'
-                        if weather_main == 'Clear':
-                            emoji, weather_desc = '☀️', '晴天'
-                        elif weather_main == 'Clouds':
+                        emoji, weather_desc = "🌡️", "未知天气"
+                        if weather_main == "Clear":
+                            emoji, weather_desc = "☀️", "晴天"
+                        elif weather_main == "Clouds":
                             if 801 <= weather_id <= 802:
-                                emoji, weather_desc = '⛅', '晴间多云'
+                                emoji, weather_desc = "⛅", "晴间多云"
                             elif 803 <= weather_id <= 804:
-                                emoji, weather_desc = '☁️', '多云'
-                        elif weather_main == 'Rain':
-                            emoji, weather_desc = '🌧️', '下雨'
-                        elif weather_main == 'Drizzle':
-                            emoji, weather_desc = '🌧️', '小雨'
-                        elif weather_main == 'Thunderstorm':
-                            emoji, weather_desc = '⛈️', '雷雨'
-                        elif weather_main == 'Snow':
-                            emoji, weather_desc = '🌨️', '下雪'
-                        elif weather_main in ('Mist', 'Fog'):
-                            emoji, weather_desc = '🌫️', '雾'
-                        elif weather_main == 'Haze':
-                            emoji, weather_desc = '🌫️', '霾'
-                        elif weather_main == 'Squall':
-                            emoji, weather_desc = '💨', '大风'
-                        elif weather_main == 'Tornado':
-                            emoji, weather_desc = '🌪️', '龙卷风'
+                                emoji, weather_desc = "☁️", "多云"
+                        elif weather_main == "Rain":
+                            emoji, weather_desc = "🌧️", "下雨"
+                        elif weather_main == "Drizzle":
+                            emoji, weather_desc = "🌧️", "小雨"
+                        elif weather_main == "Thunderstorm":
+                            emoji, weather_desc = "⛈️", "雷雨"
+                        elif weather_main == "Snow":
+                            emoji, weather_desc = "🌨️", "下雪"
+                        elif weather_main in ("Mist", "Fog"):
+                            emoji, weather_desc = "🌫️", "雾"
+                        elif weather_main == "Haze":
+                            emoji, weather_desc = "🌫️", "霾"
+                        elif weather_main == "Squall":
+                            emoji, weather_desc = "💨", "大风"
+                        elif weather_main == "Tornado":
+                            emoji, weather_desc = "🌪️", "龙卷风"
 
                         # 更新天气标签
                         # 生成完整显示文本
@@ -1493,7 +1948,10 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
                             city = parts[1]
                             for i in range(len(city) - 1, 0, -1):
                                 shortened = base + city[:i] + "…"
-                                if font_metrics.horizontalAdvance(shortened) <= max_width:
+                                if (
+                                    font_metrics.horizontalAdvance(shortened)
+                                    <= max_width
+                                ):
                                     return shortened
                             return text[:3] + "…"  # 保底方案
 
@@ -1504,43 +1962,45 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
                         self.weather_label.setText(display_text)
                         self.weather_label.setToolTip(full_text)  # 悬浮显示完整信息
                         weather_status = True
-                        print(f"天气获取成功 城市:{city_name} 温度:{temp}°C 湿度:{humidity}%")
+                        print(
+                            f"天气获取成功 城市:{city_name} 温度:{temp}°C 湿度:{humidity}%"
+                        )
                     else:
                         self.weather_label.setText("天气获取失败")
                         weather_status = False
-                        print('天气获取失败')
+                        print("天气获取失败")
                 else:
                     self.weather_label.setText("当前位置暂不支持天气解析")
                     print("当前位置暂不支持天气解析")
             except requests.exceptions.Timeout:
                 self.weather_label.setText("获取天请求超时")
-                print(f'获取天气请求超时')
+                print(f"获取天气请求超时")
             except Exception as e:
                 traceback.print_exc()
                 self.weather_label.setText("天气获取失败")
-                print(f'天气获取失败: {str(e)}')
+                print(f"天气获取失败: {str(e)}")
 
         MyThread(get_response)
 
     def open_folder(self, page):  # 浏览QQ头像下载文件夹
-        if page == 'picture':
-            folder_path = './mod/picture'
+        if page == "picture":
+            folder_path = "./mod/picture"
             url = QUrl.fromLocalFile(folder_path)
             QDesktopServices.openUrl(url)
 
-        elif page == 'music':
+        elif page == "music":
             folder_path = self.music_savepath.text()
             url = QUrl.fromLocalFile(folder_path)
             QDesktopServices.openUrl(url)
 
-        elif page == 'xlsx':
-            folder_path = '.mod/xlsx'
+        elif page == "xlsx":
+            folder_path = ".mod/xlsx"
             url = QUrl.fromLocalFile(folder_path)
             QDesktopServices.openUrl(url)
 
     def init_shared_memory(self):
         # 确保kernel32的API正确定义
-        kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
 
         # 定义CloseHandle（需要补充这部分声明）
         CloseHandle = kernel32.CloseHandle
@@ -1560,7 +2020,7 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
             wintypes.DWORD,
             wintypes.DWORD,
             wintypes.DWORD,
-            wintypes.LPCWSTR
+            wintypes.LPCWSTR,
         ]
         CreateFileMappingW.restype = wintypes.HANDLE
 
@@ -1571,7 +2031,7 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
             wintypes.DWORD,
             wintypes.DWORD,
             wintypes.DWORD,
-            ctypes.c_size_t
+            ctypes.c_size_t,
         ]
         MapViewOfFile.restype = wintypes.LPVOID
 
@@ -1586,7 +2046,7 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
             0x04,  # PAGE_READWRITE
             0,
             SHM_SIZE,
-            SHM_NAME
+            SHM_NAME,
         )
         if h_map == 0:
             error = ctypes.GetLastError()
@@ -1600,7 +2060,7 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
             0xF001F,  # FILE_MAP_ALL_ACCESS
             0,
             0,
-            SHM_SIZE
+            SHM_SIZE,
         )
         if not ptr:
             error = ctypes.GetLastError()
@@ -1619,11 +2079,11 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
 
     def update_shared_params(self):
         """更新共享内存参数"""
-        if hasattr(self, 'shm_ptr'):
+        if hasattr(self, "shm_ptr"):
             # 转换当前参数
             hotkey = self._convert_hotkey_to_code()
             if hotkey == 8888:
-                self.show_message_box('提示', '按键错误 请重新输入')
+                self.show_message_box("提示", "按键错误 请重新输入")
                 return 0
             interval = float(self._3D.value())
             print(interval)
@@ -1641,11 +2101,55 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
         else:
             return 2
 
+    def _start_click_process(self):
+        click_exe = os.path.abspath("./mod/more/click.exe")
+        if not os.path.exists(click_exe):
+            raise FileNotFoundError(f"未找到连点器程序: {click_exe}")
+        creation_flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        return subprocess.Popen(
+            [click_exe, str(APP_VERSION)],
+            creationflags=creation_flags,
+        )
+
+    def _stop_click_process(self):
+        proc = getattr(self, "c_thread_object", None)
+        if not proc:
+            return
+        try:
+            if proc.poll() is None:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    proc.wait(timeout=2)
+        finally:
+            self.c_thread_object = None
+
+    def _cleanup_click_shared_memory(self):
+        if not hasattr(self, "shm_ptr"):
+            return
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+
+        UnmapViewOfFile = kernel32.UnmapViewOfFile
+        UnmapViewOfFile.argtypes = [ctypes.c_void_p]
+        UnmapViewOfFile.restype = wintypes.BOOL
+
+        CloseHandle = kernel32.CloseHandle
+        CloseHandle.argtypes = [wintypes.HANDLE]
+        CloseHandle.restype = wintypes.BOOL
+
+        UnmapViewOfFile(ctypes.c_void_p(self.shm_ptr))
+        CloseHandle(self.shm_handle)
+
+        del self.shm_ptr
+        del self.shm_handle
+
     def open_click(self):  # 开启连点器部分
-        if (self.RClick_Radio.isChecked()) and (self.sort == '鼠标右键'):
+        if (self.RClick_Radio.isChecked()) and (self.sort == "鼠标右键"):
             pyautogui.confirm("点击按键和监听热键不可相同!")
             return 0
-        elif (self.MClick_Radio.isChecked()) and (self.sort == '鼠标中键'):
+        elif (self.MClick_Radio.isChecked()) and (self.sort == "鼠标中键"):
             pyautogui.confirm("点击按键和监听热键不可相同!")
             return 0
         try:
@@ -1665,10 +2169,7 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
                     self.write_shared_memory(ptr, hotkey, interval, click_type)
 
                     # 启动click.exe
-                    self.c_thread_object = subprocess.Popen(
-                        ["./mod/more/click.exe", str(APP_VERSION)],  # 添加版本参数
-                        creationflags=subprocess.CREATE_NO_WINDOW  # 隐藏控制台
-                    )
+                    self.c_thread_object = self._start_click_process()
 
                     # 保存句柄和指针用于后续清理
                     self.shm_handle = h_map
@@ -1680,7 +2181,8 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
                 self.low_speed_radio.setEnabled(False)
             except KeyboardInterrupt:
                 # 处理 Ctrl+C 中断
-                self.c_thread_object.terminate()
+                self._stop_click_process()
+                self._cleanup_click_shared_memory()
                 sys.exit()
             except Exception as e:
                 traceback.print_exc()
@@ -1689,33 +2191,25 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
                 self._3pushButton_7.setVisible(True)
                 # 处理其他异常
                 pyautogui.confirm(f"Error: {e}")
-
-                self.c_thread_object.kill()
-                sys.exit()
-            '''finally:
+                self._stop_click_process()
+                self._cleanup_click_shared_memory()
+            """finally:
                 # 确保在程序退出时终止 程序
-                C_thread.terminate()'''
+                C_thread.terminate()"""
         except Exception as e:
             print(e)
             pyautogui.confirm(e)
 
     def break_click(self):  # 关闭连点器
         try:
-            if self.open_status == True:
-                self.c_thread_object.terminate()
-                # 清理共享内存
-                '''if hasattr(self, 'shm_ptr'):
-                    kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
-                    UnmapViewOfFile = kernel32.UnmapViewOfFile
-                    CloseHandle = kernel32.CloseHandle
+            if getattr(self, "open_status", False):
+                # 先停掉子进程
+                self._stop_click_process()
 
-                    UnmapViewOfFile(self.shm_ptr)
-                    CloseHandle(self.shm_handle)
+                # 再清理共享内存（只有高速模式才会有这俩属性）
+                self._cleanup_click_shared_memory()
 
-                    del self.shm_ptr
-                    del self.shm_handle'''
-                del self.c_thread_object
-                self.c_thread_object = None
+                # 恢复 UI 和标志位
                 self.open_status = False
                 self._3pushButton_6.setText("开启连点器")
                 self._3pushButton_6.setEnabled(True)
@@ -1726,7 +2220,7 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
         except Exception as e:
             traceback.print_exc()
             print(e)
-            pyautogui.confirm(e)
+            pyautogui.confirm(str(e))
 
     def _convert_hotkey_to_code(self):
         # 返回对应的键值或默认值
@@ -1760,69 +2254,96 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
             config = {
                 "handle": group.edit_handle.text(),
                 "action": group.combo_action.currentText(),
-                "param": group.edit_param.text()
+                "param": group.edit_param.text(),
             }
             configurations.append(config)
 
         if configurations != []:
             for i in range(self.spin_executions.value()):
-
                 for x in configurations:
-                    action = x['action']
-                    if action == '点击':
+                    action = x["action"]
+                    if action == "点击":
                         try:
-                            hwnd = int(x['handle'])
+                            hwnd = int(x["handle"])
                             win32gui.SetForegroundWindow(hwnd)
                             time.sleep(0.5)  # 等待窗口聚焦
-                            parts = x['param'].split(',')
+                            parts = x["param"].split(",")
                             click_x = int(parts[0])
                             click_y = int(parts[1])
-                            long_position = win32api.MAKELONG(click_x, click_y)  # 模拟鼠标指针 传送到指定坐标
-                            win32api.PostMessage(hwnd, win32con.WM_LBUTTONDOWN, win32con.MK_LBUTTON,
-                                                 long_position)  # 模拟鼠标按下
-                            win32api.PostMessage(hwnd, win32con.WM_LBUTTONUP, win32con.MK_LBUTTON,
-                                                 long_position)  # 模拟鼠标弹起
+                            long_position = win32api.MAKELONG(
+                                click_x, click_y
+                            )  # 模拟鼠标指针 传送到指定坐标
+                            win32api.PostMessage(
+                                hwnd,
+                                win32con.WM_LBUTTONDOWN,
+                                win32con.MK_LBUTTON,
+                                long_position,
+                            )  # 模拟鼠标按下
+                            win32api.PostMessage(
+                                hwnd,
+                                win32con.WM_LBUTTONUP,
+                                win32con.MK_LBUTTON,
+                                long_position,
+                            )  # 模拟鼠标弹起
                         except Exception as e:
                             traceback.print_exc()
-                    elif action == '右键':
+                    elif action == "右键":
                         try:
-                            hwnd = int(x['handle'])
+                            hwnd = int(x["handle"])
                             print(hwnd, type(hwnd))
                             win32gui.SetForegroundWindow(hwnd)
                             time.sleep(0.5)  # 等待窗口聚焦
-                            parts = x['param'].split(',')
+                            parts = x["param"].split(",")
                             click_x = int(parts[0])
                             click_y = int(parts[1])
-                            long_position = win32api.MAKELONG(click_x, click_y)  # 模拟鼠标指针 传送到指定坐标
+                            long_position = win32api.MAKELONG(
+                                click_x, click_y
+                            )  # 模拟鼠标指针 传送到指定坐标
                             print(long_position, type(long_position))
-                            win32api.PostMessage(hwnd, win32con.WM_RBUTTONDOWN, win32con.MK_RBUTTON,
-                                                 long_position)  # 模拟鼠标按下
-                            win32api.PostMessage(hwnd, win32con.WM_RBUTTONUP, win32con.MK_RBUTTON,
-                                                 long_position)  # 模拟鼠标弹起
+                            win32api.PostMessage(
+                                hwnd,
+                                win32con.WM_RBUTTONDOWN,
+                                win32con.MK_RBUTTON,
+                                long_position,
+                            )  # 模拟鼠标按下
+                            win32api.PostMessage(
+                                hwnd,
+                                win32con.WM_RBUTTONUP,
+                                win32con.MK_RBUTTON,
+                                long_position,
+                            )  # 模拟鼠标弹起
                         except Exception as e:
                             traceback.print_exc()
-                    elif action == '粘贴':
+                    elif action == "粘贴":
                         win32api.keybd_event(win32con.VK_CONTROL, 0, 0, 0)
                         # 按下 Ctrl 键
-                        win32api.keybd_event(ord('V'), 0, 0, 0)
+                        win32api.keybd_event(ord("V"), 0, 0, 0)
                         # 按下 V 键
-                        win32api.keybd_event(ord('V'), 0, win32con.KEYEVENTF_KEYUP, 0)
+                        win32api.keybd_event(ord("V"), 0, win32con.KEYEVENTF_KEYUP, 0)
                         # 放开 V 键
-                        win32api.keybd_event(win32con.VK_CONTROL, 0, win32con.KEYEVENTF_KEYUP, 0)
+                        win32api.keybd_event(
+                            win32con.VK_CONTROL, 0, win32con.KEYEVENTF_KEYUP, 0
+                        )
                         # 放开 Ctrl 键
-                    elif action == '按键':
+                    elif action == "按键":
                         # 向指定窗口发送 Enter 键
                         win32api.keybd_event(x, 0, 0, 0)  # 按下 Enter 键
-                        win32api.keybd_event(win32con.VK_RETURN, 0, win32con.KEYEVENTF_KEYUP, 0)  # 放开 Enter 键
-                    elif action == '回车':
+                        win32api.keybd_event(
+                            win32con.VK_RETURN, 0, win32con.KEYEVENTF_KEYUP, 0
+                        )  # 放开 Enter 键
+                    elif action == "回车":
                         # 向指定窗口发送 Enter 键
-                        win32api.keybd_event(win32con.VK_RETURN, 0, 0, 0)  # 按下 Enter 键
-                        win32api.keybd_event(win32con.VK_RETURN, 0, win32con.KEYEVENTF_KEYUP, 0)  # 放开 Enter 键
-                    elif action == '等待':
-                        time.sleep(int(x['param']))
+                        win32api.keybd_event(
+                            win32con.VK_RETURN, 0, 0, 0
+                        )  # 按下 Enter 键
+                        win32api.keybd_event(
+                            win32con.VK_RETURN, 0, win32con.KEYEVENTF_KEYUP, 0
+                        )  # 放开 Enter 键
+                    elif action == "等待":
+                        time.sleep(int(x["param"]))
 
                 time.sleep(self.spin_interval.value())
-            print('执行完毕')
+            print("执行完毕")
 
     def start_detection(self):
         # self.mask = page.ScreenMask(self)
@@ -1835,11 +2356,11 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
     def QQ_Group_information(self):  # QQ群信息获取
         play_prompt_sound("C:\\Windows\\Media\\Windows Notify Messaging.wav")
         if self.Edge_Radio.isChecked():
-            mode = 'Edge'
+            mode = "Edge"
         elif self.Chrome_Radio.isChecked():
-            mode = 'Chrome'
+            mode = "Chrome"
         elif self.Ie_Radio.isChecked():
-            mode = 'Ie'
+            mode = "Ie"
         else:
             pyautogui.confirm("文件选择类型错误 请重试!")
             return 0
@@ -1850,12 +2371,17 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
         send_date = self.checkBox_send_date.isChecked()
         group_lv = self.checkBox_group_lv.isChecked()
         folder = self.lineEdit_group_path.text()
-        result = function.QQ_Group_Obtain(mode, folder, Qid, sex, QQ_year, join_date, send_date, group_lv)
-        if str(type(result)) == '<class \'selenium.common.exceptions.NoSuchWindowException\'>':
+        result = function.QQ_Group_Obtain(
+            mode, folder, Qid, sex, QQ_year, join_date, send_date, group_lv
+        )
+        if (
+            str(type(result))
+            == "<class 'selenium.common.exceptions.NoSuchWindowException'>"
+        ):
             pyautogui.confirm("操作取消")
-        elif result == 'Cancel':
+        elif result == "Cancel":
             pyautogui.confirm("操作取消")
-        elif str(result[0:6]) == '文件保存成功':
+        elif str(result[0:6]) == "文件保存成功":
             pyautogui.confirm(result)
         else:
             pyautogui.confirm(result, "错误:")
@@ -1886,8 +2412,8 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
             return
 
         def parse_version(version):
-            cleaned = re.sub(r'^[^\d.]*', '', version, flags=re.IGNORECASE)
-            parts = cleaned.split('.')
+            cleaned = re.sub(r"^[^\d.]*", "", version, flags=re.IGNORECASE)
+            parts = cleaned.split(".")
             nums = []
             for part in parts:
                 try:
@@ -1911,7 +2437,7 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
                 update_needed = True
                 break
             elif server_num < local_num:
-                QMessageBox.information(self, '提示:', '当前已是最新版本 无需更新')
+                QMessageBox.information(self, "提示:", "当前已是最新版本 无需更新")
                 return
 
         # 如果前面部分完全相同，检查服务器是否有额外非零子版本
@@ -1926,11 +2452,13 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
             if result == "OK":
                 webbrowser.open(last_link)
         else:
-            QMessageBox.information(self, '提示:', '当前已是最新版本 无需更新')
+            QMessageBox.information(self, "提示:", "当前已是最新版本 无需更新")
 
     def download_image(self):  # 下载QQ头像
         if exp < 20:
-            pyautogui.confirm("该功能需要Lv2才能使用!\n按ctrl+o 或按f12 打开控制台 输入签到 签到一天即可使用!")
+            pyautogui.confirm(
+                "该功能需要Lv2才能使用!\n按ctrl+o 或按f12 打开控制台 输入签到 签到一天即可使用!"
+            )
             return 0
         self.btn_download_qq.setEnabled(False)
 
@@ -1939,8 +2467,9 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
             digits = random.randint(7, 10)
             # 生成随机数字字符串
             first_digit = random.randint(1, 9)  # 生成1到9之间的随机数作为第一位
-            remaining_digits = ''.join(
-                random.choices('0123456789', k=digits - 1))  # 生成剩余位数的随机数字字符串
+            remaining_digits = "".join(
+                random.choices("0123456789", k=digits - 1)
+            )  # 生成剩余位数的随机数字字符串
             random_number = str(first_digit) + remaining_digits
 
             return random_number
@@ -1974,11 +2503,14 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
             self.successfully_download_times.setText("有效次数: 0 次")
         self.btn_download_qq.setEnabled(True)
         MyThread(play_warning_sound)
-        pyautogui.confirm(f"图片下载成功!\n本次已成功下载{success}张图片(已删除默认头像)")
+        pyautogui.confirm(
+            f"图片下载成功!\n本次已成功下载{success}张图片(已删除默认头像)"
+        )
 
     def QQ_image_update(self):  # QQ个人信息资料一键更新
         result = pyautogui.confirm(
-            "此功能只适用于旧版QQ! 请确认QQ版本后再使用\n请确保QQ主窗口已经打开 若打开则点击确认按钮 修改资料时 请勿移动鼠标\n若出现修改失败的情况 可能是间隔时间过小 略微调大即可")
+            "此功能只适用于旧版QQ! 请确认QQ版本后再使用\n请确保QQ主窗口已经打开 若打开则点击确认按钮 修改资料时 请勿移动鼠标\n若出现修改失败的情况 可能是间隔时间过小 略微调大即可"
+        )
         if result != "OK":
             return 0
         try:
@@ -2014,28 +2546,34 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
             width, height = getWindowSize(hwnd)  # 获取窗口的尺寸
             click_x = width + cx
             click_y = height + cy  # 计算相对底部的y坐标HELLO
-            long_position = win32api.MAKELONG(click_x, click_y)  # 模拟鼠标指针 传送到指定坐标
-            win32api.SendMessage(hwnd, win32con.WM_LBUTTONDOWN, win32con.MK_LBUTTON,
-                                 long_position)  # 模拟鼠标按下
-            win32api.SendMessage(hwnd, win32con.WM_LBUTTONUP, win32con.MK_LBUTTON,
-                                 long_position)  # 模拟鼠标弹起
+            long_position = win32api.MAKELONG(
+                click_x, click_y
+            )  # 模拟鼠标指针 传送到指定坐标
+            win32api.SendMessage(
+                hwnd, win32con.WM_LBUTTONDOWN, win32con.MK_LBUTTON, long_position
+            )  # 模拟鼠标按下
+            win32api.SendMessage(
+                hwnd, win32con.WM_LBUTTONUP, win32con.MK_LBUTTON, long_position
+            )  # 模拟鼠标弹起
             # 发送 Ctrl+V 来像聊天框粘贴信息
 
             win32api.keybd_event(win32con.VK_CONTROL, 0, 0, 0)
             # 按下 Ctrl 键
-            win32api.keybd_event(ord('V'), 0, 0, 0)
+            win32api.keybd_event(ord("V"), 0, 0, 0)
             # 按下 V 键
-            win32api.keybd_event(ord('V'), 0, win32con.KEYEVENTF_KEYUP, 0)
+            win32api.keybd_event(ord("V"), 0, win32con.KEYEVENTF_KEYUP, 0)
             # 放开 V 键
             win32api.keybd_event(win32con.VK_CONTROL, 0, win32con.KEYEVENTF_KEYUP, 0)
             # 放开 Ctrl 键
 
             # 向指定窗口发送 Enter 键
             win32api.keybd_event(win32con.VK_RETURN, 0, 0, 0)  # 按下 Enter 键
-            win32api.keybd_event(win32con.VK_RETURN, 0, win32con.KEYEVENTF_KEYUP, 0)  # 放开 Enter 键
+            win32api.keybd_event(
+                win32con.VK_RETURN, 0, win32con.KEYEVENTF_KEYUP, 0
+            )  # 放开 Enter 键
 
         def send_qq(hwnd, msg):
-            if msg != '###UNCOPY###':  # 当字符不等于这个时 复制内容
+            if msg != "###UNCOPY###":  # 当字符不等于这个时 复制内容
                 setText(msg)
             # 投递剪贴板消息到QQ窗体
             play_prompt_sound("C:\\Windows\\Media\\Windows Notify Messaging.wav")
@@ -2046,21 +2584,22 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
             time.sleep(0.5)  # 等待窗口聚焦
 
             for i in range(int(times)):
-                doClick(handle_position[0], handle_position[1], hwnd)  # 点击 (30, height-60)
-                self.number_now_changed(i+1)
+                doClick(
+                    handle_position[0], handle_position[1], hwnd
+                )  # 点击 (30, height-60)
+                self.number_now_changed(i + 1)
                 time.sleep(wait_time)  # 等待操作完成
 
         hwnd = self._2lineEdit_3.text()
         massage = self._2textEdit.toPlainText()
-        if hwnd == '':
+        if hwnd == "":
             play_prompt_sound("C:\\Windows\\Media\\Windows Notify Messaging.wav")
             pyautogui.confirm("请输入句柄")
-        elif massage == '':
+        elif massage == "":
             play_prompt_sound("C:\\Windows\\Media\\Windows Notify Messaging.wav")
             pyautogui.confirm("请输入需要发送的消息")
         else:
             try:
-
                 send_qq(int(hwnd), massage)
                 self.open_point_window()
             except Exception as e:
@@ -2079,12 +2618,15 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
             times = self.QQ_StartSend_At_times_spinbox.value()
             number_send = False
             if target_number == "":
-                pyautogui.confirm('请输入QQ号')
+                pyautogui.confirm("请输入QQ号")
             elif pause_time == 0.0:
                 pyautogui.confirm("请输入间隔")
-            elif len(target_number) > 11 or len(
-                    target_number) <= 5 or not target_number.isdigit():
-                pyautogui.confirm('请输入正确的QQ号')
+            elif (
+                len(target_number) > 11
+                or len(target_number) <= 5
+                or not target_number.isdigit()
+            ):
+                pyautogui.confirm("请输入正确的QQ号")
             else:
                 time.sleep(3)
                 pyautogui.PAUSE = pause_time
@@ -2099,24 +2641,28 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
                         self.open_point_window()
                         break
                     number = number + 1  # Increment at the start
-                    if times != 0 and number > times:  # Change condition to number > times
+                    if (
+                        times != 0 and number > times
+                    ):  # Change condition to number > times
                         self.showNormal()
                         self.open_point_window()
                         break
                     pyautogui.click(textedit_position)
-                    pyautogui.write(f'@{target_number}')
+                    pyautogui.write(f"@{target_number}")
                     time.sleep(0.02)
-                    pyautogui.press('enter')
-                    pyautogui.hotkey('ctrl', 'v')
+                    pyautogui.press("enter")
+                    pyautogui.hotkey("ctrl", "v")
                     if number_send == True:
-                        pyautogui.write(str(number))  # Already incremented, so no change needed
+                        pyautogui.write(
+                            str(number)
+                        )  # Already incremented, so no change needed
                     randfigure = random.choice(Random_list)  # 随机符号
                     if randfigure == 1:
-                        pyautogui.press('.')
+                        pyautogui.press(".")
                     elif randfigure == 2:
-                        pyautogui.press('。')
+                        pyautogui.press("。")
                     else:
-                        pyautogui.press(',')
+                        pyautogui.press(",")
                     pyautogui.click(send_position)
                     self.number_now_changed(number)
 
@@ -2155,15 +2701,15 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
                     self.open_point_window()
                     break
                 pyautogui.click(textedit_position)
-                pyautogui.hotkey('ctrl', 'v')  # 粘贴
+                pyautogui.hotkey("ctrl", "v")  # 粘贴
                 time.sleep(0.02)
                 randfigure = random.choice(Random_list)  # 随机字符输入
                 if randfigure == 1:
-                    pyautogui.press('.')
+                    pyautogui.press(".")
                 elif randfigure == 2:
-                    pyautogui.press('。')
+                    pyautogui.press("。")
                 else:
-                    pyautogui.press(',')
+                    pyautogui.press(",")
                 pyautogui.click(send_position)  # 点击第二处位置
                 self.number_now_changed(number)
             print(f"本次Fuchen累计发送{number}条消息")
@@ -2172,7 +2718,8 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
 
     def order_send(self):
         import pyperclip
-        if self.QQ_Seq_lineEdit == '':
+
+        if self.QQ_Seq_lineEdit == "":
             pyautogui.confirm("请先选择文件")
             return 0
         target_process_name = "QQ.exe"
@@ -2185,11 +2732,10 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
         play_prompt_sound("C:\\Windows\\Media\\Windows Notify Messaging.wav")
         time.sleep(3)
         wait_time = self.QQ_Seq_doublebox.value()
-        if self.QQ_Seq_combobox.currentText() == '顺序发送':
-
+        if self.QQ_Seq_combobox.currentText() == "顺序发送":
             pyautogui.PAUSE = wait_time
             for i in range(self.QQ_Seq_Times_spinBox.value()):
-                with open(self.QQ_Seq_lineEdit.text(), 'r', encoding='utf-8') as file:
+                with open(self.QQ_Seq_lineEdit.text(), "r", encoding="utf-8") as file:
                     # 逐行读取文件内容
                     for line in file:
                         # 去除行尾的换行符
@@ -2202,14 +2748,14 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
                         pyperclip.copy(line)
                         pyautogui.click(textedit_position)
                         # time.sleep(wait_time)
-                        pyautogui.hotkey('ctrl', 'v')
+                        pyautogui.hotkey("ctrl", "v")
                         time.sleep(0.02)
                         pyautogui.click(send_position)
                         # 暂停等待用户操作或观察复制内容
         else:
             pyautogui.PAUSE = wait_time
             # 读取文件内容到列表中
-            with open(self.QQ_Seq_lineEdit.text(), 'r', encoding='utf-8') as file:
+            with open(self.QQ_Seq_lineEdit.text(), "r", encoding="utf-8") as file:
                 lines = file.readlines()
             # 随机选择一行
             for i in range(self.QQ_Seq_Times_spinBox.value()):
@@ -2222,7 +2768,7 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
                 pyperclip.copy(random_line)
                 pyautogui.click(textedit_position)
                 # time.sleep(wait_time)
-                pyautogui.hotkey('ctrl', 'v')
+                pyautogui.hotkey("ctrl", "v")
                 time.sleep(0.02)
                 pyautogui.click(send_position)
 
@@ -2240,21 +2786,27 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
         dialog = ui.hotkey_record.HotkeyDialog(self)
         if dialog.exec_() == QDialog.Accepted:  # 等待对话框关闭
             hotkey = dialog.hotkey
-            if hotkey == '':
+            if hotkey == "":
                 return
             if hotkey == self.uim.execute_hotkey:
-                pyautogui.confirm('记录按键不可与执行按键相同')
+                pyautogui.confirm("记录按键不可与执行按键相同")
                 return
             self.uim.record_hotkey = hotkey
             if self.hotkey_record_status == None:
-                self.hotkey_record_status = keys.add_hotkey(hotkey, self.start_recording)
+                self.hotkey_record_status = keys.add_hotkey(
+                    hotkey, self.start_recording
+                )
             else:
                 self.hotkey_record_status()
-                self.hotkey_record_status = keys.add_hotkey(hotkey, self.start_recording)
+                self.hotkey_record_status = keys.add_hotkey(
+                    hotkey, self.start_recording
+                )
             self.uim.Hotkey_record_button.setText(f"当前热键：{hotkey}")
             print("获取到的热键：", hotkey)
-        if self.uim.execute_hotkey != '未设置':
-            self.hotkey_execute_status = keys.add_hotkey(self.uim.execute_hotkey, self.start_executing)
+        if self.uim.execute_hotkey != "未设置":
+            self.hotkey_execute_status = keys.add_hotkey(
+                self.uim.execute_hotkey, self.start_executing
+            )
 
     def on_record_finished(self):
         self.handle_restore()
@@ -2267,537 +2819,217 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
         dialog = ui.hotkey_record.HotkeyDialog(self)
         if dialog.exec_() == QDialog.Accepted:  # 等待对话框关闭
             hotkey = dialog.hotkey
-            if hotkey == '':
+            if hotkey == "":
                 return
             if hotkey == self.uim.record_hotkey:
-                pyautogui.confirm('执行按键不可与记录按键相同')
+                pyautogui.confirm("执行按键不可与记录按键相同")
                 return
             self.uim.execute_hotkey = hotkey
             if self.hotkey_execute_status == None:
-                self.hotkey_execute_status = keys.add_hotkey(hotkey, self.start_executing)
+                self.hotkey_execute_status = keys.add_hotkey(
+                    hotkey, self.start_executing
+                )
             else:
                 self.hotkey_execute_status()
-                self.hotkey_execute_status = keys.add_hotkey(hotkey, self.start_executing)
+                self.hotkey_execute_status = keys.add_hotkey(
+                    hotkey, self.start_executing
+                )
             self.uim.Hotkey_execute_button.setText(f"当前热键：{hotkey}")
             print("获取到的热键：", hotkey)
-        if self.uim.record_hotkey != '未设置':
-            self.hotkey_record_status = keys.add_hotkey(self.uim.record_hotkey, self.start_recording)
+        if self.uim.record_hotkey != "未设置":
+            self.hotkey_record_status = keys.add_hotkey(
+                self.uim.record_hotkey, self.start_recording
+            )
 
     def on_execute_finished(self):
         self.handle_restore()
         self.execute_thread = None
 
+    def _on_record_worker_finished(self, success, error_text, cursor_position):
+        if cursor_position is not None:
+            try:
+                pyautogui.moveTo(cursor_position[0], cursor_position[1])
+            except Exception:
+                pass
+        if not success and error_text:
+            print(error_text)
+        self.record_status = False
+        self.handle_restore()
+        self.record_thread = None
+        self.record_worker = None
+
+    def _on_execute_worker_progress(self, value):
+        self.number_now_changed(value)
+
+    def _on_execute_worker_finished(self, success, error_text, cursor_position):
+        if cursor_position is not None:
+            try:
+                pyautogui.moveTo(cursor_position[0], cursor_position[1])
+            except Exception:
+                pass
+        if not success and error_text:
+            print(error_text)
+        self.execute_status = False
+        self.handle_restore()
+        self.execute_thread = None
+        self.execute_worker = None
+
     def Click_Record(self):  # 记录自动脚本
         # 确保在主线程执行
         if QThread.currentThread() != self.thread():
-            QTimer.singleShot(0, self.Click_Record)
+            self.trigger_click_record_signal.emit()
             return
-        if self.record_status == False:  # 防止重复执行
-            self.record_status = True
-        else:
+        if self.execute_status == True:  # 防止和执行同时进行
             return
-        if self.execute_status == True:  # 防止重复执行
+        if self.record_status == True:  # 防止重复执行
             return
-        if self.file_lineEdit.text() == '':
+        file_path = self.file_lineEdit.text().strip()
+        if file_path == "":
             QMessageBox.information(self, "提示", f"配置文件为空 请先选则文件")
-            self.record_status = False
             return 0
+        self.record_status = True
+
+        screen = app.primaryScreen()
+        if screen is not None:
+            screen_width = max(1, screen.size().width())
+            screen_height = max(1, screen.size().height())
+        else:
+            size = pyautogui.size()
+            screen_width = max(1, size[0])
+            screen_height = max(1, size[1])
 
         try:
             self.handle_minimize()
-            # self.showMinimized()
+            self.record_thread = QThread(self)
+            self.record_worker = ScriptRecordWorker(
+                file_path=file_path,
+                wait_time=self.wait_doubleSpinBox.value(),
+                end_key_text=self.end_key_combo.currentText(),
+                screen_width=screen_width,
+                screen_height=screen_height,
+            )
+            self.record_worker.moveToThread(self.record_thread)
 
-            wait_time = self.wait_doubleSpinBox.value()
-            time.sleep(wait_time)
-            play_prompt_sound("C:\\Windows\\Media\\Windows Notify Messaging.wav")
-            current_position = pyautogui.position()
-            print("开始记录自动脚本")
-            global last_time, records, last_key, last_event_type
+            self.record_thread.started.connect(self.record_worker.run)
+            self.record_worker.finished.connect(self._on_record_worker_finished)
+            self.record_worker.finished.connect(self.record_thread.quit)
+            self.record_worker.finished.connect(self.record_worker.deleteLater)
+            self.record_thread.finished.connect(self.record_thread.deleteLater)
 
-            records = []
-            last_time = time.time()
-            if self.end_key_combo.currentText() == "ESC":
-                ed_bu = Key.esc
-            elif self.end_key_combo.currentText() == "F8":
-                ed_bu = Key.f8
-            elif self.end_key_combo.currentText() == "F9":
-                ed_bu = Key.f9
-            elif self.end_key_combo.currentText() == "F10":
-                ed_bu = Key.f10
-            elif self.end_key_combo.currentText() == "END":
-                ed_bu = Key.end
-            else:
-                ed_bu = Key.esc
-
-            def on_move(x, y):
-                global last_time
-                current_time = time.time()
-                interval = int((current_time - last_time) * 1000)
-                if interval != 0:
-                    records.append([interval, 'M', 'mouse move', [x, y]])
-                    last_time = current_time
-
-            def on_click(x, y, button, pressed):
-                global last_time
-                current_time = time.time()
-                interval = int((current_time - last_time) * 1000)  # 转换为毫秒
-                action = ''
-                if button == mouse.Button.left:
-                    action = 'mouse left down' if pressed else 'mouse left up'
-                elif button == mouse.Button.right:
-                    action = 'mouse right down' if pressed else 'mouse right up'
-                elif button == mouse.Button.middle:
-                    action = 'mouse middle down' if pressed else 'mouse middle up'
-                if action:
-                    records.append([interval, 'M', action, [x, y]])
-                    last_time = current_time
-
-            def on_scroll(x, y, dx, dy):
-                global last_time
-                current_time = time.time()
-                interval = int((current_time - last_time) * 1000)
-                action = 'mouse scroll'
-                records.append([interval, 'M', action, [0, dy]])
-                last_time = current_time
-
-            # 设置防抖时间间隔（毫秒）
-            debounce_interval = 200
-            last_key = None
-            last_event_type = None
-
-            def on_press(key):
-                global last_time, last_key, last_event_type
-                current_time = time.time()
-                interval = int((current_time - last_time) * 1000)
-
-                if key == ed_bu:
-                    return False
-
-                if key == last_key and last_event_type == 'down' and interval < debounce_interval:
-                    return
-
-                if hasattr(key, 'char') and key.char:
-                    key_char = key.char.lower() if ord(key.char) >= 32 else chr(ord(key.char) + 64)
-                    key_desc = [key.vk, key_char]
-                elif isinstance(key, Key):
-                    key_desc = [key.value.vk, key.name.upper()]
-                elif isinstance(key, KeyCode):
-                    key_desc = [key.vk, key.char.upper() if key.char else 'NUMPAD']
-
-                records.append([interval, 'K', 'key down', key_desc])
-                last_time = current_time
-                last_key = key
-                last_event_type = 'down'
-
-            def on_release(key):
-                global last_time, last_key, last_event_type
-                current_time = time.time()
-                interval = int((current_time - last_time) * 1000)
-
-                if key == last_key and last_event_type == 'up' and interval < debounce_interval:
-                    return
-
-                if hasattr(key, 'char') and key.char:
-                    key_char = key.char.lower() if ord(key.char) >= 32 else chr(ord(key.char) + 64)
-                    key_desc = [key.vk, key_char]
-                elif isinstance(key, Key):
-                    key_desc = [key.value.vk, key.name.upper()]
-                elif isinstance(key, KeyCode):
-                    key_desc = [key.vk, key.char.upper() if key.char else 'NUMPAD']
-
-                records.append([interval, 'K', 'key up', key_desc])
-                last_time = current_time
-                last_key = key
-                last_event_type = 'up'
-
-            mouse_listener = mouse.Listener(on_click=on_click, on_move=on_move, on_scroll=on_scroll)
-            keyboard_listener = keyboard.Listener(on_press=on_press, on_release=on_release)
-
-            mouse_listener.start()
-
-            keyboard_listener.start()
-
-            keyboard_listener.join()
-
-            json_records = []
-            for record in records:
-                interval, event_type, action, data = record
-                json_record = {
-                    "interval": interval,
-                    "type": "keyboard" if event_type == 'K' else "mouse",
-                    "action": None,
-                    "details": {}
-                }
-
-                if event_type == 'K':
-                    json_record["action"] = action.split()[-1]
-                    json_record["details"] = {
-                        "code": data[0],
-                        "name": data[1].upper() if data[1].isalpha() else data[1]
-                    }
-                else:
-                    if 'move' in action:
-                        json_record["action"] = "move"
-                        json_record["details"] = {"x": data[0], "y": data[1]}
-                    elif 'scroll' in action:
-                        json_record["action"] = "scroll"
-                        json_record["details"] = {"dx": data[0], "dy": data[1]}
-                    else:
-                        button = action.split()[1]
-                        json_record["action"] = action.split()[-1]
-                        json_record["details"] = {
-                            "button": button,
-                            "x": data[0],
-                            "y": data[1]
-                        }
-                json_records.append(json_record)
-
-            # 最后写入整个 JSON 数组
-            with open(self.file_lineEdit.text(), 'w') as f:
-                json.dump(json_records, f, indent=2)
-
-            mouse_listener.stop()
-            keyboard_listener.stop()
-            pyautogui.moveTo(current_position.x, current_position.y)
-            print("记录完毕")
-        except:
-            pass
-        finally:
+            self.record_thread.start()
+        except Exception:
+            traceback.print_exc()
             self.record_status = False
             self.handle_restore()
-            play_prompt_sound("C:\\Windows\\Media\\Windows Notify Messaging.wav")
+            self.record_thread = None
+            self.record_worker = None
+
+    def validate_script_ready_for_execute(self, file_path):
+        if not os.path.isfile(file_path):
+            return False, "配置文件不存在"
+
+        try:
+            if os.path.getsize(file_path) == 0:
+                return False, "配置文件为空，无法执行"
+        except OSError:
+            return False, "配置文件读取失败，无法执行"
+
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                raw_data = json.load(f)
+        except json.JSONDecodeError:
+            return False, "配置文件格式错误，无法执行"
+        except Exception:
+            return False, "配置文件读取失败，无法执行"
+
+        if isinstance(raw_data, dict):
+            records = raw_data.get("records", [])
+        elif isinstance(raw_data, list):
+            records = raw_data
+        else:
+            return False, "配置文件格式错误，无法执行"
+
+        if not isinstance(records, list) or len(records) == 0:
+            return False, "配置文件内容为空，无法执行"
+
+        return True, ""
 
     def Click_Record_execute(self):  # 执行自动脚本
         # 确保在主线程执行
         if QThread.currentThread() != self.thread():
-            QTimer.singleShot(0, self.Click_Record_execute)
+            self.trigger_click_execute_signal.emit()
             return
-        if self.execute_status == False:  # 防止重复执行
-            self.execute_status = True
-        else:
+        if self.record_status == True:  # 防止和记录同时进行
             return
-        if self.record_status == True:  # 防止重复执行
+        if self.execute_status == True:  # 防止重复执行
             return
-        if self.file_lineEdit.text() == '':
+        file_path = self.file_lineEdit.text().strip()
+        if file_path == "":
             QMessageBox.information(self, "提示", f"配置文件为空 请先选则文件")
-            self.execute_status = False
             return 0
+
+        valid, msg = self.validate_script_ready_for_execute(file_path)
+        if not valid:
+            QMessageBox.information(self, "提示", msg)
+            return 0
+
+        self.execute_status = True
+
+        count = self._3spinBox_3.value()
+        self.showMinimized()
+        self.handle_number_window("执行自动脚本", 0, count)
+
+        screen = app.primaryScreen()
+        if screen is not None:
+            screen_width = max(1, screen.size().width())
+            screen_height = max(1, screen.size().height())
+        else:
+            size = pyautogui.size()
+            screen_width = max(1, size[0])
+            screen_height = max(1, size[1])
+
         try:
-            stop_script = False  # 局部变量，用于控制脚本停止
-            listener = None  # 全局引用监听器
-            param = self.param_lineEdit.text()
+            self.execute_thread = QThread(self)
+            self.execute_worker = ScriptExecuteWorker(
+                file_path=file_path,
+                wait_time=self.wait_doubleSpinBox.value(),
+                count=count,
+                speed=self.spinbox_play_speed.value() / 100,
+                end_key_text=self.end_key_combo.currentText(),
+                screen_width=screen_width,
+                screen_height=screen_height,
+            )
+            self.execute_worker.moveToThread(self.execute_thread)
 
-            def key_listener():
-                """监听键盘按键，检测终止按键"""
-                nonlocal stop_script  # 使用非局部变量
-                nonlocal listener
+            self.execute_thread.started.connect(self.execute_worker.run)
+            self.execute_worker.progress.connect(self._on_execute_worker_progress)
+            self.execute_worker.finished.connect(self._on_execute_worker_finished)
+            self.execute_worker.finished.connect(self.execute_thread.quit)
+            self.execute_worker.finished.connect(self.execute_worker.deleteLater)
+            self.execute_thread.finished.connect(self.execute_thread.deleteLater)
 
-                def on_press(key):
-                    try:
-                        # 检测到按键时停止脚本
-                        if self.end_key_combo.currentText() == "ESC":
-                            ed_bu = Key.esc
-                        elif self.end_key_combo.currentText() == "F8":
-                            ed_bu = Key.f8
-                        elif self.end_key_combo.currentText() == "F9":
-                            ed_bu = Key.f9
-                        elif self.end_key_combo.currentText() == "F10":
-                            ed_bu = Key.f10
-                        elif self.end_key_combo.currentText() == "END":
-                            ed_bu = Key.end
-                        else:
-                            ed_bu = Key.esc
-                        if key == ed_bu:
-                            nonlocal stop_script
-                            stop_script = True
-                            print(f"检测到 {self.end_key_combo.currentText()}，脚本终止中...")
-                    except Exception as e:
-                        print(f"按键监听异常: {e}")
-
-                listener = keyboard.Listener(on_press=on_press)
-                listener.start()
-                listener.join()
-
-            # 启动键盘监听器线程
-            listener_thread = threading.Thread(target=key_listener, daemon=True)
-            listener_thread.start()
-
-            self.showMinimized()
-
-            play_prompt_sound("C:\\Windows\\Media\\Windows Notify Messaging.wav")
-            wait_time = self.wait_doubleSpinBox.value()
-            current_position = pyautogui.position()
-            count = self._3spinBox_3.value()
-            self.handle_number_window("执行自动脚本", 0, count)
-            time.sleep(wait_time)
-
-            # self.handle_minimize()
-
-            mouse_controller = MouseController()
-            keyboard_controller = KeyboardController()
-
-            def get_key(key_code, key_char):
-                # 将字符串形式的特殊键转换为pynput的Key对象
-                special_keys = {
-                    'ALT': Key.alt,
-                    'ALT_GR': Key.alt_gr,
-                    'ALT_L': Key.alt_l,
-                    'ALT_R': Key.alt_r,
-                    'BACKSPACE': Key.backspace,
-                    'CAPS_LOCK': Key.caps_lock,
-                    'CMD': Key.cmd,
-                    'CTRL_L': Key.ctrl_l,
-                    'CTRL_R': Key.ctrl_r,
-                    'DELETE': Key.delete,
-                    'DOWN': Key.down,
-                    'END': Key.end,
-                    'ENTER': Key.enter,
-                    'ESC': Key.esc,
-                    'F1': Key.f1,
-                    'F2': Key.f2,
-                    'F3': Key.f3,
-                    'F4': Key.f4,
-                    'F5': Key.f5,
-                    'F6': Key.f6,
-                    'F7': Key.f7,
-                    'F8': Key.f8,
-                    'F9': Key.f9,
-                    'F10': Key.f10,
-                    'F11': Key.f11,
-                    'F12': Key.f12,
-                    'F13': Key.f13,
-                    'F14': Key.f14,
-                    'F15': Key.f15,
-                    'F16': Key.f16,
-                    'F17': Key.f17,
-                    'F18': Key.f18,
-                    'F19': Key.f19,
-                    'F20': Key.f20,
-                    'F21': Key.f21,
-                    'F22': Key.f22,
-                    'HOME': Key.home,
-                    'INSERT': Key.insert,
-                    'LEFT': Key.left,
-                    'NUM_LOCK': Key.num_lock,
-                    'PAGE_DOWN': Key.page_down,
-                    'PAGE_UP': Key.page_up,
-                    'RIGHT': Key.right,
-                    'SCROLL_LOCK': Key.scroll_lock,
-                    'SHIFT': Key.shift,
-                    'SHIFT_R': Key.shift_r,
-                    'SPACE': Key.space,
-                    'TAB': Key.tab,
-                    'UP': Key.up,
-                    'PRINT_SCREEN': Key.print_screen,
-                    'MENU': Key.menu,
-                }
-                if key_char.upper() in special_keys:
-                    return special_keys[key_char.upper()]
-                elif 'NUMPAD' in key_char.upper() or key_code in range(96, 106) or key_code == 110:
-                    numpad_keys = {
-                        96: KeyCode(vk=96),  # Numpad 0
-                        97: KeyCode(vk=97),  # Numpad 1
-                        98: KeyCode(vk=98),  # Numpad 2
-                        99: KeyCode(vk=99),  # Numpad 3
-                        100: KeyCode(vk=100),  # Numpad 4
-                        101: KeyCode(vk=101),  # Numpad 5
-                        102: KeyCode(vk=102),  # Numpad 6
-                        103: KeyCode(vk=103),  # Numpad 7
-                        104: KeyCode(vk=104),  # Numpad 8
-                        105: KeyCode(vk=105),  # Numpad 9
-                        110: KeyCode(vk=110)  # Numpad .
-                    }
-                    return numpad_keys.get(key_code, KeyCode(char=chr(key_code)))
-                else:
-                    return KeyCode(char=key_char)
-
-            def precise_sleep(milliseconds):
-                start = time.perf_counter()
-                end = start + milliseconds / 1000.0
-                while time.perf_counter() < end:
-                    pass
-
-            records = []
-            record_time = 0
-            pyautogui.PAUSE = 0
-            speed = self.spinbox_play_speed.value() / 100
-            # 获取主屏幕
-            screen = app.primaryScreen()
-            # 获取屏幕分辨率
-            screen_width = screen.size().width()
-            screen_height = screen.size().height()
-            with open(self.file_lineEdit.text(), 'r') as f:
-                json_records = json.load(f)
-
-            records = []
-            for json_record in json_records:
-                if json_record["type"] == "keyboard":
-                    record = [
-                        json_record["interval"],
-                        'K',
-                        f'key {json_record["action"]}',
-                        [json_record["details"]["code"], json_record["details"]["name"].lower()]
-                    ]
-                else:
-                    if json_record["action"] == "move":
-                        record = [
-                            json_record["interval"],
-                            'M',
-                            'mouse move',
-                            [json_record["details"]["x"], json_record["details"]["y"]]
-                        ]
-                    elif json_record["action"] == "scroll":
-                        record = [
-                            json_record["interval"],
-                            'M',
-                            'mouse scroll',
-                            [json_record["details"]["dx"], json_record["details"]["dy"]]
-                        ]
-                    else:
-                        record = [
-                            json_record["interval"],
-                            'M',
-                            f'mouse {json_record["details"]["button"]} {json_record["action"]}',
-                            [json_record["details"]["x"], json_record["details"]["y"]]
-                        ]
-                records.append(record)
-
-            print(f"记录执行时间:{record_time / 1000}秒")
-            deal_time = 0
-            for x in records:
-                x[0] = int(x[0] / speed)
-                deal_time += x[0]
-            star = time.time()
-            for i in range(count):  # 开始执行自动脚本
-
-                for record in records:
-                    if stop_script:  # 检测是否需要终止
-                        print("脚本执行已终止。")
-                        listener.stop()  # 停止按键监听器
-                        break
-                    # time.sleep((record[0] - 1) / 1000)  # 等待时间````
-                    # precise_sleep(record[0]-1)
-                    precise_sleep(record[0])
-                    if record[1] == 'M':  # 鼠标事件
-                        x, y = record[3] if record[2] != 'mouse scroll' else (None, None)
-                        if 'mouse move' in record[2]:
-                            # pyautogui.moveTo(x, y)
-                            mouse_controller.position = (x, y)
-                            '''absolute_x = (x * 65535) // screen_width
-                            absolute_y = (y * 65535) // screen_height
-                            win32api.mouse_event(win32con.MOUSEEVENTF_ABSOLUTE | win32con.MOUSEEVENTF_MOVE, absolute_x, absolute_y, 0, 0)'''
-                        elif 'mouse left down' in record[2]:
-                            mouse_controller.press(Button.left)
-                        elif 'mouse left up' in record[2]:
-                            mouse_controller.release(Button.left)
-                        elif 'mouse right down' in record[2]:
-                            mouse_controller.press(Button.right)
-                        elif 'mouse right up' in record[2]:
-                            mouse_controller.release(Button.right)
-                        elif 'mouse middle down' in record[2]:
-                            mouse_controller.press(Button.middle)
-                        elif 'mouse middle up' in record[2]:
-                            mouse_controller.release(Button.middle)
-                        elif 'mouse scroll' in record[2]:
-                            dx, dy = record[3]
-                            mouse_controller.scroll(dx, dy)
-                        elif 'mouse scroll' in record[2]:
-                            dx, dy = record[3]
-                            mouse_controller.scroll(dx, dy)
-                            # win32api.SetCursorPos((x, y))
-
-
-                    elif record[1] == 'K':  # 键盘事件
-                        key_code, key_char = record[3]
-                        key = get_key(key_code, key_char)
-                        if 'down' in record[2]:
-                            keyboard_controller.press(key)
-                        elif 'up' in record[2]:
-                            keyboard_controller.release(key)
-                    """
-                            elif 'mouse left down' in record[2]:
-                            win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
-                        elif 'mouse left up' in record[2]:
-                        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
-                    elif 'mouse right down' in record[2]:
-                    win32api.mouse_event(win32con.MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, 0)
-
-                elif 'mouse right up' in record[2]:
-                win32api.mouse_event(win32con.MOUSEEVENTF_RIGHTUP, 0, 0, 0, 0)
-
-            elif 'mouse middle down' in record[2]:
-            win32api.mouse_event(win32con.MOUSEEVENTF_MIDDLEDOWN, 0, 0, 0, 0)
-            elif 'mouse middle up' in record[2]:
-            win32api.mouse_event(win32con.MOUSEEVENTF_MIDDLEUP, 0, 0, 0, 0)"""
-                self.number_now_changed(i + 1)
-
-            # 停止监听器
-            if listener is not None:
-                listener.stop()
-            end_ti = time.time()
-            print(f"实际执行时间:{(end_ti - star):.2f}秒")
-            # self.showNormal()
-
-            pyautogui.moveTo(current_position.x, current_position.y)
-        except:
+            self.execute_thread.start()
+        except Exception:
             traceback.print_exc()
-        finally:
             self.execute_status = False
             self.handle_restore()
+            self.execute_thread = None
+            self.execute_worker = None
 
     def key_menu_com(self, types, key):
-        if types == 'record':
+        if types == "record":
             self.end_key = key
             self.end_key_button.setText(f"{key}")
-        elif types == 'execute':
+        elif types == "execute":
             self.end_execute_key = key
             self.end_execute_button.setText(f"{key}")
-
-    def deal_pictures(self, file_name_V):
-        # 输出图像保存路径
-        output_folder = './trend'
-        shutil.rmtree(output_folder)
-        # 重新创建空文件夹
-        os.mkdir(output_folder)
-        # os.makedirs(output_folder, exist_ok=True)
-        # 打开视频文件
-        cap = cv2.VideoCapture(file_name_V)
-        # 检查视频是否成功打开
-        if not cap.isOpened():
-            print("Error: Could not open video.")
-            exit()
-
-        # 函数：处理每个帧并保存
-        def save_frame(frame_data):
-            frame, frame_number = frame_data
-            frame = cv2.resize(frame, (1000, 600))
-            output_path = os.path.join(output_folder, f'frame_{frame_number}.jpg')
-            cv2.imwrite(output_path, frame)
-
-        frame_count = 0
-        frame_list = []
-        # 读取视频帧并存储在列表中
-        while True:
-            ret, frame = cap.read()
-            # 如果未能读取帧，则终止循环
-            if not ret:
-                print("End of video or error occurred.")
-                break
-            frame_list.append((frame, frame_count + 1))
-            frame_count += 1
-        # 释放视频捕获对象
-        cap.release()
-        # 使用多线程保存帧
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            executor.map(save_frame, frame_list)
-        print(f"Frames saved successfully. Total frames: {frame_count}")
 
     def join_team(self):
         id = self.add_team_lineEdit.text()
         if len(id) != 30:
             self.show_message_box("提示", "队伍id不正确!")
         else:
-            TypedJSONClient('join_team', {'number': id})
+            TypedJSONClient("join_team", {"number": id})
 
     def set_variables(self, vars_dict, namespace=None):
         """
@@ -2806,9 +3038,7 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
         :param namespace: 命名空间字典，默认使用全局作用域
         """
         namespace = namespace or globals()
-        assignments = "; ".join(
-            [f"{k} = {repr(v)}" for k, v in vars_dict.items()]
-        )
+        assignments = "; ".join([f"{k} = {repr(v)}" for k, v in vars_dict.items()])
         exec(assignments, namespace)
 
     def team(self):  # 创建队伍
@@ -2818,31 +3048,31 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
         self.button_copy_id.setVisible(True)  # 复制ID按钮
         characters = string.ascii_letters + string.digits
         global random_string
-        random_string = ''.join(random.choices(characters, k=30))
+        random_string = "".join(random.choices(characters, k=30))
         self.add_team_ID.setText(f"队伍ID为:{random_string}")
         self.add_team_ID.setVisible(True)
-        TypedJSONClient('create_team', {'number': random_string})
+        TypedJSONClient("create_team", {"number": random_string})
 
     def team_c(self):
         captain = self.user1.combo_options.currentIndex()
         member = self.user2.combo_options.currentIndex()
         types = None
         if member == 0:
-            types = 'handle_send'
+            types = "handle_send"
         elif member == 1:
-            types = 'user_send'
+            types = "user_send"
         elif member == 2:
-            types = 'copy_send'
+            types = "copy_send"
         elif member == 3:
-            types = 'information_update'
+            types = "information_update"
         elif member == 4:
-            types = 'record_execute'
+            types = "record_execute"
         else:
-            types = 'unknown'
-        if types == 'unknown':
-            self.show_message_box('提示', '未知类型')
+            types = "unknown"
+        if types == "unknown":
+            self.show_message_box("提示", "未知类型")
             return
-        TypedJSONClient('team_execute', {'types': types})
+        TypedJSONClient("team_execute", {"types": types})
         if captain == 0:
             self.Handle_Send()
         elif captain == 1:
@@ -2854,72 +3084,70 @@ class Ui_Form(new_mainpage.MainWindow):  # 主窗口
         elif captain == 4:
             self.Click_Record_execute()
         else:
-            self.show_message_box('提示', '未知类型')
+            self.show_message_box("提示", "未知类型")
 
     def deal_team_send(self, types):
-        if types == 'handle_send':
+        if types == "handle_send":
             self.team_execute_prompt.setText(f"即将发送QQ句柄消息")
             self.Handle_Send()
-        elif types == 'user_send':
+        elif types == "user_send":
             self.team_execute_prompt.setText(f"即将发送@QQ消息")
             self.Handle_Send()
-        elif types == 'copy_send':
+        elif types == "copy_send":
             self.team_execute_prompt.setText(f"即将发送QQ复制消息")
             self.Handle_Send()
-        elif types == 'information_update':
+        elif types == "information_update":
             self.team_execute_prompt.setText(f"即将进行QQ信息更新")
             self.Handle_Send()
-        elif types == 'record_execute':
+        elif types == "record_execute":
             self.team_execute_prompt.setText(f"即将开始执行自动脚本")
             self.Handle_Send()
         else:
             self.team_execute_prompt.setText(f"未知类型 错误!")
-            self.show_message_box('提示', '未知类型')
+            self.show_message_box("提示", "未知类型")
 
     def copy_team_number(self):
         global random_string
         clipboard = QApplication.clipboard()
-        clipboard.setText(f'{random_string}')
+        clipboard.setText(f"{random_string}")
 
     def showEvent(self, e):
         if self.first_image == False:
             if Theme == "Custom":  # 自定义图片背景设置
-                with open('config.json', 'r') as file:
+                with open("config.json", "r") as file:
                     config = json.load(file)
                 Path_Custom_S = config.get("Path")
                 print(Path_Custom_S)
                 self.should_draw = "Custom"
                 im = Image.open(Path_Custom_S)
                 reim = im.resize((self.width(), self.height()))  # 宽*高
-                reim.save('./temp/background_custom.png',
-                          dpi=(400, 400))  ##200.0,200.0分别为想要设定的dpi值
+                reim.save(
+                    "./temp/background_custom.png", dpi=(400, 400)
+                )  ##200.0,200.0分别为想要设定的dpi值
                 # 打开图片
-                image = Image.open('./temp/background_custom.png')
+                image = Image.open("./temp/background_custom.png")
                 # 应用高斯模糊，radius参数控制模糊程度（半径越大越模糊）
                 blurred_image = image.filter(ImageFilter.GaussianBlur(radius=5))
                 # 保存处理后的图片
-                blurred_image.save('./temp/background_custom.png')
+                blurred_image.save("./temp/background_custom.png")
 
                 palette = QPalette()
-                palette.setBrush(QPalette.Background,
-                                 QBrush(QPixmap('./temp/background_custom.png')))
+                palette.setBrush(
+                    QPalette.Background, QBrush(QPixmap("./temp/background_custom.png"))
+                )
 
                 self.setPalette(palette)
                 trp = transparent / 100
                 # 设置整体透明度（会影响所有子元素）
                 self.sidebar.setGraphicsEffect(QGraphicsOpacityEffect(opacity=trp))
                 self.stack.setGraphicsEffect(QGraphicsOpacityEffect(opacity=trp - 0.1))
-                print('成功设置背景')
+                print("成功设置背景")
 
                 del Path_Custom_S
                 self.first_image = True
-            elif Theme == 'Trend':
-                self.execute_trend()
-                self.first_image = True
 
     def show_message_box(self, head, message):
-        QMessageBox.question(self, head, message,
-                             QMessageBox.Yes)
+        QMessageBox.question(self, head, message, QMessageBox.Yes)
 
     def handle_message(self, title, content):
         reply = QMessageBox.information(self, title, content, QMessageBox.Yes)
@@ -2930,42 +3158,51 @@ if __name__ == "__main__":
         # 适应高DPI设备
         QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling)
         # 适应Windows缩放
-        QtGui.QGuiApplication.setAttribute(QtCore.Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
+        QtGui.QGuiApplication.setAttribute(
+            QtCore.Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
+        )
     except Exception as e:
-        logging.exception(str(time.strftime('%Y-%m-%d  %H:%M:%S', time.localtime())) + "错误:" + str(e))
+        logging.exception(
+            str(time.strftime("%Y-%m-%d  %H:%M:%S", time.localtime()))
+            + "错误:"
+            + str(e)
+        )
     app = QApplication(sys.argv)
     translator = QTranslator()
-    translator.load('./mod/trans/qt_zh_CN.qm')
+    translator.load("./mod/trans/qt_zh_CN.qm")
     app.installTranslator(translator)
     if initial == False:
         import ui.Agreement
+
         win = ui.Agreement.AgreementWindow()
         win.show()
         app.exec_()
         if ui.Agreement.User_Agree == False:
             sys.exit()
         else:
-            with open('config.json', 'r') as file:
+            with open("config.json", "r") as file:
                 config = json.load(file)
             config["Initial"] = True
             with open("config.json", "w") as json_file:
                 json.dump(config, json_file, indent=4)
     # 创建全局变量字典，传递给登录窗口
     globals_dict = {
-        'remember': remember,
-        'AutoLogin': AutoLogin,
-        'Account': Account,
-        'Password': Password,
-        'Number_People': Number_People,
-        'Version': Version,
-        'city_name': city_name,
-        'system': system,
-        'computer_name': computer_name
+        "remember": remember,
+        "AutoLogin": AutoLogin,
+        "Account": Account,
+        "Password": Password,
+        "Number_People": Number_People,
+        "Version": Version,
+        "city_name": city_name,
+        "system": system,
+        "computer_name": computer_name,
+        "access_token": access_token,
+        "refresh_token": refresh_token,
     }
 
-
-    window_login = login_window.LoginWindow(s, connect_status, stdout_stream, stderr_stream, globals_dict)
-
+    window_login = login_window.LoginWindow(
+        s, connect_status, stdout_stream, stderr_stream, globals_dict
+    )
 
     # 连接信号到处理函数
     def handle_login_success(login_data):
@@ -2978,19 +3215,28 @@ if __name__ == "__main__":
             if key in globals():
                 globals()[key] = value
         # 关闭登录窗口，显示主窗口
-        global window_s, Ask, Theme, Sound, ClosePrompt, CloseExecute, Path_Custom_S, Path_Trend_S, transparent, FPS
+        global \
+            window_s, \
+            Ask, \
+            Theme, \
+            Sound, \
+            ClosePrompt, \
+            CloseExecute, \
+            Path_Custom_S, \
+            transparent, \
+            FPS
         window_s = False
         # 读取JSON文件
-        with open('config.json', 'r') as file:
+        with open("config.json", "r") as file:
             config = json.load(file)
         Sound = config.get("Sound", True)
         ClosePrompt = config.get("ClosePrompt", True)
         CloseExecute = config.get("CloseExecute", "Close")
         Theme = config.get("Theme", "White")  # 主题
+        if Theme not in ("White", "Custom"):
+            Theme = "White"
         if Theme == "Custom":
             Path_Custom_S = config.get("Path")
-        elif Theme == "Trend":
-            Path_Trend_S = config.get("Path")
         transparent = config.get("transparent", 30)
         FPS = config.get("FPS", 16)
         new_mainpage.Name = Name
@@ -3004,10 +3250,8 @@ if __name__ == "__main__":
         new_mainpage.mode = Account
         new_mainpage.s = s
 
-
         windows = Ui_Form(stdout_stream, stderr_stream)
         windows.show()
-
 
     # 连接信号到槽函数
     window_login.login_successful.connect(handle_login_success)
@@ -3020,6 +3264,3 @@ if __name__ == "__main__":
         window_login.show()
     sys.exit(app.exec_())
 os._exit(0)
-#active_threads = threading.enumerate()
-#print("进程结束 ", active_threads)
-# 输出当前活动的线程
