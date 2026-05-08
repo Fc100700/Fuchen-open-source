@@ -111,8 +111,7 @@ class NotificationWindow(QWidget):
 
 
         self.label = QLabel(f"当前操作: {self.operation}\n次数: {self.now_number}/{self.total_number}次", self)
-        self.label.setAlignment(Qt.AlignCenter)
-        self.label.setFont(QFont("Microsoft YaHei", 12, QFont.Bold))
+        self.label.setFont(QFont("等线", 12, QFont.Bold))
         layout.addWidget(self.label)
         self.setLayout(layout)
 
@@ -127,14 +126,19 @@ class NotificationWindow(QWidget):
     def update_now_number(self, now):
         self.now_number = now
         self.label.setText(f"当前操作: {self.operation}\n次数: {self.now_number}/{self.total_number}次")
-
+        self.update()
+        self.repaint()
     def update_total_number(self, total):
         self.total_number = total
         self.label.setText(f"当前操作: {self.operation}\n次数: {self.now_number}/{self.total_number}次")
+        self.update()
+        self.repaint()
 
     def update_operation(self, opera):
         self.operation = opera
         self.label.setText(f"当前操作: {self.operation}\n次数: {self.now_number}/{self.total_number}次")
+        self.update()
+        self.repaint()
 
     def update_color(self):
         # 记录当前颜色

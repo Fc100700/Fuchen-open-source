@@ -12,7 +12,8 @@ from PyQt5.QtCore import QSize, QEvent, QVariantAnimation
 import sys
 from PyQt5.QtWidgets import (QApplication, QGraphicsScene, QGraphicsView,
                              QFileDialog, QPushButton, QVBoxLayout, QHBoxLayout, QWidget,
-                             QGraphicsPathItem, QGraphicsPixmapItem, QGraphicsItem)
+                             QGraphicsPathItem, QGraphicsPixmapItem, QGraphicsItem,
+                             QGraphicsDropShadowEffect, QFrame)
 from PyQt5.QtGui import (QPixmap, QPainter, QBrush, QPainterPath, QColor)
 from PyQt5.QtCore import Qt, QRectF, QPointF
 
@@ -481,14 +482,19 @@ class InfoPopup(QWidget):
         s = lis[5]
         avatar_load_status = lis[6]
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)
-        #self.setFixedSize(240, 340)  # 稍微增大窗口尺寸
         window_position = windows.pos()
         x = window_position.x() + 245
         y = window_position.y() + 45
         icon = QIcon("./image/Component/提示.png")
         self.setWindowIcon(icon)
-        self.setGeometry(x, y, 240, 340)
+        self.setGeometry(x, y, 430, 260)
         self.setAttribute(Qt.WA_TranslucentBackground)
+
+        shadow = QGraphicsDropShadowEffect(self)
+        shadow.setBlurRadius(35)
+        shadow.setOffset(0, 10)
+        shadow.setColor(QColor(142, 197, 252, 100))
+        self.setGraphicsEffect(shadow)
 
         self.setWindowTitle("Fuchen个人信息")
 
@@ -518,10 +524,29 @@ class InfoPopup(QWidget):
 
         self.init_ui()
     def init_ui(self):
-        # 头像按钮
-        self.avatar_btn = QPushButton()
+        main_layout = QHBoxLayout()
+        main_layout.setContentsMargins(20, 20, 20, 20)
+        main_layout.setSpacing(0)
+
+        # ====== 左侧: 头像和ID ======
+        left_layout = QVBoxLayout()
+        left_layout.setSpacing(12)
+
+        self.avatar_ring = QWidget()
+        self.avatar_ring.setFixedSize(108, 108)
+        self.avatar_ring.setAttribute(Qt.WA_StyledBackground, True)
+        self.avatar_ring.setStyleSheet("""
+            QWidget {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #ff9a9e, stop:0.5 #fecfef, stop:1 #a1c4fd);
+                border-radius: 54px;
+            }
+        """)
+
+        self.avatar_btn = QPushButton(self.avatar_ring)
         self.avatar_btn.setCursor(QCursor(Qt.PointingHandCursor))
         self.avatar_btn.setFixedSize(100, 100)
+        self.avatar_btn.move(4, 4)
         self.avatar_btn.setStyleSheet("""
             QPushButton {
                 border: 3px solid #FFFFFF;
@@ -530,7 +555,6 @@ class InfoPopup(QWidget):
             }
             QPushButton:hover {
                 border: 3px solid #5B9BD5;
-                background-color: #EDF4FA;
             }
         """)
         self.avatar_btn.setIconSize(QSize(90, 90))
@@ -540,24 +564,43 @@ class InfoPopup(QWidget):
             fp = "./image/float/fc.png"
         self.avatar_btn.setIcon(QIcon(get_rounded_pixmap(QPixmap(fp), 90)))
         self.avatar_btn.installEventFilter(self)
-
         self.avatar_btn.clicked.connect(self.upload_avatar)
+
+        left_layout.addWidget(self.avatar_ring, alignment=Qt.AlignCenter)
 
         self.id_label = QLabel(f"ID: {self.user_id}")
         self.id_label.setAlignment(Qt.AlignCenter)
         self.id_label.setStyleSheet("""
-            font-size: 14px; 
-            color: #666;
-            font-family: 'Microsoft YaHei';
+            font-size: 12px;
+            color: #6b7280;
+            background-color: #f3f4f6;
+            padding: 4px 10px;
+            border-radius: 10px;
+            font-family: 'Consolas', 'Courier New', monospace;
         """)
+        left_layout.addWidget(self.id_label, alignment=Qt.AlignCenter)
 
-        # 关闭按钮
+        main_layout.addLayout(left_layout)
+        main_layout.addSpacing(20)
+
+        # ====== 分隔线 ======
+        sep = QFrame()
+        sep.setFrameShape(QFrame.VLine)
+        sep.setStyleSheet("QFrame { color: #e5e7eb; }")
+        sep.setFixedWidth(2)
+        main_layout.addWidget(sep)
+        main_layout.addSpacing(20)
+
+        # ====== 右侧: 信息区域 ======
+        right_layout = QVBoxLayout()
+        right_layout.setSpacing(12)
+
         close_btn = QPushButton("✕")
-        close_btn.setFixedSize(34, 34)
+        close_btn.setFixedSize(28, 28)
         close_btn.setStyleSheet("""
             QPushButton {
                 background-color: transparent;
-                font-size: 18px;
+                font-size: 16px;
                 color: #999999;
                 font-family: 'Arial';
             }
@@ -567,140 +610,113 @@ class InfoPopup(QWidget):
         """)
         close_btn.clicked.connect(self.close)
 
-        # 顶部栏布局
-        top_bar = QHBoxLayout()
-        top_bar.addStretch()
-        top_bar.addWidget(close_btn)
+        close_lyt = QHBoxLayout()
+        close_lyt.addStretch()
+        close_lyt.addWidget(close_btn)
+        right_layout.addLayout(close_lyt)
 
-        # 主布局
-        main_layout = QVBoxLayout()
-        main_layout.addLayout(top_bar)
-        main_layout.addSpacing(0)
-
-        # 头像区域
-        avatar_layout = QVBoxLayout()
-        avatar_layout.addWidget(self.avatar_btn, alignment=Qt.AlignCenter)
-        avatar_layout.addSpacing(8)
-
-        # 用户名区域
-        name_widget = QWidget()
-        name_layout = QHBoxLayout(name_widget)
-        name_layout.setContentsMargins(0, 0, 0, 0)
+        name_lyt = QHBoxLayout()
+        name_lyt.setSpacing(8)
 
         self.name_label = QLabel(f"{self.username}")
         self.name_label.setStyleSheet("""
-            font-size: 18px;
-            color: #333333;
-            font-weight: 500;
+            font-size: 20px;
+            font-weight: 700;
+            color: #1f2937;
             font-family: 'Microsoft YaHei';
         """)
 
-        self.edit_btn = QPushButton()
-        self.edit_btn.setIcon(QIcon("./image/Component/edit.png"))
-        self.edit_btn.setIconSize(QSize(16, 16))
-        self.edit_btn.setFixedSize(24, 24)
+        self.edit_btn = QPushButton("✎ 更改")
+        self.edit_btn.setFixedHeight(28)
+        self.edit_btn.setCursor(QCursor(Qt.PointingHandCursor))
         self.edit_btn.setStyleSheet("""
             QPushButton {
-                background-color: transparent;
+                background-color: #ffe4e6;
+                color: #e11d48;
                 border: none;
-                padding: 0;
+                padding: 4px 12px;
+                font-size: 12px;
+                font-weight: 600;
+                border-radius: 10px;
             }
             QPushButton:hover {
-                opacity: 0.8;
+                background-color: #fecdd3;
             }
         """)
         self.edit_btn.clicked.connect(self.change_name)
 
-        name_layout.addStretch()
-        name_layout.addWidget(self.name_label)
+        name_lyt.addWidget(self.name_label)
+        name_lyt.addWidget(self.edit_btn)
+        name_lyt.addStretch()
+        right_layout.addLayout(name_lyt)
 
-        name_layout.addWidget(self.edit_btn)
-        name_layout.addStretch()
-        avatar_layout.addSpacing(15)
-        avatar_layout.addWidget(name_widget)
-        avatar_layout.addWidget(self.id_label)
-        avatar_layout.addSpacing(10)
+        exp_lyt = QVBoxLayout()
+        exp_lyt.setSpacing(6)
 
-        main_layout.addLayout(avatar_layout)
-
-        # 经验条布局
-        exp_layout = QVBoxLayout()
-        exp_layout.setContentsMargins(30, 0, 30, 10)
-
-
-        # 等级和数值
-        level_layout = QHBoxLayout()
+        exp_labels_lyt = QHBoxLayout()
         self.level_label = QLabel(self.Lv)
-        self.level_label.setStyleSheet(f"""
-                    font-size: 14px;
-                    color: {self.level_color};
-                    font-weight: bold;
-                    font-family: Segoe UI;
-                """)
-
-        # 修改经验显示
-        self.exp_label = QLabel()
-        self.exp_label.setText(f"{self.exp}/{self.Max_exp}")
-
-        self.exp_label.setStyleSheet("""
-                font-size: 12px;
-                color: #999999;
-                font-family: Segoe UI;
-            """)
-
-        level_layout.addWidget(self.level_label)
-        level_layout.addStretch()
-        level_layout.addWidget(self.exp_label)
-
-        # 进度条
-        self.progress_bar = QWidget()
-        self.progress_bar.setFixedHeight(6)  # 高度更小
-        self.progress_bar.setStyleSheet("""
-            background-color: #EEEEEE;
-            border-radius: 3px;
+        self.level_label.setStyleSheet("""
+            font-size: 14px;
+            font-weight: 700;
+            color: #fa709a;
+            font-family: 'Segoe UI';
         """)
 
-        # 修改进度条设置
+        self.exp_label = QLabel(f"{self.exp}/{self.Max_exp}")
+        self.exp_label.setStyleSheet("""
+            font-size: 12px;
+            color: #9ca3af;
+            font-weight: 500;
+            font-family: 'Segoe UI';
+        """)
+
+        exp_labels_lyt.addWidget(self.level_label)
+        exp_labels_lyt.addStretch()
+        exp_labels_lyt.addWidget(self.exp_label)
+        exp_lyt.addLayout(exp_labels_lyt)
+
+        self.progress_bar = QWidget()
+        self.progress_bar.setFixedHeight(8)
+        self.progress_bar.setStyleSheet("""
+            background-color: #f3f4f6;
+            border-radius: 4px;
+        """)
+
         self.progress = QWidget(self.progress_bar)
-        progress_percent = min(self.exp / self.Max_exp, 1.0)
-        progress_width = int(180 * progress_percent)
-        self.progress.setGeometry(0, 0, progress_width, 6)
-        self.progress.setStyleSheet(f"""
-                    background-color: {self.level_color};
-                    border-radius: 3px;
-                """)
+        self.progress.setFixedHeight(8)
+        self.progress.setStyleSheet("""
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                stop:0 #fa709a, stop:1 #fee140);
+            border-radius: 4px;
+        """)
+        exp_lyt.addWidget(self.progress_bar)
+        right_layout.addLayout(exp_lyt)
 
-        exp_layout.addLayout(level_layout)
-        exp_layout.addSpacing(0)
-        exp_layout.addWidget(self.progress_bar)
-
-        main_layout.addLayout(exp_layout)
-
-        # 功能按钮
-        btn_layout = QVBoxLayout()
-        btn_layout.setContentsMargins(30, 0, 30, 20)
-        btn_layout.setSpacing(12)
+        right_layout.addStretch()
 
         self.change_pwd_btn = QPushButton("修改密码")
         self.change_pwd_btn.setFixedHeight(36)
+        self.change_pwd_btn.setCursor(QCursor(Qt.PointingHandCursor))
         self.change_pwd_btn.setStyleSheet("""
             QPushButton {
-                background-color: #5B9BD5;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #a18cd1, stop:1 #fbc2eb);
                 color: white;
-                border-radius: 18px;
+                border: none;
+                border-radius: 10px;
                 font-size: 14px;
-                font-family: Segoe UI;
+                font-weight: 600;
+                font-family: 'Microsoft YaHei';
             }
             QPushButton:hover {
-                background-color: #407ec9;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #9378c4, stop:1 #f0a8dc);
             }
         """)
-
         self.change_pwd_btn.clicked.connect(self.change_password)
+        right_layout.addWidget(self.change_pwd_btn)
 
-        btn_layout.addWidget(self.change_pwd_btn)
-        main_layout.addLayout(btn_layout)
-
+        main_layout.addLayout(right_layout, 1)
         self.setLayout(main_layout)
 
     def update_avatar_border(self, color: QColor):
@@ -710,6 +726,9 @@ class InfoPopup(QWidget):
                 border: 3px solid {color.name()};
                 border-radius: 50px;
                 background-color: #F0F0F0;
+            }}
+            QPushButton:hover {{
+                border: 3px solid #5B9BD5;
             }}
         """)
 
@@ -763,9 +782,23 @@ class InfoPopup(QWidget):
         rect = QRectF(0, 0, self.width(), self.height())
 
         path = QPainterPath()
-        path.addRoundedRect(rect, 12, 12)
+        path.addRoundedRect(rect, 24, 24)
 
-        painter.fillPath(path, QBrush(QColor(230, 230, 230, 150)))
+        painter.fillPath(path, QBrush(QColor(255, 255, 255, 245)))
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._update_progress_geometry()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._update_progress_geometry()
+
+    def _update_progress_geometry(self):
+        if hasattr(self, 'progress_bar') and self.progress_bar.width() > 0:
+            progress_percent = min(self.exp / self.Max_exp, 1.0)
+            progress_width = max(0, int(self.progress_bar.width() * progress_percent))
+            self.progress.setGeometry(0, 0, progress_width, self.progress_bar.height())
 
     def upload_avatar(self):
         global avatar_date

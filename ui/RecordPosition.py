@@ -214,8 +214,8 @@ class record_position(QtWidgets.QDialog):
         layout = QVBoxLayout()
 
         font = QtGui.QFont()
-        font.setFamily("Arial")
-        font.setPointSize(16)
+        font.setFamily("等线")
+        font.setPointSize(14)
 
         self.prompt_label = QtWidgets.QLabel()
         self.prompt_label.setFont(font)
@@ -244,7 +244,6 @@ class record_position(QtWidgets.QDialog):
         button_layout.addWidget(self.cancel_button)
 
         layout.addWidget(self.prompt_label)
-        layout.addStretch()
         layout.addLayout(button_layout)
 
         page.setLayout(layout)

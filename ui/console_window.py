@@ -1,7 +1,10 @@
+import os
 import random
 import struct
 import traceback
 from datetime import datetime
+
+import requests
 from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import  QMainWindow, QTextBrowser, QDesktopWidget
 from pyexpat import ErrorString
@@ -117,6 +120,7 @@ class ConsoleWindow(QMainWindow):
                             "查询经验值": "查询当前的经验值",
                             "update weather": "手动更新天气",
                             "runtime": "查看当前软件运行时间",
+                            "局域网传输工具": "运行局域网传输工具",
                             "更改颜色": "自定义修改主题配色",
                             "点击测试": "测试左键点击速度",
                             "handle x y": "手动设置句柄发送输入栏位置",
@@ -159,7 +163,10 @@ class ConsoleWindow(QMainWindow):
                 "input_bg": "#3A3A3A",
                 "scroll_handle": "#4A4A4A",
                 "button_bg": "#4A4A4A",
-                "error_color": "red"
+                "error_color": "red",
+                "min_btn_bg": "#4A4A4A",
+                "min_btn_hover": "#5A5A5A",
+                "min_btn_press": "#3A3A3A"
             },
             "light": {
                 "main_bg": "#F0F0F0",
@@ -168,7 +175,10 @@ class ConsoleWindow(QMainWindow):
                 "input_bg": "#FFFFFF",
                 "scroll_handle": "#C0C0C0",
                 "button_bg": "#D0D0D0",
-                "error_color": "#D00000"
+                "error_color": "#D00000",
+                "min_btn_bg": "#D0D0D0",
+                "min_btn_hover": "#C0C0C0",
+                "min_btn_press": "#B0B0B0"
             }
         }
 
@@ -207,16 +217,6 @@ class ConsoleWindow(QMainWindow):
         self.min_button = QPushButton("—", self.title_bar)
         self.min_button.setGeometry(750, 5, 20, 20)
         self.min_button.clicked.connect(self.showMinimized)
-        self.min_button.setStyleSheet("""
-                           QPushButton {
-                               background-color: #4A4A4A;
-                               color: #E0E0E0;
-                               border-radius: 3px;
-                               font-size: 14px;
-                           }
-                           QPushButton:hover { background-color: #5A5A5A; }
-                           QPushButton:pressed { background-color: #3A3A3A; }
-                       """)
 
         # 初始化主题切换按钮
         self.theme_button = QPushButton(self.title_bar)
@@ -233,7 +233,6 @@ class ConsoleWindow(QMainWindow):
                 """)
         self.min_button.raise_()
 
-
         self.lineEdit = CustomLineEdit(self)
         self.lineEdit.setGeometry(0, 475, 800, 25)
         self.lineEdit.setObjectName('lineEdit')
@@ -241,19 +240,29 @@ class ConsoleWindow(QMainWindow):
         self.lineEdit.up_arrow_pressed.connect(self.handle_up_arrow)
         self.lineEdit.down_arrow_pressed.connect(self.handle_down_arrow)
 
+        # 把确认往左挪出空间
         self.confirm_button = QPushButton(self)
-        self.confirm_button.setGeometry(700,475,75,25)
+        self.confirm_button.setGeometry(650,475,75,25)
         self.confirm_button.setText('确认')
         self.confirm_button.setFont(ui.style.style_font_9)
         self.confirm_button.setObjectName('confirm_button')
         self.confirm_button.clicked.connect(self.input_content)
 
+        # 新增问号按钮（在确认后面，保存前面）
+        self.help_button = QPushButton(self)
+        self.help_button.setGeometry(725,475,25,25)
+        self.help_button.setObjectName('help_button')
+        self.help_button.setIcon(QIcon("./image/Component/提示3.png"))
+        self.help_button.setIconSize(QSize(18, 18))
+        self.help_button.clicked.connect(self.show_help)
+
+        # 保存按钮右侧
         self.save_button = QPushButton(self)
-        self.save_button.setGeometry(775,475,25,25)
+        self.save_button.setGeometry(750,475,25,25)
         self.save_button.clicked.connect(self.save)
         self.save_button.setObjectName('save_button')
         self.save_button.setStyleSheet(ui.style.save_button_style)
-        self.save_button.setIcon(QIcon("I:\Download\保存-1.png"))  # 替换为实际图标路径
+        self.save_button.setIcon(QIcon("./image/Component/保存-1.png"))  # 替换为实际图标路径
         self.save_button.setIconSize(QSize(20, 20))  # 明确设置图标大小
 
         self.apply_theme()
@@ -277,6 +286,32 @@ class ConsoleWindow(QMainWindow):
             self.title_label.setStyleSheet(ui.style.style_console_title_label_dark)
             self.confirm_button.setStyleSheet(ui.style.style_console_confirm_button_dark)
             self.save_button.setIcon(QIcon("./image/Component/保存-1.png"))  # 替换为实际图标路径
+
+        # 最小化按钮跟随主题颜色
+        style_cfg = self.theme_styles[theme]
+        self.min_button.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {style_cfg["min_btn_bg"]};
+                color: #E0E0E0;
+                border-radius: 3px;
+                font-size: 14px;
+            }}
+            QPushButton:hover {{ background-color: {style_cfg["min_btn_hover"]}; }}
+            QPushButton:pressed {{ background-color: {style_cfg["min_btn_press"]}; }}
+        """)
+
+        # help按钮做个简单的圆角背景，随主题淡一点
+        self.help_button.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {style_cfg["button_bg"]};
+                border: none;
+                border-radius: 4px;
+            }}
+            QPushButton:hover {{
+                background-color: {style_cfg["scroll_handle"]};
+            }}
+        """)
+
         self.load_history()
 
     def toggle_theme(self):
@@ -307,8 +342,6 @@ class ConsoleWindow(QMainWindow):
         # 添加菜单动作
         minimize_action = QAction("最小化", self)
         minimize_action.triggered.connect(self.showMinimized)
-
-
 
         close_action = QAction("关闭", self)
         close_action.triggered.connect(self.close)
@@ -384,6 +417,13 @@ class ConsoleWindow(QMainWindow):
             self.lineEdit.setText(self.temporary_input)
             self.temporary_input = ''
 
+    def show_help(self):
+        self.input_history.append('help')
+        """按钮和输入help公用的帮助输出"""
+        for index, (key_dic, value) in enumerate(self.list_function.items(), start=1):
+            print(f"{index}. {key_dic} {value}")
+        print('请输入数字或对应的名称以执行')
+
     def input_content(self):
         global sys_list, current_time_string, exp_status, temp_content, COLOR
         content = self.lineEdit.text()
@@ -398,7 +438,6 @@ class ConsoleWindow(QMainWindow):
         print(">>>", content)
         current_time_string = '[' + time.strftime("%H:%M:%S") + ']'
         self.lineEdit.setText("")
-        #self.input_content_last = content
         # 保存非空内容到历史记录
         if content.strip():
             self.input_history.append(content)
@@ -413,9 +452,7 @@ class ConsoleWindow(QMainWindow):
             self.browser.verticalScrollBar().maximum()
         )
         if content == '帮助' or content == 'help':
-            for index, (key_dic, value) in enumerate(self.list_function.items(), start=1):
-                print(f"{index}. {key_dic} {value}")
-            print('请输入数字或对应的名称以执行')
+            self.show_help()
         elif content == '签到':
             TypedJSONClient('sign_in', 'None')
             try:
@@ -440,6 +477,10 @@ class ConsoleWindow(QMainWindow):
             contents = content.split()
             result = random.choice(contents[1:])
             print(result)
+        elif content == '局域网传输工具':
+            # 直接调用
+            function.down_run_tool()
+            print(r"此工具保存在C:\\Fuchen\\LocalSend文件夹中 如需重复使用可打开该文件夹运行")
 
         elif content == 'update weather':
             try:
@@ -503,6 +544,43 @@ class ConsoleWindow(QMainWindow):
                         """
 
                 windows.stack.setStyleSheet(stack_style)
+                CONFIG_PATH = "config.json"
+                if os.path.exists(CONFIG_PATH):
+                    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+                        cfg = json.load(f)
+                else:
+                    cfg = {}
+
+                    # 左侧
+                if colors["left_mode"] == "gradient":
+                    left_arr = [
+                        "horizontal" if colors["left_direction"] == "horizontal" else "vertical",
+                        colors["left_start"],
+                        colors["left_end"],
+                    ]
+                else:
+                    left_arr = [
+                        "solid",
+                        colors["left_start"],
+                    ]
+                cfg["left_color"] = left_arr
+
+                # 右侧
+                if colors["right_mode"] == "gradient":
+                    right_arr = [
+                        "horizontal" if colors["right_direction"] == "horizontal" else "vertical",
+                        colors["right_start"],
+                        colors["right_end"],
+                    ]
+                else:
+                    right_arr = [
+                        "solid",
+                        colors["right_start"],
+                    ]
+                cfg["right_color"] = right_arr
+
+                with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+                    json.dump(cfg, f, ensure_ascii=False, indent=4)
 
         elif content == 'runtime':
             currentTime = QtCore.QTime.currentTime()
@@ -556,7 +634,7 @@ class ConsoleWindow(QMainWindow):
             except:
                 traceback.print_exc()
         elif content == 'XFBSOMDFLS114514':
-            send_encry("30002 xfbsomdfls114514", s, key, iv)
+            send_encry("experience_bonus xfbsomdfls114514", s, key, iv)
             try:
                 exp = socket_information.get(timeout=3)
                 print(exp)
@@ -604,23 +682,4 @@ class ConsoleWindow(QMainWindow):
             # 运行主循环
             root.mainloop()
 
-        elif content == "管理员权限":
-            send_encry("90000", s, key, iv)
-            try:
-                result = socket_information.get(timeout=3)
-                print(result, type(result))
-                if result == '管理员权限存在':
-                    sys_list.append("r" + current_time_string + '请输入 查询 ID')
 
-            except:
-                sys_list.append("r" + current_time_string + "管理员权限获取失败")
-
-        elif content[0:5] == '管理员查询':
-            id = content.split()[1]
-            TypedJSONClient('admin', {'operation': '查询', 'acc': int(id)})
-            '''
-            try:
-                result = socket_information.get(timeout=3)
-                print(result)
-            except:
-                traceback.print_exc()'''
